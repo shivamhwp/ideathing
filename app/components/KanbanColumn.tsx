@@ -1,7 +1,8 @@
 import { useDroppable } from "@dnd-kit/core";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 interface KanbanColumnProps {
@@ -20,6 +21,14 @@ export function KanbanColumn({
   items,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 120, // Estimated item height
+    overscan: 3, // Render 3 extra items above/below for smooth scrolling
+  });
 
   const colorClasses = {
     amber: {
@@ -44,7 +53,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "kanban-column border",
+        "kanban-column border flex flex-col",
         colors.bg,
         isOver ? "border-primary" : colors.border,
         "transition-colors duration-200"
@@ -52,7 +61,7 @@ export function KanbanColumn({
     >
       <div
         className={cn(
-          "flex items-center gap-2 px-2.5 py-1.5 rounded-md mb-3",
+          "flex items-center gap-2 px-2.5 py-1.5 rounded-md mb-3 flex-shrink-0",
           colors.header
         )}
       >
@@ -68,21 +77,43 @@ export function KanbanColumn({
         </span>
       </div>
 
-      <div className="space-y-2 flex-1">
-        {items.map((idea) => (
-          <IdeaCard key={idea._id} idea={idea} />
-        ))}
-
-        {items.length === 0 && (
-          <div className="text-center py-6 text-muted-foreground">
-            <p className="text-xs">
-              {id === "ideas"
-                ? "Add your first idea!"
-                : "Drag ideas here when ready to film"}
-            </p>
+      {items.length === 0 ? (
+        <div className="text-center py-6 text-muted-foreground flex-1">
+          <p className="text-xs">
+            {id === "ideas"
+              ? "Add your first idea!"
+              : "Drag ideas here when ready to film"}
+          </p>
+        </div>
+      ) : (
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto min-h-0"
+          style={{ maxHeight: "calc(100vh - 280px)" }}
+        >
+          <div
+            className="relative w-full"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const idea = items[virtualItem.index];
+              return (
+                <div
+                  key={idea._id}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full pb-2"
+                  style={{
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <IdeaCard idea={idea} />
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

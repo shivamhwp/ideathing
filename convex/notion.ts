@@ -253,3 +253,166 @@ export const updateIdeaSynced = internalMutation({
     });
   },
 });
+
+// Internal action to delete from Notion
+export const deleteFromNotion = internalAction({
+  args: {
+    ideaId: v.id("ideas"),
+  },
+  handler: async (ctx, args) => {
+    // Get the idea
+    const idea = await ctx.runQuery(internal.notion.getIdeaInternal, {
+      ideaId: args.ideaId,
+    });
+
+    if (!idea || !idea.notionPageId) {
+      console.log("No Notion page to delete for idea:", args.ideaId);
+      return;
+    }
+
+    // Get the connection
+    const connection = await ctx.runQuery(
+      internal.notion.getConnectionInternal,
+      {
+        userId: idea.userId,
+      }
+    );
+
+    if (!connection) {
+      console.log("No Notion connection for user:", idea.userId);
+      return;
+    }
+
+    try {
+      // Call Notion API to archive/delete the page
+      const response = await fetch(
+        `https://api.notion.com/v1/pages/${idea.notionPageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${connection.integrationToken}`,
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+          },
+          body: JSON.stringify({
+            archived: true,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Notion API error:", errorData);
+        return;
+      }
+
+      // Clear the Notion sync data from the idea
+      await ctx.runMutation(internal.notion.clearIdeaSynced, {
+        ideaId: args.ideaId,
+      });
+
+      console.log("Successfully deleted idea from Notion:", idea.notionPageId);
+    } catch (error) {
+      console.error("Failed to delete from Notion:", error);
+    }
+  },
+});
+
+// Internal mutation to clear Notion sync data
+export const clearIdeaSynced = internalMutation({
+  args: {
+    ideaId: v.id("ideas"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.ideaId, {
+      notionPageId: undefined,
+      syncedAt: undefined,
+    });
+  },
+});
+
+// Internal action to update Notion page
+export const updateInNotion = internalAction({
+  args: {
+    ideaId: v.id("ideas"),
+  },
+  handler: async (ctx, args) => {
+    // Get the idea
+    const idea = await ctx.runQuery(internal.notion.getIdeaInternal, {
+      ideaId: args.ideaId,
+    });
+
+    if (!idea || !idea.notionPageId) {
+      console.log("No Notion page to update for idea:", args.ideaId);
+      return;
+    }
+
+    // Get the connection
+    const connection = await ctx.runQuery(
+      internal.notion.getConnectionInternal,
+      {
+        userId: idea.userId,
+      }
+    );
+
+    if (!connection) {
+      console.log("No Notion connection for user:", idea.userId);
+      return;
+    }
+
+    try {
+      // Call Notion API to update the page properties
+      const response = await fetch(
+        `https://api.notion.com/v1/pages/${idea.notionPageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${connection.integrationToken}`,
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+          },
+          body: JSON.stringify({
+            properties: {
+              Name: {
+                title: [
+                  {
+                    text: {
+                      content: idea.title,
+                    },
+                  },
+                ],
+              },
+              ...(idea.description && {
+                Description: {
+                  rich_text: [
+                    {
+                      text: {
+                        content: idea.description,
+                      },
+                    },
+                  ],
+                },
+              }),
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Notion API error:", errorData);
+        return;
+      }
+
+      // Update syncedAt timestamp
+      await ctx.runMutation(internal.notion.updateIdeaSynced, {
+        ideaId: args.ideaId,
+        notionPageId: idea.notionPageId,
+      });
+
+      console.log("Successfully updated idea in Notion:", idea.notionPageId);
+    } catch (error) {
+      console.error("Failed to update in Notion:", error);
+    }
+  },
+});

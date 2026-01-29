@@ -110,6 +110,15 @@ export const move = mutation({
         ideaId: args.id,
       });
     }
+
+    // If moving from vidit to ideas, delete from Notion
+    const wasInVidIt = idea.column === "vidit";
+    const movingToIdeas = args.column === "ideas";
+    if (wasInVidIt && movingToIdeas && idea.notionPageId) {
+      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
+        ideaId: args.id,
+      });
+    }
   },
 });
 
@@ -138,6 +147,13 @@ export const update = mutation({
     );
 
     await ctx.db.patch(id, filteredUpdates);
+
+    // If idea is in vidit and has a Notion page, sync updates to Notion
+    if (idea.column === "vidit" && idea.notionPageId) {
+      await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, {
+        ideaId: args.id,
+      });
+    }
   },
 });
 
@@ -154,6 +170,13 @@ export const remove = mutation({
     const idea = await ctx.db.get(args.id);
     if (!idea || idea.userId !== identity.subject) {
       throw new Error("Idea not found");
+    }
+
+    // If idea is in vidit and has a Notion page, delete from Notion
+    if (idea.column === "vidit" && idea.notionPageId) {
+      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
+        ideaId: args.id,
+      });
     }
 
     await ctx.db.delete(args.id);
