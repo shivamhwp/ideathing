@@ -1,16 +1,18 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { IdeaCard } from "./IdeaCard";
-import type { Idea } from "./KanbanBoard";
+import { Plus, DotsThree, Lightbulb, VideoCamera } from "@phosphor-icons/react";
 import { useRef, type ReactNode } from "react";
 import { cn } from "@/utils/utils";
+import { IdeaCard } from "./IdeaCard";
+import type { Idea } from "./KanbanBoard";
 
 interface KanbanColumnProps {
   id: "ideas" | "vid-it";
   title: string;
   icon: ReactNode;
-  color: "amber" | "pink";
+  color: "ideas" | "vidit";
   items: Idea[];
+  onAddClick?: () => void;
 }
 
 export function KanbanColumn({
@@ -19,6 +21,7 @@ export function KanbanColumn({
   icon,
   color,
   items,
+  onAddClick,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -26,70 +29,70 @@ export function KanbanColumn({
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 120, // Estimated item height
-    overscan: 3, // Render 3 extra items above/below for smooth scrolling
+    estimateSize: () => 100,
+    overscan: 5,
   });
-
-  const colorClasses = {
-    amber: {
-      bg: "bg-amber-50/50",
-      border: "border-amber-200/50",
-      header: "bg-amber-100/80 text-amber-800",
-      icon: "text-amber-600",
-      count: "bg-amber-200/50 text-amber-700",
-    },
-    pink: {
-      bg: "bg-pink-50/50",
-      border: "border-pink-200/50",
-      header: "bg-pink-100/80 text-pink-800",
-      icon: "text-pink-600",
-      count: "bg-pink-200/50 text-pink-700",
-    },
-  };
-
-  const colors = colorClasses[color];
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "kanban-column border flex flex-col",
-        colors.bg,
-        isOver ? "border-primary" : colors.border,
-        "transition-colors duration-200"
+        "kanban-column group",
+        isOver && "ring-2 ring-primary/30 border-primary/50"
       )}
     >
-      <div
-        className={cn(
-          "flex items-center gap-2 px-2.5 py-1.5 rounded-md mb-3 flex-shrink-0",
-          colors.header
-        )}
-      >
-        <span className={colors.icon}>{icon}</span>
-        <h3 className="font-medium text-sm">{title}</h3>
-        <span
-          className={cn(
-            "ml-auto px-1.5 py-0.5 rounded text-xs font-medium",
-            colors.count
+      {/* Column Header */}
+      <div className="kanban-column-header">
+        <div className="kanban-column-title">
+          <span className={cn("status-dot", `status-dot-${color}`)} />
+          <span>{title}</span>
+        </div>
+        <span className="kanban-column-count">{items.length}</span>
+
+        <div className="kanban-column-actions">
+          {onAddClick && (
+            <button
+              onClick={onAddClick}
+              className="column-add-button"
+              title="Add idea"
+            >
+              <Plus className="w-4 h-4" weight="bold" />
+            </button>
           )}
-        >
-          {items.length}
-        </span>
+          <button className="column-add-button" title="More options">
+            <DotsThree className="w-4 h-4" weight="bold" />
+          </button>
+        </div>
       </div>
 
+      {/* Column Content */}
       {items.length === 0 ? (
-        <div className="text-center py-6 text-muted-foreground flex-1">
-          <p className="text-xs">
+        <div className="kanban-empty">
+          <div className="kanban-empty-icon">
+            {id === "ideas" ? (
+              <Lightbulb className="w-5 h-5 text-muted-foreground/50" weight="duotone" />
+            ) : (
+              <VideoCamera className="w-5 h-5 text-muted-foreground/50" weight="duotone" />
+            )}
+          </div>
+          <p className="kanban-empty-text">
             {id === "ideas"
-              ? "Add your first idea!"
-              : "Drag ideas here when ready to film"}
+              ? "Add your first idea"
+              : "Drag ideas here when ready"}
           </p>
+          {onAddClick && (
+            <button
+              onClick={onAddClick}
+              className="mt-3 text-xs text-primary/70 hover:text-primary transition-colors"
+            >
+              + Add idea
+            </button>
+          )}
         </div>
       ) : (
         <div
           ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto min-h-0"
-          style={{ maxHeight: "calc(100vh - 280px)" }}
+          className="kanban-column-content"
         >
           <div
             className="relative w-full"
@@ -102,9 +105,10 @@ export function KanbanColumn({
                   key={idea._id}
                   data-index={virtualItem.index}
                   ref={virtualizer.measureElement}
-                  className="absolute top-0 left-0 w-full pb-2"
+                  className="absolute top-0 left-0 w-full pb-2 px-0.5 animate-fade-in opacity-0"
                   style={{
                     transform: `translateY(${virtualItem.start}px)`,
+                    animationDelay: `${Math.min(virtualItem.index * 0.02, 0.2)}s`,
                   }}
                 >
                   <IdeaCard idea={idea} />

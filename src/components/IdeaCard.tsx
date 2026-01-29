@@ -1,110 +1,134 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowSquareOut, DotsSixVertical, Trash } from "@phosphor-icons/react";
+import { DotsSixVertical, Trash, Link, Image } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import { useMutation } from "convex/react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/utils/utils";
 import type { Idea } from "./KanbanBoard";
 
 interface IdeaCardProps {
-	idea: Idea;
-	isDragging?: boolean;
+  idea: Idea;
+  isDragging?: boolean;
 }
 
 export function IdeaCard({ idea, isDragging = false }: IdeaCardProps) {
-	const [showDelete, setShowDelete] = useState(false);
-	const deleteIdea = useMutation(api.ideas.remove);
+  const [isHovered, setIsHovered] = useState(false);
+  const deleteIdea = useMutation(api.ideas.remove);
 
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging: isSortableDragging,
-	} = useSortable({ id: idea._id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({ id: idea._id });
 
-	const style = {
-		transform: CSS.Transform.toString(transform),
-		transition,
-	};
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
-	const handleDelete = async (e: React.MouseEvent) => {
-		e.stopPropagation();
-		await deleteIdea({ id: idea._id });
-	};
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await deleteIdea({ id: idea._id });
+  };
 
-	return (
-		<div
-			ref={setNodeRef}
-			style={style}
-			className={`idea-card group ${
-				isDragging || isSortableDragging ? "dragging" : ""
-			}`}
-			onMouseEnter={() => setShowDelete(true)}
-			onMouseLeave={() => setShowDelete(false)}
-		>
-			<div className="flex items-start gap-2">
-				<button
-					{...attributes}
-					{...listeners}
-					className="mt-0.5 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
-				>
-					<DotsSixVertical className="w-4 h-4" weight="bold" />
-				</button>
+  // Generate a short ID for display (like DEV-109)
+  const shortId = `IDEA-${idea._id.slice(-3).toUpperCase()}`;
 
-				<div className="flex-1 min-w-0">
-					{idea.thumbnail && (
-						<div className="mb-2 rounded-md overflow-hidden bg-muted aspect-video">
-							<img
-								src={idea.thumbnail}
-								alt={idea.title}
-								className="w-full h-full object-cover"
-							/>
-						</div>
-					)}
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "idea-card",
+        (isDragging || isSortableDragging) && "dragging"
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Card Actions - visible on hover */}
+      <div className="idea-card-actions">
+        <button
+          onClick={handleDelete}
+          className="p-1.5 rounded-md text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+          title="Delete idea"
+        >
+          <Trash className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
-					<h4 className="font-medium text-foreground truncate text-sm">
-						{idea.title}
-					</h4>
+      <div className="flex items-start gap-2.5">
+        {/* Drag Handle */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="drag-handle mt-0.5 flex-shrink-0"
+        >
+          <DotsSixVertical className="w-4 h-4" weight="bold" />
+        </button>
 
-					{idea.description && (
-						<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-							{idea.description}
-						</p>
-					)}
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* ID Badge */}
+          <span className="idea-card-id">{shortId}</span>
 
-					{idea.resources && idea.resources.length > 0 && (
-						<div className="flex flex-wrap gap-1.5 mt-2">
-							{idea.resources.map((resource, index) => (
-								<a
-									key={index}
-									href={resource}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded"
-									onClick={(e) => e.stopPropagation()}
-								>
-									<ArrowSquareOut className="w-3 h-3" />
-									Resource {index + 1}
-								</a>
-							))}
-						</div>
-					)}
-				</div>
+          {/* Title */}
+          <h4 className="idea-card-title">{idea.title}</h4>
 
-				{showDelete && (
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={handleDelete}
-						className="h-6 w-6 text-muted-foreground hover:text-destructive"
-					>
-						<Trash className="w-3.5 h-3.5" />
-					</Button>
-				)}
-			</div>
-		</div>
-	);
+          {/* Thumbnail */}
+          {idea.thumbnail && (
+            <div className="idea-card-thumbnail">
+              <img
+                src={idea.thumbnail}
+                alt={idea.title}
+                loading="lazy"
+              />
+            </div>
+          )}
+
+          {/* Description */}
+          {idea.description && (
+            <p className="idea-card-description">{idea.description}</p>
+          )}
+
+          {/* Footer with resources and metadata */}
+          <div className="flex items-center gap-2 pt-1">
+            {/* Resources */}
+            {idea.resources && idea.resources.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {idea.resources.slice(0, 3).map((resource, idx) => (
+                  <a
+                    key={idx}
+                    href={resource}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="idea-card-resource"
+                    onClick={(e) => e.stopPropagation()}
+                    title={resource}
+                  >
+                    <Link className="w-3 h-3" weight="bold" />
+                    <span>Link {idx + 1}</span>
+                  </a>
+                ))}
+                {idea.resources.length > 3 && (
+                  <span className="text-[10px] text-muted-foreground/60 self-center">
+                    +{idea.resources.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Thumbnail indicator if exists but not shown */}
+            {idea.thumbnail && (
+              <div className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/50">
+                <Image className="w-3 h-3" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
