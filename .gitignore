@@ -1,37 +1,13 @@
-# Dependencies
-node_modules/
-.pnpm-store/
-
-# Build outputs
-.vinxi/
-.output/
-dist/
-.vercel/
-
-# Convex
-convex/_generated/
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
+node_modules
 .DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# TypeScript
-*.tsbuildinfo
-
-# Testing
-coverage/
+dist
+dist-ssr
+*.local
+count.txt
+.env
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+todos.json
