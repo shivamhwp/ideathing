@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+.kanban-column {
+  @apply flex flex-col min-h-[500px] bg-gray-100 rounded-xl p-4;
+}
+
+.idea-card {
+  @apply bg-white rounded-lg p-4 shadow-sm border border-gray-200 cursor-grab active:cursor-grabbing transition-all duration-200;
+}
+
+.idea-card:hover {
+  @apply shadow-md border-gray-300;
+}
+
+.idea-card.dragging {
+  @apply shadow-lg opacity-80 rotate-2 scale-105;
+}
+
+.drop-indicator {
+  @apply h-1 bg-blue-400 rounded-full my-2 opacity-0 transition-opacity duration-200;
+}
+
+.drop-indicator.active {
+  @apply opacity-100;
+}
