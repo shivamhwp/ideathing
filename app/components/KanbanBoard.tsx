@@ -21,7 +21,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import { KanbanColumn } from "./KanbanColumn";
 import { IdeaCard } from "./IdeaCard";
 import { AddIdeaModal } from "./AddIdeaModal";
-import { Plus, Lightbulb, Video } from "lucide-react";
+import { Plus, Lightbulb, VideoCamera } from "@phosphor-icons/react";
+import { Button } from "~/components/ui/button";
 
 export type Idea = {
   _id: Id<"ideas">;
@@ -53,7 +54,7 @@ export function KanbanBoard() {
   if (ideas === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
       </div>
     );
   }
@@ -108,16 +109,13 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Your Ideas</h2>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
+        <h2 className="text-xl font-semibold text-foreground">Your Ideas</h2>
+        <Button onClick={() => setShowAddModal(true)} size="sm">
+          <Plus className="w-4 h-4 mr-1" weight="bold" />
           Add Idea
-        </button>
+        </Button>
       </div>
 
       <DndContext
@@ -126,7 +124,7 @@ export function KanbanBoard() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-4">
           <SortableContext
             items={ideasColumn.map((i) => i._id)}
             strategy={verticalListSortingStrategy}
@@ -134,7 +132,7 @@ export function KanbanBoard() {
             <KanbanColumn
               id="ideas"
               title="Ideas"
-              icon={<Lightbulb className="w-5 h-5" />}
+              icon={<Lightbulb className="w-4 h-4" weight="fill" />}
               color="amber"
               items={ideasColumn}
             />
@@ -147,8 +145,8 @@ export function KanbanBoard() {
             <KanbanColumn
               id="vidit"
               title="Vid It"
-              icon={<Video className="w-5 h-5" />}
-              color="emerald"
+              icon={<VideoCamera className="w-4 h-4" weight="fill" />}
+              color="pink"
               items={viditColumn}
             />
           </SortableContext>
@@ -159,7 +157,7 @@ export function KanbanBoard() {
         </DragOverlay>
       </DndContext>
 
-      {showAddModal && <AddIdeaModal onClose={() => setShowAddModal(false)} />}
+      <AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
     </div>
   );
 }

@@ -1,7 +1,23 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Database, X, Check, AlertCircle, RefreshCw } from "lucide-react";
+import {
+  Database,
+  Check,
+  WarningCircle,
+  SpinnerGap,
+} from "@phosphor-icons/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "~/components/ui/dialog";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { cn } from "~/lib/utils";
 
 export function NotionConnect() {
   const [showModal, setShowModal] = useState(false);
@@ -13,36 +29,38 @@ export function NotionConnect() {
 
   return (
     <>
-      <button
+      <Button
+        variant={connection ? "outline" : "secondary"}
+        size="sm"
         onClick={() => setShowModal(true)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors ${
-          connection
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-        }`}
+        className={cn(
+          connection &&
+            "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+        )}
       >
-        <Database className="w-4 h-4" />
-        <span className="text-sm font-medium">
+        <Database className="w-4 h-4 mr-1.5" weight="duotone" />
+        <span className="text-xs">
           {connection ? "Connected" : "Connect Notion"}
         </span>
-        {connection && <Check className="w-4 h-4" />}
-      </button>
+        {connection && <Check className="w-3.5 h-3.5 ml-1" weight="bold" />}
+      </Button>
 
-      {showModal && (
-        <NotionConnectModal
-          onClose={() => setShowModal(false)}
-          isConnected={!!connection}
-        />
-      )}
+      <NotionConnectModal
+        open={showModal}
+        onOpenChange={setShowModal}
+        isConnected={!!connection}
+      />
     </>
   );
 }
 
 function NotionConnectModal({
-  onClose,
+  open,
+  onOpenChange,
   isConnected,
 }: {
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   isConnected: boolean;
 }) {
   const [integrationToken, setIntegrationToken] = useState("");
@@ -81,7 +99,11 @@ function NotionConnectModal({
         targetSection: targetSection.trim() || "Vid It",
       });
 
-      onClose();
+      // Reset and close
+      setIntegrationToken("");
+      setDatabaseId("");
+      setTargetSection("");
+      onOpenChange(false);
     } catch (err) {
       setError("Failed to connect. Please check your credentials.");
     } finally {
@@ -91,149 +113,127 @@ function NotionConnectModal({
 
   const handleDisconnect = async () => {
     await disconnect();
-    onClose();
+    onOpenChange(false);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg">
-        <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
             {isConnected ? "Notion Connection" : "Connect to Notion"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
         {isConnected ? (
-          <div className="p-6">
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-lg mb-6">
-              <Check className="w-6 h-6 text-emerald-600" />
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-md">
+              <Check className="w-5 h-5 text-primary" weight="bold" />
               <div>
-                <p className="font-medium text-emerald-800">
+                <p className="font-medium text-sm text-primary">
                   Connected to Notion
                 </p>
-                <p className="text-sm text-emerald-600">
+                <p className="text-xs text-primary/70">
                   Your ideas will sync when moved to "Vid It"
                 </p>
               </div>
             </div>
 
-            <button
+            <Button
+              variant="outline"
               onClick={handleDisconnect}
-              className="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
+              className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
             >
               Disconnect
-            </button>
+            </Button>
           </div>
         ) : (
-          <form onSubmit={handleConnect} className="p-6 space-y-5">
+          <form onSubmit={handleConnect} className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className="flex items-center gap-2 p-2.5 bg-destructive/10 text-destructive rounded-md">
+                <WarningCircle className="w-4 h-4 flex-shrink-0" weight="fill" />
+                <p className="text-xs">{error}</p>
               </div>
             )}
 
-            <div>
-              <label
-                htmlFor="token"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Integration Token <span className="text-red-500">*</span>
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="token">
+                Integration Token <span className="text-destructive">*</span>
+              </Label>
+              <Input
                 id="token"
                 type="password"
                 value={integrationToken}
                 onChange={(e) => setIntegrationToken(e.target.value)}
                 placeholder="secret_..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Create an integration at{" "}
                 <a
                   href="https://www.notion.so/my-integrations"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   notion.so/my-integrations
                 </a>
               </p>
             </div>
 
-            <div>
-              <label
-                htmlFor="database"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Database ID <span className="text-red-500">*</span>
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="database">
+                Database ID <span className="text-destructive">*</span>
+              </Label>
+              <Input
                 id="database"
                 type="text"
                 value={databaseId}
                 onChange={(e) => setDatabaseId(e.target.value)}
                 placeholder="abc123..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Copy the ID from your Notion database URL
               </p>
             </div>
 
-            <div>
-              <label
-                htmlFor="section"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Target Section Name
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="section">Target Section Name</Label>
+              <Input
                 id="section"
                 type="text"
                 value={targetSection}
                 onChange={(e) => setTargetSection(e.target.value)}
                 placeholder="Vid It (default)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 The name of the status/section in your Notion database where
                 items should be added
               </p>
             </div>
 
-            <div className="flex gap-3 pt-4">
-              <button
+            <DialogFooter className="gap-2 pt-2">
+              <Button
                 type="button"
-                onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={
-                  !integrationToken.trim() ||
-                  !databaseId.trim() ||
-                  isSubmitting
+                  !integrationToken.trim() || !databaseId.trim() || isSubmitting
                 }
-                className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isSubmitting && (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <SpinnerGap className="w-4 h-4 mr-1.5 animate-spin" />
                 )}
                 {isSubmitting ? "Connecting..." : "Connect"}
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

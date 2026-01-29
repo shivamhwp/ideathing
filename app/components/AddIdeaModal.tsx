@@ -1,13 +1,25 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash } from "@phosphor-icons/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "~/components/ui/dialog";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import { Label } from "~/components/ui/label";
 
 interface AddIdeaModalProps {
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function AddIdeaModal({ onClose }: AddIdeaModalProps) {
+export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [thumbnail, setThumbnail] = useState("");
@@ -28,7 +40,12 @@ export function AddIdeaModal({ onClose }: AddIdeaModalProps) {
         thumbnail: thumbnail.trim() || undefined,
         resources: resources.filter((r) => r.trim()),
       });
-      onClose();
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setThumbnail("");
+      setResources([""]);
+      onOpenChange(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -49,125 +66,100 @@ export function AddIdeaModal({ onClose }: AddIdeaModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Add New Idea</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add New Idea</DialogTitle>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div>
-            <label
-              htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="title">
+              Title <span className="text-destructive">*</span>
+            </Label>
+            <Input
               id="title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter your idea title"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
               autoFocus
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Description
-            </label>
-            <textarea
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description of your idea"
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none resize-none"
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="thumbnail"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Thumbnail URL
-            </label>
-            <input
+          <div className="space-y-1.5">
+            <Label htmlFor="thumbnail">Thumbnail URL</Label>
+            <Input
               id="thumbnail"
               type="url"
               value={thumbnail}
               onChange={(e) => setThumbnail(e.target.value)}
               placeholder="https://example.com/image.jpg"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Resources
-            </label>
+          <div className="space-y-1.5">
+            <Label>Resources</Label>
             <div className="space-y-2">
               {resources.map((resource, index) => (
                 <div key={index} className="flex gap-2">
-                  <input
+                  <Input
                     type="url"
                     value={resource}
                     onChange={(e) => updateResource(index, e.target.value)}
                     placeholder="https://example.com/resource"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
                   />
                   {resources.length > 1 && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => removeResource(index)}
-                      className="p-2 text-gray-400 hover:text-red-500"
+                      className="text-muted-foreground hover:text-destructive"
                     >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                      <Trash className="w-4 h-4" />
+                    </Button>
                   )}
                 </div>
               ))}
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={addResource}
-              className="mt-2 flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+              className="mt-1"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 mr-1" />
               Add another resource
-            </button>
+            </Button>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
+          <DialogFooter className="gap-2 pt-2">
+            <Button
               type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim() || isSubmitting}
-              className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            </Button>
+            <Button type="submit" disabled={!title.trim() || isSubmitting}>
               {isSubmitting ? "Adding..." : "Add Idea"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -3,8 +3,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Idea } from "./KanbanBoard";
-import { ExternalLink, GripVertical, Trash2 } from "lucide-react";
+import { ArrowSquareOut, DotsSixVertical, Trash } from "@phosphor-icons/react";
 import { useState } from "react";
+import { Button } from "~/components/ui/button";
 
 interface IdeaCardProps {
   idea: Idea;
@@ -44,18 +45,18 @@ export function IdeaCard({ idea, isDragging = false }: IdeaCardProps) {
       onMouseEnter={() => setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2">
         <button
           {...attributes}
           {...listeners}
-          className="mt-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          className="mt-0.5 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
         >
-          <GripVertical className="w-4 h-4" />
+          <DotsSixVertical className="w-4 h-4" weight="bold" />
         </button>
 
         <div className="flex-1 min-w-0">
           {idea.thumbnail && (
-            <div className="mb-3 rounded-lg overflow-hidden bg-gray-100 aspect-video">
+            <div className="mb-2 rounded-md overflow-hidden bg-muted aspect-video">
               <img
                 src={idea.thumbnail}
                 alt={idea.title}
@@ -64,26 +65,28 @@ export function IdeaCard({ idea, isDragging = false }: IdeaCardProps) {
             </div>
           )}
 
-          <h4 className="font-medium text-gray-900 truncate">{idea.title}</h4>
+          <h4 className="font-medium text-foreground truncate text-sm">
+            {idea.title}
+          </h4>
 
           {idea.description && (
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
               {idea.description}
             </p>
           )}
 
           {idea.resources && idea.resources.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-1.5 mt-2">
               {idea.resources.map((resource, index) => (
                 <a
                   key={index}
                   href={resource}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  <ArrowSquareOut className="w-3 h-3" />
                   Resource {index + 1}
                 </a>
               ))}
@@ -92,12 +95,14 @@ export function IdeaCard({ idea, isDragging = false }: IdeaCardProps) {
         </div>
 
         {showDelete && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleDelete}
-            className="text-gray-400 hover:text-red-500 transition-colors"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
           >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            <Trash className="w-3.5 h-3.5" />
+          </Button>
         )}
       </div>
     </div>

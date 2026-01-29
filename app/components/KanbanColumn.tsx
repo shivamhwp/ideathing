@@ -2,12 +2,13 @@ import { useDroppable } from "@dnd-kit/core";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
 import type { ReactNode } from "react";
+import { cn } from "~/lib/utils";
 
 interface KanbanColumnProps {
   id: "ideas" | "vidit";
   title: string;
   icon: ReactNode;
-  color: "amber" | "emerald";
+  color: "amber" | "pink";
   items: Idea[];
 }
 
@@ -22,16 +23,18 @@ export function KanbanColumn({
 
   const colorClasses = {
     amber: {
-      bg: "bg-amber-50",
-      border: "border-amber-200",
-      header: "bg-amber-100 text-amber-800",
+      bg: "bg-amber-50/50",
+      border: "border-amber-200/50",
+      header: "bg-amber-100/80 text-amber-800",
       icon: "text-amber-600",
+      count: "bg-amber-200/50 text-amber-700",
     },
-    emerald: {
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
-      header: "bg-emerald-100 text-emerald-800",
-      icon: "text-emerald-600",
+    pink: {
+      bg: "bg-pink-50/50",
+      border: "border-pink-200/50",
+      header: "bg-pink-100/80 text-pink-800",
+      icon: "text-pink-600",
+      count: "bg-pink-200/50 text-pink-700",
     },
   };
 
@@ -40,28 +43,39 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`kanban-column ${colors.bg} border-2 ${
-        isOver ? "border-blue-400" : colors.border
-      } transition-colors duration-200`}
+      className={cn(
+        "kanban-column border",
+        colors.bg,
+        isOver ? "border-primary" : colors.border,
+        "transition-colors duration-200"
+      )}
     >
       <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg ${colors.header} mb-4`}
+        className={cn(
+          "flex items-center gap-2 px-2.5 py-1.5 rounded-md mb-3",
+          colors.header
+        )}
       >
         <span className={colors.icon}>{icon}</span>
-        <h3 className="font-semibold">{title}</h3>
-        <span className="ml-auto bg-white/50 px-2 py-0.5 rounded-full text-sm">
+        <h3 className="font-medium text-sm">{title}</h3>
+        <span
+          className={cn(
+            "ml-auto px-1.5 py-0.5 rounded text-xs font-medium",
+            colors.count
+          )}
+        >
           {items.length}
         </span>
       </div>
 
-      <div className="space-y-3 flex-1">
+      <div className="space-y-2 flex-1">
         {items.map((idea) => (
           <IdeaCard key={idea._id} idea={idea} />
         ))}
 
         {items.length === 0 && (
-          <div className="text-center py-8 text-gray-400">
-            <p className="text-sm">
+          <div className="text-center py-6 text-muted-foreground">
+            <p className="text-xs">
               {id === "ideas"
                 ? "Add your first idea!"
                 : "Drag ideas here when ready to film"}
