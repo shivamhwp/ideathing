@@ -61,7 +61,7 @@ export const create = mutation({
 export const move = mutation({
   args: {
     id: v.id("ideas"),
-    column: v.union(v.literal("ideas"), v.literal("vidit")),
+    column: v.union(v.literal("ideas"), v.literal("vid-it")),
     order: v.number(),
   },
   handler: async (ctx, args) => {
@@ -76,7 +76,7 @@ export const move = mutation({
     }
 
     const wasInIdeas = idea.column === "ideas";
-    const movingToVidIt = args.column === "vidit";
+    const movingToVidIt = args.column === "vid-it";
 
     // Update the idea
     await ctx.db.patch(args.id, {
@@ -104,15 +104,15 @@ export const move = mutation({
       }
     }
 
-    // If moving from ideas to vidit, sync to Notion
+    // If moving from ideas to vid-it, sync to Notion
     if (wasInIdeas && movingToVidIt) {
       await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, {
         ideaId: args.id,
       });
     }
 
-    // If moving from vidit to ideas, delete from Notion
-    const wasInVidIt = idea.column === "vidit";
+    // If moving from vid-it to ideas, delete from Notion
+    const wasInVidIt = idea.column === "vid-it";
     const movingToIdeas = args.column === "ideas";
     if (wasInVidIt && movingToIdeas && idea.notionPageId) {
       await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
@@ -148,8 +148,8 @@ export const update = mutation({
 
     await ctx.db.patch(id, filteredUpdates);
 
-    // If idea is in vidit and has a Notion page, sync updates to Notion
-    if (idea.column === "vidit" && idea.notionPageId) {
+    // If idea is in vid-it and has a Notion page, sync updates to Notion
+    if (idea.column === "vid-it" && idea.notionPageId) {
       await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, {
         ideaId: args.id,
       });
@@ -172,8 +172,8 @@ export const remove = mutation({
       throw new Error("Idea not found");
     }
 
-    // If idea is in vidit and has a Notion page, delete from Notion
-    if (idea.column === "vidit" && idea.notionPageId) {
+    // If idea is in vid-it and has a Notion page, delete from Notion
+    if (idea.column === "vid-it" && idea.notionPageId) {
       await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
         ideaId: args.id,
       });

@@ -6,7 +6,7 @@ import { useRef, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 interface KanbanColumnProps {
-  id: "ideas" | "vidit";
+  id: "ideas" | "vid-it";
   title: string;
   icon: ReactNode;
   color: "amber" | "pink";

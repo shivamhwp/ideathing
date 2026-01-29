@@ -8,7 +8,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     thumbnail: v.optional(v.string()),
     resources: v.optional(v.array(v.string())),
-    column: v.union(v.literal("ideas"), v.literal("vidit")),
+    column: v.union(v.literal("ideas"), v.literal("vid-it")),
     order: v.number(),
     notionPageId: v.optional(v.string()),
     syncedAt: v.optional(v.number()),

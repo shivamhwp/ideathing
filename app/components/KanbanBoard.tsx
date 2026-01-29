@@ -30,7 +30,7 @@ export type Idea = {
   description?: string;
   thumbnail?: string;
   resources?: string[];
-  column: "ideas" | "vidit";
+  column: "ideas" | "vid-it";
   order: number;
 };
 
@@ -62,8 +62,8 @@ export function KanbanBoard() {
   const ideasColumn = ideas
     .filter((idea) => idea.column === "ideas")
     .sort((a, b) => a.order - b.order);
-  const viditColumn = ideas
-    .filter((idea) => idea.column === "vidit")
+  const vidItColumn = ideas
+    .filter((idea) => idea.column === "vid-it")
     .sort((a, b) => a.order - b.order);
 
   const activeIdea = activeId
@@ -83,12 +83,12 @@ export function KanbanBoard() {
     const activeIdea = ideas.find((idea) => idea._id === active.id);
     if (!activeIdea) return;
 
-    let newColumn: "ideas" | "vidit" = activeIdea.column;
+    let newColumn: "ideas" | "vid-it" = activeIdea.column;
     let newOrder = activeIdea.order;
 
     // Determine target column
-    if (over.id === "ideas" || over.id === "vidit") {
-      newColumn = over.id as "ideas" | "vidit";
+    if (over.id === "ideas" || over.id === "vid-it") {
+      newColumn = over.id as "ideas" | "vid-it";
       const columnItems = ideas.filter((i) => i.column === newColumn);
       newOrder = columnItems.length;
     } else {
@@ -139,15 +139,15 @@ export function KanbanBoard() {
           </SortableContext>
 
           <SortableContext
-            items={viditColumn.map((i) => i._id)}
+            items={vidItColumn.map((i) => i._id)}
             strategy={verticalListSortingStrategy}
           >
             <KanbanColumn
-              id="vidit"
+              id="vid-it"
               title="Vid It"
               icon={<VideoCamera className="w-4 h-4" weight="fill" />}
               color="pink"
-              items={viditColumn}
+              items={vidItColumn}
             />
           </SortableContext>
         </div>
