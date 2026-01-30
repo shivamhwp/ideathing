@@ -1,5 +1,4 @@
 import {
-  closestCorners,
   DndContext,
   type DragEndEvent,
   DragOverlay,
@@ -8,27 +7,23 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  closestCenter,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
 } from "@dnd-kit/sortable";
-import {
-  Lightbulb,
-  Plus,
-  VideoCamera,
-  FunnelSimple,
-  Rows,
-  SquaresFour,
-} from "@phosphor-icons/react";
+import { Lightbulb, Plus, VideoCamera, SpinnerGap } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { AddIdeaModal } from "./AddIdeaModal";
+import { EditIdeaModal } from "./EditIdeaModal";
 import { IdeaCard } from "./IdeaCard";
 import { KanbanColumn } from "./KanbanColumn";
+import { Button } from "./ui/button";
 
 export type Idea = {
   _id: Id<"ideas">;
@@ -36,6 +31,8 @@ export type Idea = {
   description?: string;
   thumbnail?: string;
   resources?: string[];
+  priority?: "low" | "medium" | "high";
+  sponsored?: boolean;
   column: "ideas" | "vid-it";
   order: number;
 };
@@ -45,11 +42,12 @@ export function KanbanBoard() {
   const moveIdea = useMutation(api.ideas.move);
   const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 10,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -59,14 +57,8 @@ export function KanbanBoard() {
 
   if (ideas === undefined) {
     return (
-      <div className="flex items-center justify-center h-[40vh]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 animate-pulse" />
-            <div className="absolute inset-0 w-10 h-10 rounded-xl border-2 border-primary/30 border-t-primary animate-spin" />
-          </div>
-          <span className="text-sm text-muted-foreground">Loading ideas...</span>
-        </div>
+      <div className="flex items-center justify-center h-[50vh]">
+        <SpinnerGap className="w-6 h-6 text-muted-foreground animate-spin" />
       </div>
     );
   }
@@ -78,9 +70,7 @@ export function KanbanBoard() {
     .filter((idea) => idea.column === "vid-it")
     .sort((a, b) => a.order - b.order);
 
-  const activeIdea = activeId
-    ? ideas.find((idea) => idea._id === activeId)
-    : null;
+  const activeIdea = activeId ? ideas.find((idea) => idea._id === activeId) : null;
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(event.active.id as Id<"ideas">);
@@ -119,62 +109,34 @@ export function KanbanBoard() {
     }
   }
 
-  const totalIdeas = ideas.length;
+  function handleDragCancel() {
+    setActiveId(null);
+  }
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="toolbar">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            All ideas
-            <span className="text-sm font-normal text-muted-foreground">
-              {totalIdeas}
-            </span>
-          </h2>
-
-          <div className="toolbar-divider" />
-
-          <div className="toolbar-group">
-            <button className="toolbar-button">
-              <FunnelSimple className="w-3.5 h-3.5" weight="bold" />
-              Filter
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="toolbar-group bg-muted/30 rounded-lg p-0.5">
-            <button className="toolbar-button toolbar-button-active">
-              <Rows className="w-3.5 h-3.5" weight="bold" />
-            </button>
-            <button className="toolbar-button">
-              <SquaresFour className="w-3.5 h-3.5" weight="bold" />
-            </button>
-          </div>
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="add-idea-button"
-          >
-            <Plus className="w-4 h-4" weight="bold" />
-            Add idea
-          </button>
-        </div>
+        <h2 className="text-base font-medium text-foreground">
+          All Ideas
+          <span className="ml-2 text-sm font-normal text-muted-foreground">{ideas.length}</span>
+        </h2>
+        <Button size="sm" onClick={() => setShowAddModal(true)}>
+          <Plus className="w-4 h-4 mr-1.5" weight="bold" />
+          Add Idea
+        </Button>
       </div>
 
       {/* Kanban Columns */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
-        <div className="grid md:grid-cols-2 gap-4">
-          <SortableContext
-            items={ideasColumn.map((i) => i._id)}
-            strategy={verticalListSortingStrategy}
-          >
+        <div className="grid grid-cols-2 gap-4">
+          <SortableContext items={ideasColumn.map((i) => i._id)} strategy={rectSortingStrategy}>
             <KanbanColumn
               id="ideas"
               title="Ideas"
@@ -182,29 +144,53 @@ export function KanbanBoard() {
               color="ideas"
               items={ideasColumn}
               onAddClick={() => setShowAddModal(true)}
+              onItemClick={setEditingIdea}
             />
           </SortableContext>
 
-          <SortableContext
-            items={vidItColumn.map((i) => i._id)}
-            strategy={verticalListSortingStrategy}
-          >
+          <SortableContext items={vidItColumn.map((i) => i._id)} strategy={rectSortingStrategy}>
             <KanbanColumn
               id="vid-it"
               title="Vid It"
               icon={<VideoCamera className="w-4 h-4" weight="fill" />}
               color="vidit"
               items={vidItColumn}
+              onItemClick={setEditingIdea}
             />
           </SortableContext>
         </div>
 
-        <DragOverlay>
-          {activeIdea ? <IdeaCard idea={activeIdea} isDragging /> : null}
+        <DragOverlay
+          dropAnimation={{
+            duration: 200,
+            easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+          }}
+        >
+          {activeIdea ? (
+            <div className="w-48 rotate-3 shadow-2xl">
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2">
+                {activeIdea.thumbnail && (
+                  <img
+                    src={activeIdea.thumbnail.startsWith("k") ? "" : activeIdea.thumbnail}
+                    alt={activeIdea.title}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+              <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
+                {activeIdea.title}
+              </h3>
+            </div>
+          ) : null}
         </DragOverlay>
       </DndContext>
 
       <AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
+      <EditIdeaModal
+        idea={editingIdea}
+        open={!!editingIdea}
+        onOpenChange={(open) => !open && setEditingIdea(null)}
+      />
     </div>
   );
 }

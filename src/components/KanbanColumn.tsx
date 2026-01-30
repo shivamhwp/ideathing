@@ -1,7 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Plus, DotsThree, Lightbulb, VideoCamera } from "@phosphor-icons/react";
-import { useRef, type ReactNode } from "react";
+import { Plus, Lightbulb, VideoCamera } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
@@ -13,6 +12,7 @@ interface KanbanColumnProps {
   color: "ideas" | "vidit";
   items: Idea[];
   onAddClick?: () => void;
+  onItemClick?: (idea: Idea) => void;
 }
 
 export function KanbanColumn({
@@ -22,100 +22,55 @@ export function KanbanColumn({
   color,
   items,
   onAddClick,
+  onItemClick,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 100,
-    overscan: 5,
-  });
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "kanban-column group",
-        isOver && "ring-2 ring-primary/30 border-primary/50"
+        "flex flex-col min-h-[400px] rounded-xl border border-border/50 bg-card/20 p-3 transition-colors",
+        isOver && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
       )}
     >
       {/* Column Header */}
-      <div className="kanban-column-header">
-        <div className="kanban-column-title">
-          <span className={cn("status-dot", `status-dot-${color}`)} />
-          <span>{title}</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "w-2 h-2 rounded-full",
+              color === "ideas" ? "bg-amber-500" : "bg-pink-500",
+            )}
+          />
+          <span className="text-sm font-medium text-foreground">{title}</span>
+          <span className="text-xs text-muted-foreground">({items.length})</span>
         </div>
-        <span className="kanban-column-count">{items.length}</span>
-
-        <div className="kanban-column-actions">
-          {onAddClick && (
-            <button
-              onClick={onAddClick}
-              className="column-add-button"
-              title="Add idea"
-            >
-              <Plus className="w-4 h-4" weight="bold" />
-            </button>
-          )}
-          <button className="column-add-button" title="More options">
-            <DotsThree className="w-4 h-4" weight="bold" />
+        {onAddClick && (
+          <button
+            onClick={onAddClick}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Plus className="w-4 h-4" weight="bold" />
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Column Content */}
+      {/* Grid of cards */}
       {items.length === 0 ? (
-        <div className="kanban-empty">
-          <div className="kanban-empty-icon">
-            {id === "ideas" ? (
-              <Lightbulb className="w-5 h-5 text-muted-foreground/50" weight="duotone" />
-            ) : (
-              <VideoCamera className="w-5 h-5 text-muted-foreground/50" weight="duotone" />
-            )}
-          </div>
-          <p className="kanban-empty-text">
-            {id === "ideas"
-              ? "Add your first idea"
-              : "Drag ideas here when ready"}
-          </p>
-          {onAddClick && (
-            <button
-              onClick={onAddClick}
-              className="mt-3 text-xs text-primary/70 hover:text-primary transition-colors"
-            >
-              + Add idea
-            </button>
+        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50">
+          {id === "ideas" ? (
+            <Lightbulb className="w-8 h-8 mb-2" weight="duotone" />
+          ) : (
+            <VideoCamera className="w-8 h-8 mb-2" weight="duotone" />
           )}
+          <p className="text-xs">{id === "ideas" ? "Add your first idea" : "Drag ideas here"}</p>
         </div>
       ) : (
-        <div
-          ref={scrollContainerRef}
-          className="kanban-column-content"
-        >
-          <div
-            className="relative w-full"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const idea = items[virtualItem.index];
-              return (
-                <div
-                  key={idea._id}
-                  data-index={virtualItem.index}
-                  ref={virtualizer.measureElement}
-                  className="absolute top-0 left-0 w-full pb-2 px-0.5 animate-fade-in opacity-0"
-                  style={{
-                    transform: `translateY(${virtualItem.start}px)`,
-                    animationDelay: `${Math.min(virtualItem.index * 0.02, 0.2)}s`,
-                  }}
-                >
-                  <IdeaCard idea={idea} />
-                </div>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {items.map((idea) => (
+            <IdeaCard key={idea._id} idea={idea} onClick={() => onItemClick?.(idea)} />
+          ))}
         </div>
       )}
     </div>

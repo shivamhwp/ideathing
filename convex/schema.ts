@@ -8,6 +8,8 @@ export default defineSchema({
     description: v.optional(v.string()),
     thumbnail: v.optional(v.string()),
     resources: v.optional(v.array(v.string())),
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    sponsored: v.optional(v.boolean()),
     column: v.union(v.literal("ideas"), v.literal("vid-it")),
     order: v.number(),
     notionPageId: v.optional(v.string()),

@@ -96,10 +96,10 @@ export const testConnection = mutation({
     }
 
     // We'll do a simple validation here and let the action do the real test
-    if (!args.integrationToken.startsWith("secret_")) {
+    if (!args.integrationToken.startsWith("ntn_") && !args.integrationToken.startsWith("secret_")) {
       return {
         success: false,
-        error: "Invalid integration token format. It should start with 'secret_'",
+        error: "Invalid integration token format. It should start with 'ntn_'",
       };
     }
 
@@ -132,12 +132,9 @@ export const syncToNotion = internalAction({
     }
 
     // Get the connection
-    const connection = await ctx.runQuery(
-      internal.notion.getConnectionInternal,
-      {
-        userId: idea.userId,
-      }
-    );
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      userId: idea.userId,
+    });
 
     if (!connection) {
       console.log("No Notion connection for user:", idea.userId);
@@ -271,12 +268,9 @@ export const deleteFromNotion = internalAction({
     }
 
     // Get the connection
-    const connection = await ctx.runQuery(
-      internal.notion.getConnectionInternal,
-      {
-        userId: idea.userId,
-      }
-    );
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      userId: idea.userId,
+    });
 
     if (!connection) {
       console.log("No Notion connection for user:", idea.userId);
@@ -285,20 +279,17 @@ export const deleteFromNotion = internalAction({
 
     try {
       // Call Notion API to archive/delete the page
-      const response = await fetch(
-        `https://api.notion.com/v1/pages/${idea.notionPageId}`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${connection.integrationToken}`,
-            "Content-Type": "application/json",
-            "Notion-Version": "2022-06-28",
-          },
-          body: JSON.stringify({
-            archived: true,
-          }),
-        }
-      );
+      const response = await fetch(`https://api.notion.com/v1/pages/${idea.notionPageId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${connection.integrationToken}`,
+          "Content-Type": "application/json",
+          "Notion-Version": "2022-06-28",
+        },
+        body: JSON.stringify({
+          archived: true,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -348,12 +339,9 @@ export const updateInNotion = internalAction({
     }
 
     // Get the connection
-    const connection = await ctx.runQuery(
-      internal.notion.getConnectionInternal,
-      {
-        userId: idea.userId,
-      }
-    );
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      userId: idea.userId,
+    });
 
     if (!connection) {
       console.log("No Notion connection for user:", idea.userId);
@@ -362,41 +350,38 @@ export const updateInNotion = internalAction({
 
     try {
       // Call Notion API to update the page properties
-      const response = await fetch(
-        `https://api.notion.com/v1/pages/${idea.notionPageId}`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${connection.integrationToken}`,
-            "Content-Type": "application/json",
-            "Notion-Version": "2022-06-28",
-          },
-          body: JSON.stringify({
-            properties: {
-              Name: {
-                title: [
+      const response = await fetch(`https://api.notion.com/v1/pages/${idea.notionPageId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${connection.integrationToken}`,
+          "Content-Type": "application/json",
+          "Notion-Version": "2022-06-28",
+        },
+        body: JSON.stringify({
+          properties: {
+            Name: {
+              title: [
+                {
+                  text: {
+                    content: idea.title,
+                  },
+                },
+              ],
+            },
+            ...(idea.description && {
+              Description: {
+                rich_text: [
                   {
                     text: {
-                      content: idea.title,
+                      content: idea.description,
                     },
                   },
                 ],
               },
-              ...(idea.description && {
-                Description: {
-                  rich_text: [
-                    {
-                      text: {
-                        content: idea.description,
-                      },
-                    },
-                  ],
-                },
-              }),
-            },
-          }),
-        }
-      );
+            }),
+          },
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

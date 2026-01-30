@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as files from "../files.js";
 import type * as ideas from "../ideas.js";
 import type * as notion from "../notion.js";
 
@@ -18,6 +19,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  files: typeof files;
   ideas: typeof ideas;
   notion: typeof notion;
 }>;

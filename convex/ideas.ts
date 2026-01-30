@@ -25,6 +25,8 @@ export const create = mutation({
     description: v.optional(v.string()),
     thumbnail: v.optional(v.string()),
     resources: v.optional(v.array(v.string())),
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    sponsored: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -34,15 +36,10 @@ export const create = mutation({
 
     const existingIdeas = await ctx.db
       .query("ideas")
-      .withIndex("by_user_column", (q) =>
-        q.eq("userId", identity.subject).eq("column", "ideas")
-      )
+      .withIndex("by_user_column", (q) => q.eq("userId", identity.subject).eq("column", "ideas"))
       .collect();
 
-    const maxOrder = existingIdeas.reduce(
-      (max, idea) => Math.max(max, idea.order),
-      -1
-    );
+    const maxOrder = existingIdeas.reduce((max, idea) => Math.max(max, idea.order), -1);
 
     const ideaId = await ctx.db.insert("ideas", {
       userId: identity.subject,
@@ -50,6 +47,8 @@ export const create = mutation({
       description: args.description,
       thumbnail: args.thumbnail,
       resources: args.resources,
+      priority: args.priority,
+      sponsored: args.sponsored,
       column: "ideas",
       order: maxOrder + 1,
     });
@@ -88,7 +87,7 @@ export const move = mutation({
     const columnIdeas = await ctx.db
       .query("ideas")
       .withIndex("by_user_column", (q) =>
-        q.eq("userId", identity.subject).eq("column", args.column)
+        q.eq("userId", identity.subject).eq("column", args.column),
       )
       .collect();
 
@@ -129,6 +128,8 @@ export const update = mutation({
     description: v.optional(v.string()),
     thumbnail: v.optional(v.string()),
     resources: v.optional(v.array(v.string())),
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    sponsored: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -143,7 +144,7 @@ export const update = mutation({
 
     const { id, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([_, v]) => v !== undefined)
+      Object.entries(updates).filter(([_, v]) => v !== undefined),
     );
 
     await ctx.db.patch(id, filteredUpdates);

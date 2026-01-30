@@ -1,8 +1,8 @@
 import { Plus, SpinnerGap, Trash, Upload, X } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
-import { useMutation } from "convex/react";
-import { useAtom } from "jotai";
-import { useRef, useState } from "react";
+import type { Id } from "convex/_generated/dataModel";
+import { useMutation, useQuery } from "convex/react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,33 +14,57 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { type IdeaDraft, ideaDraftAtom } from "@/store/atoms";
+import type { Idea } from "./KanbanBoard";
 
-interface AddIdeaModalProps {
+interface EditIdeaModalProps {
+  idea: Idea | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
-  const [draft, setDraft] = useAtom(ideaDraftAtom);
+function ThumbnailPreview({ thumbnail }: { thumbnail: string }) {
+  const isStorageId = thumbnail.startsWith("k") && !thumbnail.includes("://");
+  const storageUrl = useQuery(
+    api.files.getUrl,
+    isStorageId ? { storageId: thumbnail as Id<"_storage"> } : "skip",
+  );
+  const imageUrl = isStorageId ? storageUrl : thumbnail;
+
+  if (!imageUrl) return null;
+  return <img src={imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />;
+}
+
+export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [resources, setResources] = useState<string[]>([""]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const createIdea = useMutation(api.ideas.create);
+  const updateIdea = useMutation(api.ideas.update);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
-  const updateDraft = (updates: Partial<IdeaDraft>) => {
-    setDraft((prev) => ({ ...prev, ...updates }));
-  };
+  // Load idea data when modal opens
+  useEffect(() => {
+    if (idea && open) {
+      setTitle(idea.title);
+      setDescription(idea.description || "");
+      setThumbnailUrl(idea.thumbnail || "");
+      setResources(idea.resources?.length ? idea.resources : [""]);
+      setThumbnailFile(null);
+      setThumbnailPreview(null);
+    }
+  }, [idea, open]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setThumbnailFile(file);
-      updateDraft({ thumbnailUrl: "" });
+      setThumbnailUrl("");
       const reader = new FileReader();
       reader.onload = (e) => {
         setThumbnailPreview(e.target?.result as string);
@@ -51,33 +75,20 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
   const clearThumbnail = () => {
     setThumbnailFile(null);
-    updateDraft({ thumbnailUrl: "" });
+    setThumbnailUrl("");
     setThumbnailPreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const clearDraft = () => {
-    setDraft({
-      title: "",
-      description: "",
-      thumbnailUrl: "",
-      resources: [""],
-      priority: "",
-      sponsored: false,
-    });
-    setThumbnailFile(null);
-    setThumbnailPreview(null);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft.title.trim()) return;
+    if (!idea || !title.trim()) return;
 
     setIsSubmitting(true);
     try {
-      let finalThumbnail: string | undefined;
+      let finalThumbnail: string | undefined = thumbnailUrl.trim() || undefined;
 
       if (thumbnailFile) {
         setIsUploading(true);
@@ -90,18 +101,16 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         const { storageId } = await result.json();
         finalThumbnail = storageId;
         setIsUploading(false);
-      } else if (draft.thumbnailUrl.trim()) {
-        finalThumbnail = draft.thumbnailUrl.trim();
       }
 
-      await createIdea({
-        title: draft.title.trim(),
-        description: draft.description.trim() || undefined,
+      await updateIdea({
+        id: idea._id,
+        title: title.trim(),
+        description: description.trim() || undefined,
         thumbnail: finalThumbnail,
-        resources: draft.resources.filter((r) => r.trim()),
+        resources: resources.filter((r) => r.trim()),
       });
 
-      clearDraft();
       onOpenChange(false);
     } finally {
       setIsSubmitting(false);
@@ -110,36 +119,39 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
   };
 
   const addResource = () => {
-    updateDraft({ resources: [...draft.resources, ""] });
+    setResources([...resources, ""]);
   };
 
   const updateResource = (index: number, value: string) => {
-    const newResources = [...draft.resources];
+    const newResources = [...resources];
     newResources[index] = value;
-    updateDraft({ resources: newResources });
+    setResources(newResources);
   };
 
   const removeResource = (index: number) => {
-    updateDraft({ resources: draft.resources.filter((_, i) => i !== index) });
+    setResources(resources.filter((_, i) => i !== index));
   };
+
+  const currentThumbnail =
+    thumbnailPreview || (thumbnailUrl && !thumbnailFile ? thumbnailUrl : null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl p-0 gap-0 border-border/50">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50">
-          <DialogTitle className="text-xl font-semibold tracking-tight">Add New Idea</DialogTitle>
+          <DialogTitle className="text-xl font-semibold tracking-tight">Edit Idea</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="title" className="text-sm font-medium">
+            <Label htmlFor="edit-title" className="text-sm font-medium">
               Title <span className="text-primary">*</span>
             </Label>
             <Input
-              id="title"
+              id="edit-title"
               type="text"
-              value={draft.title}
-              onChange={(e) => updateDraft({ title: e.target.value })}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="What's your idea?"
               autoFocus
               className="h-10 bg-muted/30 border-border/50 focus-visible:bg-background transition-colors"
@@ -147,13 +159,13 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium">
+            <Label htmlFor="edit-description" className="text-sm font-medium">
               Description
             </Label>
             <Textarea
-              id="description"
-              value={draft.description}
-              onChange={(e) => updateDraft({ description: e.target.value })}
+              id="edit-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe your idea in a few words..."
               rows={3}
               className="resize-none bg-muted/30 border-border/50 focus-visible:bg-background transition-colors"
@@ -162,13 +174,17 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Thumbnail</Label>
-            {thumbnailPreview ? (
+            {currentThumbnail ? (
               <div className="group relative rounded-xl overflow-hidden border border-border/50 aspect-video bg-muted/20">
-                <img
-                  src={thumbnailPreview}
-                  alt="Thumbnail preview"
-                  className="w-full h-full object-cover"
-                />
+                {thumbnailPreview ? (
+                  <img
+                    src={thumbnailPreview}
+                    alt="Thumbnail preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ThumbnailPreview thumbnail={thumbnailUrl} />
+                )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                 <button
                   type="button"
@@ -182,8 +198,8 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
               <div className="flex gap-2">
                 <Input
                   type="url"
-                  value={draft.thumbnailUrl}
-                  onChange={(e) => updateDraft({ thumbnailUrl: e.target.value })}
+                  value={thumbnailUrl}
+                  onChange={(e) => setThumbnailUrl(e.target.value)}
                   placeholder="Paste image URL or upload"
                   className="flex-1 h-10 bg-muted/30 border-border/50 focus-visible:bg-background transition-colors"
                 />
@@ -210,7 +226,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           <div className="space-y-2">
             <Label className="text-sm font-medium">Resources</Label>
             <div className="space-y-2">
-              {draft.resources.map((resource, index) => (
+              {resources.map((resource, index) => (
                 <div key={index} className="flex gap-2 group">
                   <Input
                     type="url"
@@ -219,7 +235,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
                     placeholder="https://example.com"
                     className="h-10 bg-muted/30 border-border/50 focus-visible:bg-background transition-colors"
                   />
-                  {draft.resources.length > 1 && (
+                  {resources.length > 1 && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -258,16 +274,16 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           <Button
             type="submit"
             onClick={handleSubmit}
-            disabled={!draft.title.trim() || isSubmitting}
+            disabled={!title.trim() || isSubmitting}
             className="min-w-[100px]"
           >
             {isSubmitting ? (
               <>
                 <SpinnerGap className="w-4 h-4 mr-2 animate-spin" />
-                {isUploading ? "Uploading..." : "Adding..."}
+                {isUploading ? "Uploading..." : "Saving..."}
               </>
             ) : (
-              "Add Idea"
+              "Save Changes"
             )}
           </Button>
         </DialogFooter>
