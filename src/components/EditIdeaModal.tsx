@@ -1,4 +1,9 @@
-import { Plus, SpinnerGap, Upload, X } from "@phosphor-icons/react";
+import {
+	PlusIcon,
+	SpinnerIcon,
+	UploadIcon,
+	XIcon,
+} from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useAction, useQuery } from "convex/react";
@@ -122,8 +127,8 @@ export function EditIdeaModal({
 
 	const removeResource = (index: number) => {
 		const nextResources = draft.resources.filter(
-				(_, resourceIndex) => resourceIndex !== index,
-			);
+			(_, resourceIndex) => resourceIndex !== index,
+		);
 		updateDraft({ resources: nextResources.length ? nextResources : [""] });
 	};
 
@@ -132,7 +137,7 @@ export function EditIdeaModal({
 		updateDraft({ thumbnail: "", thumbnailReady: false });
 	};
 
-	const handleSubmit = async (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.SubmitEvent) => {
 		e.preventDefault();
 		if (!ideaId || !draft.title.trim()) return;
 
@@ -150,7 +155,8 @@ export function EditIdeaModal({
 				finalThumbnail = (await uploadFile()) ?? undefined;
 			}
 
-			const finalThumbnailReady = draft.thumbnailReady || Boolean(finalThumbnail);
+			const finalThumbnailReady =
+				draft.thumbnailReady || Boolean(finalThumbnail);
 
 			await updateIdea({
 				id: ideaId,
@@ -166,7 +172,8 @@ export function EditIdeaModal({
 				releaseDate: draft.releaseDate || undefined,
 				owner: draft.owner || undefined,
 				channel: draft.channel || undefined,
-				potential: typeof draft.potential === "number" ? draft.potential : undefined,
+				potential:
+					typeof draft.potential === "number" ? draft.potential : undefined,
 				label: draft.label || undefined,
 				adReadTracker: draft.adReadTracker || undefined,
 				unsponsored: draft.unsponsored,
@@ -259,7 +266,7 @@ export function EditIdeaModal({
 										disabled={draft.resources.length === 1 && !resource}
 										aria-label="Remove resource"
 									>
-										<X className="w-4 h-4" />
+										<XIcon className="w-4 h-4" />
 									</Button>
 								</div>
 							))}
@@ -270,7 +277,7 @@ export function EditIdeaModal({
 									className="justify-start px-2"
 									onClick={addResource}
 								>
-									<Plus className="w-4 h-4 mr-2" />
+									<PlusIcon className="w-4 h-4 mr-2" />
 									Add resource
 								</Button>
 							</div>
@@ -282,7 +289,7 @@ export function EditIdeaModal({
 						<div className="space-y-1.5">
 							<Label className="text-sm">Thumbnail</Label>
 							{currentThumbnail ? (
-								<div className="group relative rounded-lg overflow-hidden border border-border/40 aspect-video w-48 bg-muted/30">
+								<div className="group relative rounded-lg overflow-hidden border border-border/40 aspect-video bg-muted/30">
 									{thumbnailPreview ? (
 										<img
 											src={thumbnailPreview}
@@ -297,25 +304,25 @@ export function EditIdeaModal({
 										onClick={clearThumbnail}
 										className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
 									>
-										<X className="w-3.5 h-3.5" />
+										<XIcon className="w-3.5 h-3.5" />
 									</button>
 								</div>
 							) : (
 								<div className="flex gap-2">
-								<Input
-									type="url"
-									value={draft.thumbnail}
-									onChange={(e) => {
-										const nextThumbnail = e.target.value;
-										updateDraft({
-											thumbnail: nextThumbnail,
-											thumbnailReady: Boolean(nextThumbnail),
-										});
-										clearFileUpload();
-									}}
-									placeholder="Paste image URL"
-									className="flex-1"
-								/>
+									<Input
+										type="url"
+										value={draft.thumbnail}
+										onChange={(e) => {
+											const nextThumbnail = e.target.value;
+											updateDraft({
+												thumbnail: nextThumbnail,
+												thumbnailReady: Boolean(nextThumbnail),
+											});
+											clearFileUpload();
+										}}
+										placeholder="Paste image URL"
+										className="flex-1"
+									/>
 									<input
 										ref={fileInputRef}
 										type="file"
@@ -329,7 +336,7 @@ export function EditIdeaModal({
 										size="icon"
 										onClick={() => fileInputRef.current?.click()}
 									>
-										<Upload className="w-4 h-4" />
+										<UploadIcon className="w-4 h-4" />
 									</Button>
 								</div>
 							)}
@@ -413,6 +420,39 @@ export function EditIdeaModal({
 									</PopoverContent>
 								</Popover>
 							</div>
+							<div className="flex items-center justify-between gap-4 pt-1">
+								<div className="flex items-center gap-2">
+									<Switch
+										id="edit-recorded"
+										checked={draft.recorded}
+										onChange={(e) =>
+											updateDraft({ recorded: e.target.checked })
+										}
+									/>
+									<Label
+										htmlFor="edit-recorded"
+										className="text-sm text-muted-foreground font-normal"
+									>
+										Recorded
+									</Label>
+								</div>
+
+								<div className="flex items-center gap-2">
+									<Switch
+										id="edit-unsponsored"
+										checked={draft.unsponsored}
+										onChange={(e) =>
+											updateDraft({ unsponsored: e.target.checked })
+										}
+									/>
+									<Label
+										htmlFor="edit-unsponsored"
+										className="text-sm text-muted-foreground font-normal"
+									>
+										Unsponsored
+									</Label>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -435,6 +475,7 @@ export function EditIdeaModal({
 									<SelectItem value="Theo">Theo</SelectItem>
 									<SelectItem value="Phase">Phase</SelectItem>
 									<SelectItem value="Ben">Ben</SelectItem>
+									<SelectItem value="shivam">Shivam</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -460,21 +501,6 @@ export function EditIdeaModal({
 								</SelectContent>
 							</Select>
 						</div>
-					</div>
-
-					{/* Recorded Toggle */}
-					<div className="flex items-center gap-2">
-						<Switch
-							id="edit-recorded"
-							checked={draft.recorded}
-							onChange={(e) => updateDraft({ recorded: e.target.checked })}
-						/>
-						<Label
-							htmlFor="edit-recorded"
-							className="text-sm text-muted-foreground font-normal"
-						>
-							Recorded
-						</Label>
 					</div>
 
 					{/* Priority, Potential, Ad Track Reader Row */}
@@ -504,8 +530,12 @@ export function EditIdeaModal({
 								Potential
 							</Label>
 							<Select
-								value={draft.potential !== "" ? String(draft.potential) : undefined}
-								onValueChange={(value) => updateDraft({ potential: Number(value) })}
+								value={
+									draft.potential !== "" ? String(draft.potential) : undefined
+								}
+								onValueChange={(value) =>
+									updateDraft({ potential: Number(value) })
+								}
 							>
 								<SelectTrigger id="edit-potential">
 									<SelectValue placeholder="Not set" />
@@ -541,21 +571,6 @@ export function EditIdeaModal({
 						</div>
 					</div>
 
-					{/* Unsponsored Toggle */}
-					<div className="flex items-center gap-2">
-						<Switch
-							id="edit-unsponsored"
-							checked={draft.unsponsored}
-							onChange={(e) => updateDraft({ unsponsored: e.target.checked })}
-						/>
-						<Label
-							htmlFor="edit-unsponsored"
-							className="text-sm text-muted-foreground font-normal"
-						>
-							Unsponsored
-						</Label>
-					</div>
-
 					{/* Notes */}
 					<div className="space-y-1.5">
 						<Label htmlFor="edit-notes" className="text-sm">
@@ -581,12 +596,11 @@ export function EditIdeaModal({
 					</Button>
 					<Button
 						type="submit"
-						onClick={handleSubmit}
 						disabled={!draft.title.trim() || isSubmitting}
 					>
 						{isSubmitting ? (
 							<>
-								<SpinnerGap className="w-4 h-4 mr-2 animate-spin" />
+								<SpinnerIcon className="w-4 h-4 mr-2 animate-spin" />
 								{isUploading ? "Uploading…" : "Saving…"}
 							</>
 						) : (

@@ -14,7 +14,7 @@ export const NOTION_PROPERTY_NAMES = {
 } as const;
 
 export type IdeaStatus = "idea" | "To Stream" | "Recorded";
-export type IdeaOwner = "Theo" | "Phase" | "Ben";
+export type IdeaOwner = "Theo" | "Phase" | "Ben" | "shivam";
 export type IdeaChannel = "main" | "theo rants" | "theo throwaways";
 export type IdeaLabel = "mid priority" | "low priority" | "high priority";
 export type IdeaAdReadTracker = "planned" | "in da edit" | "done";

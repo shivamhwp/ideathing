@@ -13,7 +13,14 @@ export default defineSchema({
     recorded: v.optional(v.boolean()),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
+    owner: v.optional(
+      v.union(
+        v.literal("Theo"),
+        v.literal("Phase"),
+        v.literal("Ben"),
+        v.literal("shivam"),
+      ),
+    ),
     channel: v.optional(
       v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
     ),

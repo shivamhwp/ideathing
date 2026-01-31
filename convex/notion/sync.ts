@@ -1,6 +1,7 @@
 import { v } from "convex/values";
+import type { ActionCtx } from "../_generated/server";
 import { action, internalAction, internalMutation, internalQuery } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Client } from "@notionhq/client";
 import type {
   BlockObjectRequest,
@@ -11,7 +12,7 @@ import type {
   PartialBlockObjectResponse,
   UpdatePageParameters,
 } from "@notionhq/client/build/src/api-endpoints";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { createNotionClient } from "./client";
 import { NOTION_PROPERTY_NAMES, type NotionPropertyEntry } from "./types";
 import {
@@ -39,6 +40,10 @@ import {
 } from "./utils";
 
 const BATCH_SIZE = 10;
+const MAX_NOTION_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+
+const isStorageId = (value: string | null | undefined): value is Id<"_storage"> =>
+  !!value && value.startsWith("k") && !value.includes("://");
 
 type NotionPageData = GetPageResponse;
 
@@ -55,7 +60,7 @@ type IdeaUpdates = {
   title?: string;
   description?: string;
   notes?: string;
-  owner?: "Theo" | "Phase" | "Ben";
+  owner?: "Theo" | "Phase" | "Ben" | "shivam";
   channel?: "main" | "theo rants" | "theo throwaways";
   label?: "mid priority" | "low priority" | "high priority";
   adReadTracker?: "planned" | "in da edit" | "done";
@@ -98,6 +103,193 @@ const createRichText = (content: string, link?: string): TextRichText[] => [
   },
 ];
 
+const sanitizeContentType = (value: string | null) =>
+  value?.split(";")[0]?.trim() || null;
+
+const getFilenameFromUrl = (url: string, contentType: string | null) => {
+  try {
+    const pathname = new URL(url).pathname;
+    const base = pathname.split("/").pop() || "";
+    if (base && base.includes(".")) {
+      return base;
+    }
+  } catch {
+    // ignore invalid URLs
+  }
+
+  const extensionMap: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+  };
+  const extension = contentType ? extensionMap[contentType] : undefined;
+  return extension ? `thumbnail.${extension}` : "thumbnail";
+};
+
+const isImageFile = (contentType: string | null, filename: string) => {
+  if (contentType?.startsWith("image/")) {
+    return true;
+  }
+
+  return /\.(png|jpe?g|gif|webp)$/i.test(filename);
+};
+
+const resolveThumbnailUrl = async (
+  ctx: ActionCtx,
+  thumbnail: string | null | undefined
+): Promise<string | null> => {
+  if (!thumbnail) {
+    return null;
+  }
+
+  if (isStorageId(thumbnail)) {
+    const url = await ctx.runQuery(api.files.getUrl, {
+      storageId: thumbnail,
+    });
+    return url ?? null;
+  }
+
+  if (thumbnail.startsWith("http://") || thumbnail.startsWith("https://")) {
+    return thumbnail;
+  }
+
+  return null;
+};
+
+const uploadFileToNotion = async (
+  notion: Client,
+  url: string
+): Promise<{
+  fileUploadId: string;
+  contentType: string | null;
+  filename: string;
+} | null> => {
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch {
+    return null;
+  }
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const contentType = sanitizeContentType(response.headers.get("content-type"));
+  const lengthHeader = response.headers.get("content-length");
+  if (lengthHeader) {
+    const length = Number(lengthHeader);
+    if (Number.isFinite(length) && length > MAX_NOTION_FILE_SIZE) {
+      return null;
+    }
+  }
+
+  const data = await response.arrayBuffer();
+  if (data.byteLength > MAX_NOTION_FILE_SIZE) {
+    return null;
+  }
+
+  const filename = getFilenameFromUrl(url, contentType);
+
+  let upload;
+  try {
+    upload = await notion.fileUploads.create({
+      mode: "single_part",
+      filename,
+      content_type: contentType ?? undefined,
+    });
+  } catch {
+    return null;
+  }
+
+  try {
+    await notion.fileUploads.send({
+      file_upload_id: upload.id,
+      file: {
+        data: new Blob([data], {
+          type: contentType ?? "application/octet-stream",
+        }),
+        filename,
+      },
+    });
+  } catch {
+    return null;
+  }
+
+  return {
+    fileUploadId: upload.id,
+    contentType,
+    filename,
+  };
+};
+
+const buildThumbnailBlock = (
+  fileUploadId: string,
+  contentType: string | null,
+  filename: string
+): NotionBlock => {
+  const isImage = isImageFile(contentType, filename);
+
+  if (isImage) {
+    return {
+      object: "block",
+      type: "image",
+      image: {
+        type: "file_upload",
+        file_upload: {
+          id: fileUploadId,
+        },
+      },
+    };
+  }
+
+  return {
+    object: "block",
+    type: "file",
+    file: {
+      type: "file_upload",
+      file_upload: {
+        id: fileUploadId,
+      },
+      name: filename,
+    },
+  };
+};
+
+const buildExternalThumbnailBlock = (
+  url: string,
+  contentType: string | null,
+  filename: string
+): NotionBlock => {
+  const isImage = isImageFile(contentType, filename);
+
+  if (isImage) {
+    return {
+      object: "block",
+      type: "image",
+      image: {
+        type: "external",
+        external: {
+          url,
+        },
+      },
+    };
+  }
+
+  return {
+    object: "block",
+    type: "file",
+    file: {
+      type: "external",
+      external: {
+        url,
+      },
+      name: filename,
+    },
+  };
+};
+
 const buildSyncedContentChildren = (
   idea: {
     description?: string | null;
@@ -105,7 +297,11 @@ const buildSyncedContentChildren = (
     thumbnail?: string | null;
     resources?: string[] | null;
   },
-  missingProperties?: string[]
+  missingProperties?: string[],
+  options?: {
+    thumbnailBlock?: NotionBlock | null;
+    thumbnailText?: string | null;
+  }
 ) => {
   const blocks: NotionBlock[] = [];
 
@@ -129,8 +325,8 @@ const buildSyncedContentChildren = (
   }
 
   // Thumbnail Draft section
-  const thumbnail = normalizeText(idea.thumbnail);
-  if (thumbnail) {
+  const thumbnailText = normalizeText(options?.thumbnailText ?? null);
+  if (options?.thumbnailBlock || thumbnailText) {
     blocks.push({
       object: "block",
       type: "heading_3",
@@ -138,13 +334,17 @@ const buildSyncedContentChildren = (
         rich_text: createRichText("Thumbnail Draft"),
       },
     });
-    blocks.push({
-      object: "block",
-      type: "paragraph",
-      paragraph: {
-        rich_text: createRichText(thumbnail),
-      },
-    });
+    if (options?.thumbnailBlock) {
+      blocks.push(options.thumbnailBlock);
+    } else if (thumbnailText) {
+      blocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: createRichText(thumbnailText),
+        },
+      });
+    }
   }
 
   // Notes section
@@ -210,6 +410,46 @@ const buildSyncedContentChildren = (
   return blocks;
 };
 
+const getThumbnailContent = async (
+  ctx: ActionCtx,
+  notion: Client,
+  thumbnail?: string | null
+): Promise<{ block: NotionBlock | null; text: string | null }> => {
+  if (!thumbnail) {
+    return { block: null, text: null };
+  }
+
+  const thumbnailUrl = await resolveThumbnailUrl(ctx, thumbnail);
+  if (!thumbnailUrl) {
+    return {
+      block: null,
+      text: isStorageId(thumbnail) ? null : thumbnail,
+    };
+  }
+
+  const uploaded = await uploadFileToNotion(notion, thumbnailUrl);
+  if (uploaded) {
+    return {
+      block: buildThumbnailBlock(
+        uploaded.fileUploadId,
+        uploaded.contentType,
+        uploaded.filename
+      ),
+      text: null,
+    };
+  }
+
+  if (isStorageId(thumbnail)) {
+    return { block: null, text: null };
+  }
+
+  const filename = getFilenameFromUrl(thumbnailUrl, null);
+  return {
+    block: buildExternalThumbnailBlock(thumbnailUrl, null, filename),
+    text: null,
+  };
+};
+
 const fetchAllBlockChildren = async (blockId: string, notion: Client) => {
   const results: Array<{ id: string }> = [];
   let cursor: string | null | undefined = undefined;
@@ -256,11 +496,13 @@ const fetchAllBlocks = async (blockId: string, notion: Client) => {
 };
 
 const upsertSyncedContent = async ({
+  ctx,
   pageId,
   notion,
   idea,
   missingProperties,
 }: {
+  ctx: ActionCtx;
   pageId: string;
   notion: Client;
   idea: {
@@ -271,7 +513,11 @@ const upsertSyncedContent = async ({
   };
   missingProperties?: string[];
 }) => {
-  const children = buildSyncedContentChildren(idea, missingProperties);
+  const thumbnailContent = await getThumbnailContent(ctx, notion, idea.thumbnail);
+  const children = buildSyncedContentChildren(idea, missingProperties, {
+    thumbnailBlock: thumbnailContent.block,
+    thumbnailText: thumbnailContent.text,
+  });
   if (children.length === 0) {
     return;
   }
@@ -280,36 +526,20 @@ const upsertSyncedContent = async ({
   const isCalloutBlock = (
     block: PartialBlockObjectResponse | BlockObjectResponse
   ): block is CalloutBlockObjectResponse => "type" in block && block.type === "callout";
-  const syncedBlockIndex = blocks.findIndex(
+  const syncedBlocks = blocks.filter(
     (block) =>
       isCalloutBlock(block) &&
       getRichTextPlain(block.callout.rich_text) === SYNCED_CONTENT_TITLE
   );
-  const syncedBlock =
-    syncedBlockIndex >= 0 ? blocks[syncedBlockIndex] : null;
-  let syncedBlockId =
-    syncedBlock && "id" in syncedBlock && typeof syncedBlock.id === "string"
-      ? syncedBlock.id
-      : null;
-  const shouldRecreateAtEnd =
-    syncedBlockId && syncedBlockIndex !== blocks.length - 1;
 
-  if (shouldRecreateAtEnd && syncedBlockId) {
-    await notion.blocks.delete({ block_id: syncedBlockId });
-    syncedBlockId = null;
-  }
-
-  if (syncedBlockId) {
-    const existingChildren = await fetchAllBlockChildren(syncedBlockId, notion);
-    for (const child of existingChildren) {
-      await notion.blocks.delete({ block_id: child.id });
+  for (const block of syncedBlocks) {
+    if ("id" in block && typeof block.id === "string") {
+      const existingChildren = await fetchAllBlockChildren(block.id, notion);
+      for (const child of existingChildren) {
+        await notion.blocks.delete({ block_id: child.id });
+      }
+      await notion.blocks.delete({ block_id: block.id });
     }
-
-    await notion.blocks.children.append({
-      block_id: syncedBlockId,
-      children,
-    });
-    return;
   }
 
   const prependSpacer = blocks.length === 0;
@@ -320,24 +550,10 @@ const upsertSyncedContent = async ({
       rich_text: [],
     },
   };
-  const calloutBlock: BlockObjectRequest = {
-    object: "block",
-    type: "callout",
-    callout: {
-      rich_text: createRichText(SYNCED_CONTENT_TITLE),
-    },
-  };
-  const appendResponse = await notion.blocks.children.append({
+  await notion.blocks.children.append({
     block_id: pageId,
-    children: prependSpacer ? [spacerBlock, calloutBlock] : [calloutBlock],
+    children: prependSpacer ? [spacerBlock, ...children] : children,
   });
-  const calloutId = appendResponse.results[0]?.id;
-  if (calloutId) {
-    await notion.blocks.children.append({
-      block_id: calloutId,
-      children,
-    });
-  }
 };
 
 const getIdeaUpdatesFromNotion = ({
@@ -686,6 +902,7 @@ export const syncToNotion = internalAction({
     }
 
     await upsertSyncedContent({
+      ctx,
       pageId: data.id,
       notion,
       idea,
@@ -1071,6 +1288,7 @@ export const updateInNotion = internalAction({
     }
 
     await upsertSyncedContent({
+      ctx,
       pageId: idea.notionPageId,
       notion,
       idea,
@@ -1153,7 +1371,14 @@ export const updateIdeaFromNotion = internalMutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
-    owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
+    owner: v.optional(
+      v.union(
+        v.literal("Theo"),
+        v.literal("Phase"),
+        v.literal("Ben"),
+        v.literal("shivam"),
+      ),
+    ),
     channel: v.optional(
       v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways"))
     ),

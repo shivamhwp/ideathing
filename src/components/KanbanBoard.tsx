@@ -42,7 +42,7 @@ export type Idea = {
 	recorded?: boolean;
 	vodRecordingDate?: string;
 	releaseDate?: string;
-	owner?: "Theo" | "Phase" | "Ben";
+	owner?: "Theo" | "Phase" | "Ben" | "shivam";
 	channel?: "main" | "theo rants" | "theo throwaways";
 	potential?: number;
 	label?: "mid priority" | "low priority" | "high priority";

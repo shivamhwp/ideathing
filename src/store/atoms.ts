@@ -12,7 +12,7 @@ export interface IdeaDraft {
 	recorded: boolean;
 	vodRecordingDate: string;
 	releaseDate: string;
-	owner: "Theo" | "Phase" | "Ben" | "";
+	owner: "Theo" | "Phase" | "Ben" | "shivam" | "";
 	channel: "main" | "theo rants" | "theo throwaways" | "";
 	potential: number | "";
 	label: "mid priority" | "low priority" | "high priority" | "";
@@ -31,7 +31,7 @@ export type IdeaDraftSource = {
 	recorded?: boolean;
 	vodRecordingDate?: string | null;
 	releaseDate?: string | null;
-	owner?: "Theo" | "Phase" | "Ben" | null;
+	owner?: "Theo" | "Phase" | "Ben" | "shivam" | null;
 	channel?: "main" | "theo rants" | "theo throwaways" | null;
 	potential?: number | null;
 	label?: "mid priority" | "low priority" | "high priority" | null;

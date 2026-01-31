@@ -91,7 +91,14 @@ export const create = mutation({
     resources: v.optional(v.array(v.string())),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
+    owner: v.optional(
+      v.union(
+        v.literal("Theo"),
+        v.literal("Phase"),
+        v.literal("Ben"),
+        v.literal("shivam"),
+      ),
+    ),
     channel: v.optional(
       v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
     ),
@@ -235,7 +242,14 @@ export const updateInternal = internalMutation({
     recorded: v.optional(v.boolean()),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
+    owner: v.optional(
+      v.union(
+        v.literal("Theo"),
+        v.literal("Phase"),
+        v.literal("Ben"),
+        v.literal("shivam"),
+      ),
+    ),
     channel: v.optional(
       v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
     ),
@@ -301,7 +315,14 @@ export const update = action({
     recorded: v.optional(v.boolean()),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
+    owner: v.optional(
+      v.union(
+        v.literal("Theo"),
+        v.literal("Phase"),
+        v.literal("Ben"),
+        v.literal("shivam"),
+      ),
+    ),
     channel: v.optional(
       v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
     ),

@@ -356,12 +356,13 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
                 <SelectTrigger id="owner">
                   <SelectValue placeholder="Not set" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Theo">Theo</SelectItem>
-                  <SelectItem value="Phase">Phase</SelectItem>
-                  <SelectItem value="Ben">Ben</SelectItem>
-                </SelectContent>
-              </Select>
+				<SelectContent>
+					<SelectItem value="Theo">Theo</SelectItem>
+					<SelectItem value="Phase">Phase</SelectItem>
+					<SelectItem value="Ben">Ben</SelectItem>
+					<SelectItem value="shivam">Shivam</SelectItem>
+				</SelectContent>
+			</Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="channel" className="text-sm">
@@ -479,7 +480,6 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           </Button>
           <Button
             type="submit"
-            onClick={handleSubmit}
             disabled={!draft.title.trim() || isSubmitting}
           >
             {isSubmitting ? (

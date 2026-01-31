@@ -10,6 +10,7 @@ export const OWNER = {
   THEO: "Theo",
   PHASE: "Phase",
   BEN: "Ben",
+  SHIVAM: "shivam",
 } as const;
 
 export type IdeaOwner = (typeof OWNER)[keyof typeof OWNER];

@@ -29,6 +29,7 @@ export const normalizeOwner = (value?: string | null): IdeaOwner | undefined => 
   if (normalized === "theo") return "Theo";
   if (normalized === "phase") return "Phase";
   if (normalized === "ben") return "Ben";
+  if (normalized === "shivam") return "shivam";
   return undefined;
 };
 
