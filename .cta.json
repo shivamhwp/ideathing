@@ -1,0 +1,22 @@
+{
+  "projectName": "ideathing",
+  "mode": "file-router",
+  "typescript": true,
+  "packageManager": "bun",
+  "tailwind": true,
+  "addOnOptions": {},
+  "git": true,
+  "version": 1,
+  "framework": "react-cra",
+  "chosenAddOns": [
+    "biome",
+    "nitro",
+    "start",
+    "clerk",
+    "convex",
+    "compiler",
+    "shadcn",
+    "t3env",
+    "tanstack-query"
+  ]
+}
