@@ -9,38 +9,82 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RecordedRouteImport } from './routes/recorded'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedNotionWebhooksRouteImport } from './routes/_authenticated/notion/webhooks'
+import { Route as AuthenticatedNotionCallbackRouteImport } from './routes/_authenticated/notion/callback'
 
+const RecordedRoute = RecordedRouteImport.update({
+  id: '/recorded',
+  path: '/recorded',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedNotionWebhooksRoute =
+  AuthenticatedNotionWebhooksRouteImport.update({
+    id: '/_authenticated/notion/webhooks',
+    path: '/notion/webhooks',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedNotionCallbackRoute =
+  AuthenticatedNotionCallbackRouteImport.update({
+    id: '/_authenticated/notion/callback',
+    path: '/notion/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/recorded': typeof RecordedRoute
+  '/notion/callback': typeof AuthenticatedNotionCallbackRoute
+  '/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/recorded': typeof RecordedRoute
+  '/notion/callback': typeof AuthenticatedNotionCallbackRoute
+  '/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/recorded': typeof RecordedRoute
+  '/_authenticated/notion/callback': typeof AuthenticatedNotionCallbackRoute
+  '/_authenticated/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/recorded' | '/notion/callback' | '/notion/webhooks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/recorded' | '/notion/callback' | '/notion/webhooks'
+  id:
+    | '__root__'
+    | '/'
+    | '/recorded'
+    | '/_authenticated/notion/callback'
+    | '/_authenticated/notion/webhooks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  RecordedRoute: typeof RecordedRoute
+  AuthenticatedNotionCallbackRoute: typeof AuthenticatedNotionCallbackRoute
+  AuthenticatedNotionWebhooksRoute: typeof AuthenticatedNotionWebhooksRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/recorded': {
+      id: '/recorded'
+      path: '/recorded'
+      fullPath: '/recorded'
+      preLoaderRoute: typeof RecordedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,21 +92,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/notion/webhooks': {
+      id: '/_authenticated/notion/webhooks'
+      path: '/notion/webhooks'
+      fullPath: '/notion/webhooks'
+      preLoaderRoute: typeof AuthenticatedNotionWebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/notion/callback': {
+      id: '/_authenticated/notion/callback'
+      path: '/notion/callback'
+      fullPath: '/notion/callback'
+      preLoaderRoute: typeof AuthenticatedNotionCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  RecordedRoute: RecordedRoute,
+  AuthenticatedNotionCallbackRoute: AuthenticatedNotionCallbackRoute,
+  AuthenticatedNotionWebhooksRoute: AuthenticatedNotionWebhooksRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

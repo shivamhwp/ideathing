@@ -1,27 +1,28 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CheckCircle, Link, Trash, CurrencyDollar } from "@phosphor-icons/react";
+import { Trash, Star } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { isConvexStorageId } from "@/lib/storage";
 import { cn } from "@/utils/utils";
+import { DeleteIdeaDialog } from "./DeleteIdeaDialog";
 import type { Idea } from "./KanbanBoard";
 
 interface IdeaCardProps {
   idea: Idea;
-  isDragging?: boolean;
   onClick?: () => void;
 }
 
 function ThumbnailImage({ thumbnail, alt }: { thumbnail: string; alt: string }) {
-  const isStorageId = thumbnail.startsWith("k") && !thumbnail.includes("://");
-
   const storageUrl = useQuery(
     api.files.getUrl,
-    isStorageId ? { storageId: thumbnail as Id<"_storage"> } : "skip",
+    isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
   );
 
-  const imageUrl = isStorageId ? storageUrl : thumbnail;
+  const imageUrl = isConvexStorageId(thumbnail) ? storageUrl : thumbnail;
 
   if (!imageUrl) return null;
 
@@ -35,14 +36,15 @@ function ThumbnailImage({ thumbnail, alt }: { thumbnail: string; alt: string }) 
   );
 }
 
-const priorityColors = {
-  low: "bg-slate-500",
-  medium: "bg-amber-500",
-  high: "bg-red-500",
+const statusColors: Record<NonNullable<Idea["status"]>, string> = {
+  idea: "bg-muted text-muted-foreground",
+  "To Stream": "bg-secondary text-secondary-foreground",
+  Recorded: "bg-primary text-primary-foreground",
 };
 
-export function IdeaCard({ idea, isDragging = false, onClick }: IdeaCardProps) {
+export function IdeaCard({ idea, onClick }: IdeaCardProps) {
   const deleteIdea = useMutation(api.ideas.remove);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const {
     attributes,
@@ -55,15 +57,26 @@ export function IdeaCard({ idea, isDragging = false, onClick }: IdeaCardProps) {
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: transition || "transform 200ms ease, opacity 200ms ease",
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    await deleteIdea({ id: idea._id });
+    setShowDeleteDialog(true);
   };
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteIdea({ id: idea._id });
+      toast.success("Idea deleted");
+    } catch (error) {
+      void error;
+      toast.error("Failed to delete idea");
+    }
+    setShowDeleteDialog(false);
+  };
+
+  const handleClick = () => {
     if (!isSortableDragging && onClick) {
       onClick();
     }
@@ -73,91 +86,74 @@ export function IdeaCard({ idea, isDragging = false, onClick }: IdeaCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={cn("group cursor-pointer", isSortableDragging && "opacity-40 scale-[0.98]")}
+      className={cn(
+        "group cursor-pointer",
+        isSortableDragging && "opacity-0",
+      )}
       onClick={handleClick}
     >
-      {/* Thumbnail - 16:9 aspect ratio like YouTube */}
-      <div
-        className="relative aspect-video rounded-lg overflow-hidden bg-muted/50 mb-2"
-        {...attributes}
-        {...listeners}
-      >
-        {idea.thumbnail ? (
-          <ThumbnailImage thumbnail={idea.thumbnail} alt={idea.title} />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30">
-            <span className="text-xs">No thumbnail</span>
-          </div>
-        )}
-
-        {/* Badges on thumbnail */}
-        <div className="absolute top-1.5 left-1.5 flex gap-1">
-          {idea.sponsored && (
-            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/90 text-white text-[10px] font-medium">
-              <CurrencyDollar className="w-3 h-3" weight="bold" />
-              Sponsored
-            </span>
+      {/* Compact card */}
+      <div className="rounded-lg overflow-hidden bg-card border border-border/60 hover:border-border hover:shadow-sm transition-all duration-200">
+        {/* Thumbnail - shorter aspect ratio */}
+        <div
+          className="relative aspect-[2/1] overflow-hidden bg-muted"
+          {...attributes}
+          {...listeners}
+        >
+          {idea.thumbnail ? (
+            <ThumbnailImage thumbnail={idea.thumbnail} alt={idea.title} />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-muted to-accent/50" />
           )}
-          {idea.priority && (
-            <span
-              className={cn(
-                "px-1.5 py-0.5 rounded text-white text-[10px] font-medium capitalize",
-                priorityColors[idea.priority],
-              )}
-            >
-              {idea.priority}
-            </span>
-          )}
-        </div>
 
-        {/* Hover overlay with actions */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors">
-          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Delete button on hover */}
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             <button
-              onClick={handleDelete}
+              onClick={handleDeleteClick}
               onPointerDown={(e) => e.stopPropagation()}
-              className="p-1.5 rounded-md bg-black/60 text-white/80 hover:text-white hover:bg-red-600 transition-colors"
+              className="p-1.5 rounded-md bg-black/50 backdrop-blur-sm text-white/80 hover:bg-destructive hover:text-white transition-colors"
               title="Delete"
             >
-              <Trash className="w-3.5 h-3.5" />
+              <Trash className="w-3.5 h-3.5" weight="bold" />
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Content below thumbnail */}
-      <div className="px-0.5">
-        <h3 className="text-sm font-medium text-foreground leading-snug line-clamp-2">
-          {idea.title}
-        </h3>
+        {/* Content - minimal */}
+        <div className="p-2.5 space-y-1.5">
+          {/* Title */}
+          <h3 className="text-[13px] font-medium text-foreground leading-tight line-clamp-2">
+            {idea.title}
+          </h3>
 
-        {idea.description && (
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{idea.description}</p>
-        )}
-
-        {idea.resources && idea.resources.length > 0 && (
-          <div className="flex items-center gap-1.5 mt-1.5">
-            {idea.resources.slice(0, 3).map((resource, idx) => (
-              <a
-                key={idx}
-                href={resource}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-[10px] text-primary/70 hover:text-primary"
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <Link className="w-3 h-3" weight="bold" />
-              </a>
-            ))}
-            {idea.resources.length > 3 && (
-              <span className="text-[10px] text-muted-foreground/60">
-                +{idea.resources.length - 3}
+          {/* Meta row: status, channel, potential */}
+          <div className="flex items-center gap-1.5 text-[10px]">
+            {idea.status && (
+              <span className={cn("px-1.5 py-0.5 rounded font-medium", statusColors[idea.status])}>
+                {idea.status === "idea" ? "Idea" : idea.status}
+              </span>
+            )}
+            {idea.channel && (
+              <span className="text-muted-foreground capitalize">
+                {idea.channel}
+              </span>
+            )}
+            {typeof idea.potential === "number" && (
+              <span className="flex items-center gap-0.5 text-primary ml-auto font-medium">
+                <Star className="w-3 h-3" weight="fill" />
+                {idea.potential}
               </span>
             )}
           </div>
-        )}
+        </div>
       </div>
+
+      <DeleteIdeaDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        ideaTitle={idea.title}
+      />
     </div>
   );
 }
