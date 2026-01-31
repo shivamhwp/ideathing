@@ -1,13 +1,15 @@
+import type { Id } from "convex/_generated/dataModel";
 import { atomWithStorage } from "jotai/utils";
 
 export interface IdeaDraft {
+	ideaId?: Id<"ideas"> | null;
 	title: string;
 	description: string;
 	notes: string;
-	thumbnailUrl: string;
+	thumbnail: string;
 	thumbnailReady: boolean;
 	resources: string[];
-	status: "idea" | "To Stream" | "Recorded";
+	recorded: boolean;
 	vodRecordingDate: string;
 	releaseDate: string;
 	owner: "Theo" | "Phase" | "Ben" | "";
@@ -18,14 +20,34 @@ export interface IdeaDraft {
 	unsponsored: boolean;
 }
 
-const defaultDraft: IdeaDraft = {
+export type IdeaDraftSource = {
+	_id: Id<"ideas">;
+	title: string;
+	description?: string | null;
+	notes?: string | null;
+	thumbnail?: string | null;
+	thumbnailReady?: boolean;
+	resources?: string[] | null;
+	recorded?: boolean;
+	vodRecordingDate?: string | null;
+	releaseDate?: string | null;
+	owner?: "Theo" | "Phase" | "Ben" | null;
+	channel?: "main" | "theo rants" | "theo throwaways" | null;
+	potential?: number | null;
+	label?: "mid priority" | "low priority" | "high priority" | null;
+	adReadTracker?: "planned" | "in da edit" | "done" | null;
+	unsponsored?: boolean | null;
+};
+
+export const defaultIdeaDraft: IdeaDraft = {
+	ideaId: null,
 	title: "",
 	description: "",
 	notes: "",
-	thumbnailUrl: "",
+	thumbnail: "",
 	thumbnailReady: false,
 	resources: [""],
-	status: "idea",
+	recorded: false,
 	vodRecordingDate: "",
 	releaseDate: "",
 	owner: "",
@@ -38,5 +60,24 @@ const defaultDraft: IdeaDraft = {
 
 export const ideaDraftAtom = atomWithStorage<IdeaDraft>(
 	"ideathing-draft",
-	defaultDraft,
+	defaultIdeaDraft,
 );
+
+export const createIdeaDraftFromIdea = (idea: IdeaDraftSource): IdeaDraft => ({
+	ideaId: idea._id,
+	title: idea.title ?? "",
+	description: idea.description ?? "",
+	notes: idea.notes ?? "",
+	thumbnail: idea.thumbnail ?? "",
+	thumbnailReady: idea.thumbnailReady ?? false,
+	resources: idea.resources?.length ? idea.resources : [""],
+	recorded: idea.recorded ?? false,
+	vodRecordingDate: idea.vodRecordingDate ?? "",
+	releaseDate: idea.releaseDate ?? "",
+	owner: idea.owner ?? "",
+	channel: idea.channel ?? "",
+	potential: typeof idea.potential === "number" ? idea.potential : "",
+	label: idea.label ?? "",
+	adReadTracker: idea.adReadTracker ?? "",
+	unsponsored: idea.unsponsored ?? true,
+});

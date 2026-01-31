@@ -17,9 +17,15 @@ import {
 import { Plus, SpinnerGap } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
+import { useSetAtom } from "jotai";
 import { useState } from "react";
 import { useNotionSync } from "@/hooks/useNotionSync";
+import {
+	createIdeaDraftFromIdea,
+	defaultIdeaDraft,
+	ideaDraftAtom,
+} from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
@@ -33,7 +39,7 @@ export type Idea = {
 	thumbnail?: string | null;
 	thumbnailReady?: boolean;
 	resources?: string[];
-	status?: "idea" | "To Stream" | "Recorded";
+	recorded?: boolean;
 	vodRecordingDate?: string;
 	releaseDate?: string;
 	owner?: "Theo" | "Phase" | "Ben";
@@ -42,14 +48,15 @@ export type Idea = {
 	label?: "mid priority" | "low priority" | "high priority";
 	adReadTracker?: "planned" | "in da edit" | "done";
 	unsponsored?: boolean;
-	column: "ideas" | "vid-it";
+	column: "ideas" | "to-stream";
 	order: number;
 	notionPageId?: string;
 };
 
 export function KanbanBoard() {
 	const ideas = useQuery(api.ideas.list);
-	const moveIdea = useMutation(api.ideas.move);
+	const moveIdea = useAction(api.ideas.move);
+	const setDraft = useSetAtom(ideaDraftAtom);
 	const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
 	const [showAddModal, setShowAddModal] = useState(false);
 	const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
@@ -79,13 +86,23 @@ export function KanbanBoard() {
 	const ideasColumn = ideasData
 		.filter((idea) => idea.column === "ideas")
 		.sort((a, b) => a.order - b.order);
-	const vidItColumn = ideasData
-		.filter((idea) => idea.column === "vid-it")
+	const toStreamColumn = ideasData
+		.filter((idea) => idea.column === "to-stream" && !idea.recorded)
 		.sort((a, b) => a.order - b.order);
 
 	const activeIdea = activeId
 		? ideasData.find((idea) => idea._id === activeId)
 		: null;
+
+	const handleAddIdea = () => {
+		setDraft((prev) => (prev.ideaId ? defaultIdeaDraft : prev));
+		setShowAddModal(true);
+	};
+
+	const handleEditIdea = (idea: Idea) => {
+		setDraft(createIdeaDraftFromIdea(idea));
+		setEditingIdea(idea);
+	};
 
 	function handleDragStart(event: DragStartEvent) {
 		setActiveId(event.active.id as Id<"ideas">);
@@ -100,11 +117,11 @@ export function KanbanBoard() {
 		const activeIdea = ideasData.find((idea) => idea._id === active.id);
 		if (!activeIdea) return;
 
-		let newColumn: "ideas" | "vid-it" = activeIdea.column;
+		let newColumn: "ideas" | "to-stream" = activeIdea.column;
 		let newOrder = activeIdea.order;
 
-		if (over.id === "ideas" || over.id === "vid-it") {
-			newColumn = over.id as "ideas" | "vid-it";
+		if (over.id === "ideas" || over.id === "to-stream") {
+			newColumn = over.id as "ideas" | "to-stream";
 			const columnItems = ideasData.filter((i) => i.column === newColumn);
 			newOrder = columnItems.length;
 		} else {
@@ -116,18 +133,10 @@ export function KanbanBoard() {
 		}
 
 		if (activeIdea.column !== newColumn || activeIdea.order !== newOrder) {
-			const nextStatus =
-				activeIdea.column === "ideas" && newColumn === "vid-it"
-					? "To Stream"
-					: activeIdea.column === "vid-it" && newColumn === "ideas"
-						? "idea"
-						: undefined;
-
 			await moveIdea({
 				id: activeIdea._id,
 				column: newColumn,
 				order: newOrder,
-				status: nextStatus,
 			});
 		}
 	}
@@ -146,7 +155,7 @@ export function KanbanBoard() {
 						{ideasData.length}
 					</span>
 				</h2>
-				<Button size="sm" onClick={() => setShowAddModal(true)}>
+				<Button size="sm" onClick={handleAddIdea}>
 					<Plus className="w-4 h-4 mr-1.5" weight="bold" />
 					Add Idea
 				</Button>
@@ -170,21 +179,21 @@ export function KanbanBoard() {
 							title="Ideas"
 							color="ideas"
 							items={ideasColumn}
-							onAddClick={() => setShowAddModal(true)}
-							onItemClick={setEditingIdea}
+							onAddClick={handleAddIdea}
+							onItemClick={handleEditIdea}
 						/>
 					</SortableContext>
 
 					<SortableContext
-						items={vidItColumn.map((i) => i._id)}
+						items={toStreamColumn.map((i) => i._id)}
 						strategy={rectSortingStrategy}
 					>
 						<KanbanColumn
-							id="vid-it"
-							title="move to to-stream"
+							id="to-stream"
+							title="To Stream"
 							color="vidit"
-							items={vidItColumn}
-							onItemClick={setEditingIdea}
+							items={toStreamColumn}
+							onItemClick={handleEditIdea}
 						/>
 					</SortableContext>
 				</div>
@@ -217,6 +226,7 @@ export function KanbanBoard() {
 
 			<AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
 			<EditIdeaModal
+				key={editingIdea?._id ?? "edit-idea"}
 				idea={editingIdea}
 				open={!!editingIdea}
 				onOpenChange={(open) => !open && setEditingIdea(null)}

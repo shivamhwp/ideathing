@@ -3,7 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Trash, Star } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { isConvexStorageId } from "@/lib/storage";
@@ -36,14 +36,21 @@ function ThumbnailImage({ thumbnail, alt }: { thumbnail: string; alt: string }) 
   );
 }
 
-const statusColors: Record<NonNullable<Idea["status"]>, string> = {
+type DisplayStatus = "idea" | "To Stream" | "Recorded";
+
+const statusColors: Record<DisplayStatus, string> = {
   idea: "bg-muted text-muted-foreground",
   "To Stream": "bg-secondary text-secondary-foreground",
   Recorded: "bg-primary text-primary-foreground",
 };
 
+const getDisplayStatus = (idea: Idea): DisplayStatus => {
+  if (idea.recorded) return "Recorded";
+  return idea.column === "ideas" ? "idea" : "To Stream";
+};
+
 export function IdeaCard({ idea, onClick }: IdeaCardProps) {
-  const deleteIdea = useMutation(api.ideas.remove);
+  const deleteIdea = useAction(api.ideas.remove);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const {
@@ -128,11 +135,14 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
 
           {/* Meta row: status, channel, potential */}
           <div className="flex items-center gap-1.5 text-[10px]">
-            {idea.status && (
-              <span className={cn("px-1.5 py-0.5 rounded font-medium", statusColors[idea.status])}>
-                {idea.status === "idea" ? "Idea" : idea.status}
-              </span>
-            )}
+            {(() => {
+              const displayStatus = getDisplayStatus(idea);
+              return (
+                <span className={cn("px-1.5 py-0.5 rounded font-medium", statusColors[displayStatus])}>
+                  {displayStatus === "idea" ? "Idea" : displayStatus}
+                </span>
+              );
+            })()}
             {idea.channel && (
               <span className="text-muted-foreground capitalize">
                 {idea.channel}

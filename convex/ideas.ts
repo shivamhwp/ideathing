@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { action, internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 const isStorageId = (value: string | null | undefined): value is string =>
@@ -23,6 +23,64 @@ export const list = query({
   },
 });
 
+export const get = query({
+  args: {
+    id: v.id("ideas"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const idea = await ctx.db.get(args.id);
+    if (!idea || idea.userId !== identity.subject) {
+      return null;
+    }
+
+    return idea;
+  },
+});
+
+export const listRecorded = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const ideas = await ctx.db
+      .query("ideas")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .filter((q) => q.eq(q.field("recorded"), true))
+      .collect();
+
+    return ideas;
+  },
+});
+
+export const listByColumn = query({
+  args: {
+    column: v.union(v.literal("ideas"), v.literal("to-stream")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const ideas = await ctx.db
+      .query("ideas")
+      .withIndex("by_user_column", (q) =>
+        q.eq("userId", identity.subject).eq("column", args.column),
+      )
+      .collect();
+
+    return ideas.sort((a, b) => a.order - b.order);
+  },
+});
+
 export const create = mutation({
   args: {
     title: v.string(),
@@ -31,9 +89,6 @@ export const create = mutation({
     thumbnail: v.optional(v.string()),
     thumbnailReady: v.optional(v.boolean()),
     resources: v.optional(v.array(v.string())),
-    status: v.optional(
-      v.union(v.literal("idea"), v.literal("To Stream"), v.literal("Recorded")),
-    ),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
     owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
@@ -74,7 +129,7 @@ export const create = mutation({
       thumbnail: args.thumbnail,
       thumbnailReady: args.thumbnailReady ?? false,
       resources: args.resources,
-      status: args.status ?? "idea",
+      recorded: false,
       vodRecordingDate: args.vodRecordingDate,
       releaseDate: args.releaseDate,
       owner: args.owner,
@@ -91,12 +146,11 @@ export const create = mutation({
   },
 });
 
-export const move = mutation({
+export const moveInternal = internalMutation({
   args: {
     id: v.id("ideas"),
-    column: v.union(v.literal("ideas"), v.literal("vid-it")),
+    column: v.union(v.literal("ideas"), v.literal("to-stream")),
     order: v.number(),
-    status: v.optional(v.union(v.literal("idea"), v.literal("To Stream"), v.literal("Recorded"))),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -110,21 +164,13 @@ export const move = mutation({
     }
 
     const wasInIdeas = idea.column === "ideas";
-    const movingToVidIt = args.column === "vid-it";
-
-    // Update the idea
-    const nextStatus =
-      args.status ??
-      (idea.column === "ideas" && args.column === "vid-it"
-        ? "To Stream"
-        : idea.column === "vid-it" && args.column === "ideas"
-          ? "idea"
-          : idea.status);
+    const wasInToStream = idea.column === "to-stream";
+    const movingToToStream = args.column === "to-stream";
+    const movingToIdeas = args.column === "ideas";
 
     await ctx.db.patch(args.id, {
       column: args.column,
       order: args.order,
-      status: nextStatus,
     });
 
     // Reorder other items in the target column
@@ -147,25 +193,36 @@ export const move = mutation({
       }
     }
 
-    // If moving from ideas to vid-it, sync to Notion
-    if (wasInIdeas && movingToVidIt) {
-      await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, {
-        ideaId: args.id,
-      });
+    return {
+      wasInIdeas,
+      movingToToStream,
+      wasInToStream,
+      movingToIdeas,
+      notionPageId: idea.notionPageId ?? null,
+    };
+  },
+});
+
+export const move = action({
+  args: {
+    id: v.id("ideas"),
+    column: v.union(v.literal("ideas"), v.literal("to-stream")),
+    order: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(internal.ideas.moveInternal, args);
+
+    if (result.wasInIdeas && result.movingToToStream) {
+      await ctx.runAction(internal.notion.syncToNotion, { ideaId: args.id });
     }
 
-    // If moving from vid-it to ideas, delete from Notion
-    const wasInVidIt = idea.column === "vid-it";
-    const movingToIdeas = args.column === "ideas";
-    if (wasInVidIt && movingToIdeas && idea.notionPageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
-        ideaId: args.id,
-      });
+    if (result.wasInToStream && result.movingToIdeas && result.notionPageId) {
+      await ctx.runAction(internal.notion.deleteFromNotion, { ideaId: args.id });
     }
   },
 });
 
-export const update = mutation({
+export const updateInternal = internalMutation({
   args: {
     id: v.id("ideas"),
     title: v.optional(v.string()),
@@ -175,9 +232,7 @@ export const update = mutation({
     clearThumbnail: v.optional(v.boolean()),
     thumbnailReady: v.optional(v.boolean()),
     resources: v.optional(v.array(v.string())),
-    status: v.optional(
-      v.union(v.literal("idea"), v.literal("To Stream"), v.literal("Recorded")),
-    ),
+    recorded: v.optional(v.boolean()),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
     owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
@@ -227,16 +282,52 @@ export const update = mutation({
 
     await ctx.db.patch(id, filteredUpdates);
 
-    // If idea is in vid-it and has a Notion page, sync updates to Notion
-    if (idea.column === "vid-it" && idea.notionPageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, {
-        ideaId: args.id,
-      });
+    return {
+      shouldSyncToNotion: idea.column === "to-stream" && !!idea.notionPageId,
+    };
+  },
+});
+
+export const update = action({
+  args: {
+    id: v.id("ideas"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    thumbnail: v.optional(v.union(v.string(), v.null())),
+    clearThumbnail: v.optional(v.boolean()),
+    thumbnailReady: v.optional(v.boolean()),
+    resources: v.optional(v.array(v.string())),
+    recorded: v.optional(v.boolean()),
+    vodRecordingDate: v.optional(v.string()),
+    releaseDate: v.optional(v.string()),
+    owner: v.optional(v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"))),
+    channel: v.optional(
+      v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
+    ),
+    potential: v.optional(v.number()),
+    label: v.optional(
+      v.union(
+        v.literal("mid priority"),
+        v.literal("low priority"),
+        v.literal("high priority"),
+      ),
+    ),
+    adReadTracker: v.optional(
+      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
+    ),
+    unsponsored: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(internal.ideas.updateInternal, args);
+
+    if (result.shouldSyncToNotion) {
+      await ctx.runAction(internal.notion.updateInNotion, { ideaId: args.id });
     }
   },
 });
 
-export const remove = mutation({
+export const removeInternal = internalMutation({
   args: {
     id: v.id("ideas"),
   },
@@ -255,13 +346,31 @@ export const remove = mutation({
       await ctx.storage.delete(idea.thumbnail as Id<"_storage">);
     }
 
-    // If idea is in vid-it and has a Notion page, delete from Notion
-    if (idea.column === "vid-it" && idea.notionPageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
-        ideaId: args.id,
-      });
-    }
+    const shouldDeleteFromNotion = idea.column === "to-stream" && !!idea.notionPageId;
 
     await ctx.db.delete(args.id);
+
+    return {
+      shouldDeleteFromNotion,
+      notionPageId: idea.notionPageId ?? null,
+      userId: idea.userId,
+    };
+  },
+});
+
+export const remove = action({
+  args: {
+    id: v.id("ideas"),
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(internal.ideas.removeInternal, args);
+
+    if (result.shouldDeleteFromNotion && result.notionPageId) {
+      await ctx.runAction(internal.notion.deleteFromNotion, {
+        ideaId: args.id,
+        userId: result.userId,
+        notionPageId: result.notionPageId,
+      });
+    }
   },
 });

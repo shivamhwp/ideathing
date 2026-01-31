@@ -4,6 +4,7 @@ import {
 	HeadContent,
 	Scripts,
 } from "@tanstack/react-router";
+import { NotFound } from "@/components/not-found";
 import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
 import ClerkProvider from "../integrations/clerk/provider";
@@ -37,6 +38,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 	}),
 
 	shellComponent: RootDocument,
+	notFoundComponent: NotFound,
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {

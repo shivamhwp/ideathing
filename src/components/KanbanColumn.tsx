@@ -6,7 +6,7 @@ import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
 
 interface KanbanColumnProps {
-	id: "ideas" | "vid-it";
+	id: "ideas" | "to-stream";
 	title: string;
 	color: "ideas" | "vidit";
 	items: Idea[];

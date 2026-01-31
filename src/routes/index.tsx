@@ -1,5 +1,5 @@
 import { SignInButton } from "@clerk/tanstack-react-start";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { NotionConnect } from "@/components/NotionConnect";
@@ -15,19 +15,23 @@ function App() {
 			<div className="px-4 py-6 space-y-4">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<span className="text-xl font-black font-mono">ideathing</span>
+						<span className="text-xl font-black font-mono hover:text-primary transition-colors flex items-center gap-2">
+							ideathing
+						</span>
 					</div>
 					<div className="flex items-center gap-3">
 						<Authenticated>
-							<Button asChild size="sm" variant="outline">
-								<Link to="/recorded">Recorded</Link>
+							<Button asChild size="sm" variant="ghost">
+								<Link to="/recorded">recorded vids</Link>
 							</Button>
 							<NotionConnect />
 							<ThemeToggle />
 							<ClerkHeader />
 						</Authenticated>
 						<Unauthenticated>
-							<SignInButton />
+							<Button asChild size="sm" variant="default" className="font-mono">
+								<SignInButton mode="modal">sign in with google</SignInButton>
+							</Button>
 						</Unauthenticated>
 					</div>
 				</div>

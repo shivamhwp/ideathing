@@ -84,6 +84,8 @@ http.route({
       return new Response("ok", { status: 200 });
     }
 
+    console.log("Webhook received:", payload.type, payload.entity?.id);
+
     const pageId = payload.entity?.type === "page" ? payload.entity?.id : undefined;
     if (pageId) {
       await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {

@@ -28,7 +28,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { type IdeaDraft, ideaDraftAtom } from "@/store/atoms";
+import { defaultIdeaDraft, type IdeaDraft, ideaDraftAtom } from "@/store/atoms";
 
 interface AddIdeaModalProps {
   open: boolean;
@@ -67,7 +67,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFileSelect(e);
-    updateDraft({ thumbnailUrl: "", thumbnailReady: true });
+    updateDraft({ thumbnail: "", thumbnailReady: true });
   };
 
   const updateResource = (index: number, value: string) => {
@@ -89,27 +89,11 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
   const clearThumbnail = () => {
     clearFileUpload();
-    updateDraft({ thumbnailUrl: "", thumbnailReady: false });
+    updateDraft({ thumbnail: "", thumbnailReady: false });
   };
 
   const clearDraft = () => {
-    setDraft({
-      title: "",
-      description: "",
-      notes: "",
-      thumbnailUrl: "",
-      thumbnailReady: false,
-      resources: [""],
-      status: "idea",
-      vodRecordingDate: "",
-      releaseDate: "",
-      owner: "",
-      channel: "",
-      potential: "",
-      label: "",
-      adReadTracker: "",
-      unsponsored: true,
-    });
+    setDraft(defaultIdeaDraft);
     clearFileUpload();
   };
 
@@ -123,8 +107,8 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
       if (thumbnailFile) {
         finalThumbnail = (await uploadFile()) ?? undefined;
-      } else if (draft.thumbnailUrl.trim()) {
-        finalThumbnail = draft.thumbnailUrl.trim();
+      } else if (draft.thumbnail.trim()) {
+        finalThumbnail = draft.thumbnail.trim();
       }
 
       await createIdea({
@@ -134,7 +118,6 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         thumbnail: finalThumbnail,
         thumbnailReady: draft.thumbnailReady || Boolean(finalThumbnail),
         resources: draft.resources.filter((r) => r.trim()),
-        status: draft.status,
         vodRecordingDate: draft.vodRecordingDate || undefined,
         releaseDate: draft.releaseDate || undefined,
         owner: draft.owner || undefined,
@@ -257,10 +240,10 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
                 <div className="flex gap-2">
                   <Input
                     type="url"
-                    value={draft.thumbnailUrl}
+                    value={draft.thumbnail}
                     onChange={(e) =>
                       updateDraft({
-                        thumbnailUrl: e.target.value,
+                        thumbnail: e.target.value,
                         thumbnailReady: Boolean(e.target.value),
                       })
                     }
@@ -360,26 +343,8 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
             </div>
           </div>
 
-          {/* Status, Owner, Channel Row */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="status" className="text-sm">
-                Status
-              </Label>
-              <Select
-                value={draft.status}
-                onValueChange={(value) => updateDraft({ status: value as IdeaDraft["status"] })}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="idea">Idea</SelectItem>
-                  <SelectItem value="To Stream">To Stream</SelectItem>
-                  <SelectItem value="Recorded">Recorded</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Owner, Channel Row */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="owner" className="text-sm">
                 Owner

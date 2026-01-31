@@ -1,24 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { useQuery } from "convex/react";
+import { useSetAtom } from "jotai";
 import { useState } from "react";
 import { EditIdeaModal } from "@/components/EditIdeaModal";
 import { IdeaCard } from "@/components/IdeaCard";
 import type { Idea } from "@/components/KanbanBoard";
 import { Button } from "@/components/ui/button";
 import { useNotionSync } from "@/hooks/useNotionSync";
+import { createIdeaDraftFromIdea, ideaDraftAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/recorded")({
 	component: RecordedIdeasPage,
 });
 
 function RecordedIdeasPage() {
-  const ideas = useQuery(api.ideas.list);
+  const recorded = useQuery(api.ideas.listRecorded);
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
+  const setDraft = useSetAtom(ideaDraftAtom);
 
-  useNotionSync(ideas);
+  useNotionSync(recorded);
 
-  if (ideas === undefined) {
+  if (recorded === undefined) {
     return (
       <div className="min-h-screen bg-background px-4 py-6">
         <div className="max-w-6xl mx-auto">
@@ -27,8 +30,6 @@ function RecordedIdeasPage() {
       </div>
     );
   }
-
-  const recorded = ideas.filter((idea) => idea.status === "Recorded");
 
 	return (
 		<div className="min-h-screen bg-background px-4 py-6">
@@ -59,7 +60,10 @@ function RecordedIdeasPage() {
 							<IdeaCard
 								key={idea._id}
 								idea={idea}
-								onClick={() => setEditingIdea(idea)}
+								onClick={() => {
+									setDraft(createIdeaDraftFromIdea(idea));
+									setEditingIdea(idea);
+								}}
 							/>
 						))}
 					</div>
@@ -67,6 +71,7 @@ function RecordedIdeasPage() {
 			</div>
 
 			<EditIdeaModal
+				key={editingIdea?._id ?? "edit-idea-recorded"}
 				idea={editingIdea}
 				open={!!editingIdea}
 				onOpenChange={(open) => !open && setEditingIdea(null)}

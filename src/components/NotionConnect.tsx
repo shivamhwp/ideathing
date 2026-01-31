@@ -1,15 +1,16 @@
 import {
-	ArrowSquareOut,
-	Check,
-	Database,
-	Info,
-	SpinnerGap,
-	WarningCircle,
+	ArrowSquareOutIcon,
+	CheckIcon,
+	InfoIcon,
+	NotionLogoIcon,
+	SpinnerGapIcon,
+	SpinnerIcon,
+	WarningCircleIcon,
 } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -55,12 +56,6 @@ export function NotionConnect() {
 	const isConnected = !!connection;
 	const hasDatabase = !!connection?.databaseId;
 
-	const buttonLabel = !isConnected
-		? "Connect Notion"
-		: hasDatabase
-			? "Notion Connected"
-			: "Finish Notion Setup";
-
 	return (
 		<>
 			<Button
@@ -68,12 +63,15 @@ export function NotionConnect() {
 				size="sm"
 				onClick={() => setShowModal(true)}
 				className={cn(
-					isConnected && "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
+					isConnected &&
+						" cursor-pointer border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
 				)}
 			>
-				<Database className="w-4 h-4 mr-1.5" weight="duotone" />
-				<span className="text-xs">{buttonLabel}</span>
-				{hasDatabase && <Check className="w-3.5 h-3.5 ml-1" weight="bold" />}
+				<NotionLogoIcon className="w-4 h-4 mr-1.5" weight="fill" />
+				<span className="text-xs">
+					{hasDatabase ? "Connected" : "Connect Notion"}
+				</span>
+				{hasDatabase && <CheckIcon className="w-4 h-4 ml-1" weight="bold" />}
 			</Button>
 
 			<NotionConnectModal
@@ -97,8 +95,11 @@ function NotionConnectModal({
 	const [targetSection, setTargetSection] = useState("To Stream");
 	const [titlePropertyName, setTitlePropertyName] = useState("Name");
 	const [statusPropertyName, setStatusPropertyName] = useState("Status");
-	const [statusPropertyType, setStatusPropertyType] = useState<"status" | "select">("status");
-	const [descriptionPropertyName, setDescriptionPropertyName] = useState("Description");
+	const [statusPropertyType, setStatusPropertyType] = useState<
+		"status" | "select"
+	>("status");
+	const [descriptionPropertyName, setDescriptionPropertyName] =
+		useState("Description");
 	const [selectedDatabaseId, setSelectedDatabaseId] = useState("");
 	const [selectedDatabaseName, setSelectedDatabaseName] = useState("");
 	const [databases, setDatabases] = useState<DatabaseOption[]>([]);
@@ -133,7 +134,9 @@ function NotionConnectModal({
 		setTitlePropertyName(connection.titlePropertyName ?? "Name");
 		setStatusPropertyName(connection.statusPropertyName ?? "Status");
 		setStatusPropertyType(connection.statusPropertyType ?? "status");
-		setDescriptionPropertyName(connection.descriptionPropertyName ?? "Description");
+		setDescriptionPropertyName(
+			connection.descriptionPropertyName ?? "Description",
+		);
 		setSelectedDatabaseId(connection.databaseId ?? "");
 		setSelectedDatabaseName(connection.databaseName ?? "");
 	}, [open, connection]);
@@ -166,7 +169,11 @@ function NotionConnectModal({
 				}
 			} catch (err) {
 				if (!isActive) return;
-				setError(err instanceof Error ? err.message : "Failed to load Notion databases.");
+				setError(
+					err instanceof Error
+						? err.message
+						: "Failed to load Notion databases.",
+				);
 			} finally {
 				if (isActive) {
 					setIsLoadingDatabases(false);
@@ -192,7 +199,9 @@ function NotionConnectModal({
 			setIsDetectingSchema(true);
 			setError(null);
 			try {
-				const result = await getDataSourceSchema({ dataSourceId: selectedDatabaseId });
+				const result = await getDataSourceSchema({
+					dataSourceId: selectedDatabaseId,
+				});
 				if (!isActive) return;
 				setTitlePropertyName(result.titlePropertyName);
 				setStatusPropertyName(result.statusPropertyName);
@@ -241,7 +250,8 @@ function NotionConnectModal({
 				titlePropertyName: titlePropertyName.trim() || "Name",
 				statusPropertyName: statusPropertyName.trim() || "Status",
 				statusPropertyType,
-				descriptionPropertyName: descriptionPropertyName.trim() || "Description",
+				descriptionPropertyName:
+					descriptionPropertyName.trim() || "Description",
 			}).then(() => {
 				onOpenChange(false);
 			});
@@ -268,10 +278,13 @@ function NotionConnectModal({
 		setIsSubmitting(true);
 		setError(null);
 		try {
-			const clientId = import.meta.env.VITE_NOTION_CLIENT_ID as string | undefined;
+			const clientId = import.meta.env.VITE_NOTION_CLIENT_ID as
+				| string
+				| undefined;
 			const redirectUri =
-				(import.meta.env.VITE_NOTION_OAUTH_REDIRECT_URI as string | undefined) ??
-				`${window.location.origin}/notion/callback`;
+				(import.meta.env.VITE_NOTION_OAUTH_REDIRECT_URI as
+					| string
+					| undefined) ?? `${window.location.origin}/notion/callback`;
 
 			if (!clientId) {
 				setError("Missing VITE_NOTION_CLIENT_ID env var.");
@@ -288,7 +301,9 @@ function NotionConnectModal({
 
 			window.location.href = url.toString();
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to start Notion OAuth.");
+			setError(
+				err instanceof Error ? err.message : "Failed to start Notion OAuth.",
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -312,11 +327,14 @@ function NotionConnectModal({
 				titlePropertyName: titlePropertyName.trim() || "Name",
 				statusPropertyName: statusPropertyName.trim() || "Status",
 				statusPropertyType,
-				descriptionPropertyName: descriptionPropertyName.trim() || "Description",
+				descriptionPropertyName:
+					descriptionPropertyName.trim() || "Description",
 			});
 			onOpenChange(false);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to save Notion settings.");
+			setError(
+				err instanceof Error ? err.message : "Failed to save Notion settings.",
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -342,14 +360,18 @@ function NotionConnectModal({
 					</DialogTitle>
 					{!isConnected && (
 						<DialogDescription>
-							Connect your Notion workspace to sync ideas when you move them to "move to to-stream".
+							Connect your Notion workspace to sync ideas when you move them to
+							"To Stream".
 						</DialogDescription>
 					)}
 				</DialogHeader>
 
 				{error && (
 					<div className="flex items-center gap-2 p-2.5 bg-destructive/10 text-destructive rounded-md">
-						<WarningCircle className="w-4 h-4 flex-shrink-0" weight="fill" />
+						<WarningCircleIcon
+							className="w-4 h-4 flex-shrink-0"
+							weight="fill"
+						/>
 						<p className="text-xs">{error}</p>
 					</div>
 				)}
@@ -361,14 +383,16 @@ function NotionConnectModal({
 							onClick={() => setShowHelp(!showHelp)}
 							className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
 						>
-							<Info className="w-4 h-4" />
+							<InfoIcon className="w-4 h-4" />
 							<span>{showHelp ? "Hide" : "Show"} setup instructions</span>
 						</button>
 
 						{showHelp && (
 							<div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4 text-sm">
 								<div>
-									<p className="font-medium text-foreground mb-2">1. Create a public Notion integration</p>
+									<p className="font-medium text-foreground mb-2">
+										1. Create a public Notion integration
+									</p>
 									<ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
 										<li>
 											Go to{" "}
@@ -379,53 +403,61 @@ function NotionConnectModal({
 												className="text-primary hover:underline inline-flex items-center gap-0.5"
 											>
 												notion.so/profile/integrations
-												<ArrowSquareOut className="w-3 h-3" />
+												<ArrowSquareOutIcon className="w-3 h-3" />
 											</a>
 										</li>
 										<li>Click "New integration" → choose "Public"</li>
 										<li>Enable "Insert content" capability</li>
 										<li>Add your OAuth redirect URL</li>
-											</ol>
-										</div>
+									</ol>
+								</div>
 
-										<div>
-											<p className="font-medium text-foreground mb-2">2. Share your database with the integration</p>
+								<div>
+									<p className="font-medium text-foreground mb-2">
+										2. Share your database with the integration
+									</p>
 									<ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
 										<li>Open the database you want to sync</li>
 										<li>Click "..." → "Connections"</li>
 										<li>Select your integration from the list</li>
-											</ol>
-										</div>
+									</ol>
+								</div>
 
-										<div>
-											<p className="font-medium text-foreground mb-2">3. (Optional) Enable webhooks</p>
-											<p className="text-xs text-muted-foreground">
-												Follow the in-app guide to keep properties in sync.
-											</p>
-											<Button asChild size="sm" variant="outline" className="mt-2">
-												<Link to="/notion/webhooks">Open webhook setup</Link>
-											</Button>
-										</div>
-									</div>
-								)}
+								<div>
+									<p className="font-medium text-foreground mb-2">
+										3. (Optional) Enable webhooks
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Follow the in-app guide to keep properties in sync.
+									</p>
+									<Button asChild size="sm" variant="outline" className="mt-2">
+										<Link to="/notion/webhooks">Open webhook setup</Link>
+									</Button>
+								</div>
+							</div>
+						)}
 
 						<Button
 							onClick={handleStartOAuth}
 							disabled={isSubmitting}
 							className="w-full"
 						>
-							{isSubmitting && <SpinnerGap className="w-4 h-4 mr-1.5 animate-spin" />}
+							{isSubmitting && (
+								<SpinnerIcon className="w-4 h-4 mr-1.5 animate-spin" />
+							)}
 							{isSubmitting ? "Redirecting..." : "Connect Notion"}
 						</Button>
 					</div>
 				) : (
 					<form onSubmit={handleSaveDatabase} className="space-y-4">
 						<div className="flex items-center gap-3 p-3 bg-primary/10 rounded-md">
-							<Check className="w-5 h-5 text-primary" weight="bold" />
+							<CheckIcon className="w-5 h-5 text-primary" weight="bold" />
 							<div>
-								<p className="font-medium text-sm text-primary">Connected to Notion</p>
+								<p className="font-medium text-sm text-primary">
+									Connected to Notion
+								</p>
 								<p className="text-xs text-primary/70">
-									Choose a database to sync your "move to to-stream" ideas.
+									Choose a database to sync your "move to To Stream" ideas.
 								</p>
 							</div>
 						</div>
@@ -434,7 +466,7 @@ function NotionConnectModal({
 							<Label htmlFor="database">Database</Label>
 							{isLoadingDatabases ? (
 								<div className="flex items-center gap-2 text-xs text-muted-foreground">
-									<SpinnerGap className="w-3.5 h-3.5 animate-spin" />
+									<SpinnerIcon className="w-3.5 h-3.5 animate-spin" />
 									Loading databases...
 								</div>
 							) : (
@@ -455,7 +487,8 @@ function NotionConnectModal({
 								</Select>
 							)}
 							<p className="text-[10px] text-muted-foreground">
-								We will preselect "Content Planning" if it exists. Property names are auto-detected.
+								We will preselect "Content Planning" if it exists. Property
+								names are auto-detected.
 							</p>
 						</div>
 						<div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -465,11 +498,20 @@ function NotionConnectModal({
 						</div>
 
 						<DialogFooter className="gap-2 pt-2">
-							<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => onOpenChange(false)}
+							>
 								Cancel
 							</Button>
-							<Button type="submit" disabled={isSubmitting || !selectedDatabaseId}>
-								{isSubmitting && <SpinnerGap className="w-4 h-4 mr-1.5 animate-spin" />}
+							<Button
+								type="submit"
+								disabled={isSubmitting || !selectedDatabaseId}
+							>
+								{isSubmitting && (
+									<SpinnerGapIcon className="w-4 h-4 mr-1.5 animate-spin" />
+								)}
 								{isSubmitting ? "Saving..." : hasDatabase ? "Update" : "Save"}
 							</Button>
 						</DialogFooter>

@@ -95,9 +95,16 @@ export const addSelectProperty = (
   value?: string | null
 ) => {
   const resolved = resolveOptionName(entry, value);
-  properties[entry.name] = {
-    select: resolved ? { name: resolved } : null,
-  };
+  // Use actual type from Notion schema, fallback to select
+  if (entry.type === "status") {
+    properties[entry.name] = {
+      status: resolved ? { name: resolved } : null,
+    };
+  } else {
+    properties[entry.name] = {
+      select: resolved ? { name: resolved } : null,
+    };
+  }
 };
 
 export const addStatusProperty = (

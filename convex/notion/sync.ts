@@ -50,7 +50,8 @@ type TextRichText = {
 };
 
 type IdeaUpdates = {
-  status?: "idea" | "To Stream" | "Recorded";
+  recorded?: boolean;
+  column?: "ideas" | "to-stream";
   title?: string;
   description?: string;
   notes?: string;
@@ -63,6 +64,11 @@ type IdeaUpdates = {
   unsponsored?: boolean;
   vodRecordingDate?: string;
   releaseDate?: string;
+};
+
+const deriveStatusForNotion = (column: string, recorded?: boolean): string => {
+  if (recorded) return "Recorded";
+  return column === "to-stream" ? "To Stream" : "idea";
 };
 
 const getRichTextPlain = (value: unknown) => {
@@ -92,14 +98,57 @@ const createRichText = (content: string, link?: string): TextRichText[] => [
   },
 ];
 
-const buildSyncedContentChildren = (idea: {
-  notes?: string | null;
-  resources?: string[] | null;
-}) => {
+const buildSyncedContentChildren = (
+  idea: {
+    description?: string | null;
+    notes?: string | null;
+    thumbnail?: string | null;
+    resources?: string[] | null;
+  },
+  missingProperties?: string[]
+) => {
   const blocks: NotionBlock[] = [];
-  const notes = normalizeText(idea.notes);
-  const resources = (idea.resources ?? []).map((resource) => resource.trim()).filter(Boolean);
 
+  // Description section
+  const description = normalizeText(idea.description);
+  if (description) {
+    blocks.push({
+      object: "block",
+      type: "heading_3",
+      heading_3: {
+        rich_text: createRichText("Description"),
+      },
+    });
+    blocks.push({
+      object: "block",
+      type: "paragraph",
+      paragraph: {
+        rich_text: createRichText(description),
+      },
+    });
+  }
+
+  // Thumbnail Draft section
+  const thumbnail = normalizeText(idea.thumbnail);
+  if (thumbnail) {
+    blocks.push({
+      object: "block",
+      type: "heading_3",
+      heading_3: {
+        rich_text: createRichText("Thumbnail Draft"),
+      },
+    });
+    blocks.push({
+      object: "block",
+      type: "paragraph",
+      paragraph: {
+        rich_text: createRichText(thumbnail),
+      },
+    });
+  }
+
+  // Notes section
+  const notes = normalizeText(idea.notes);
   if (notes) {
     blocks.push({
       object: "block",
@@ -117,12 +166,14 @@ const buildSyncedContentChildren = (idea: {
     });
   }
 
+  // Links section (renamed from Resources)
+  const resources = (idea.resources ?? []).map((resource) => resource.trim()).filter(Boolean);
   if (resources.length > 0) {
     blocks.push({
       object: "block",
       type: "heading_3",
       heading_3: {
-        rich_text: createRichText("Resources"),
+        rich_text: createRichText("Links"),
       },
     });
     for (const resource of resources) {
@@ -131,6 +182,26 @@ const buildSyncedContentChildren = (idea: {
         type: "bulleted_list_item",
         bulleted_list_item: {
           rich_text: createRichText(resource, resource),
+        },
+      });
+    }
+  }
+
+  // Missing Properties section (fallback for properties not in Notion schema)
+  if (missingProperties && missingProperties.length > 0) {
+    blocks.push({
+      object: "block",
+      type: "heading_3",
+      heading_3: {
+        rich_text: createRichText("Additional Properties"),
+      },
+    });
+    for (const prop of missingProperties) {
+      blocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: createRichText(prop),
         },
       });
     }
@@ -166,32 +237,67 @@ const fetchAllBlockChildren = async (blockId: string, notion: Client) => {
   return results;
 };
 
+const fetchAllBlocks = async (blockId: string, notion: Client) => {
+  const results: Array<PartialBlockObjectResponse | BlockObjectResponse> = [];
+  let cursor: string | null | undefined = undefined;
+
+  do {
+    const data = await notion.blocks.children.list({
+      block_id: blockId,
+      page_size: 100,
+      start_cursor: cursor ?? undefined,
+    });
+    const pageResults = Array.isArray(data?.results) ? data.results : [];
+    results.push(...pageResults);
+    cursor = data?.has_more ? data?.next_cursor : null;
+  } while (cursor);
+
+  return results;
+};
+
 const upsertSyncedContent = async ({
   pageId,
   notion,
   idea,
+  missingProperties,
 }: {
   pageId: string;
   notion: Client;
-  idea: { notes?: string | null; resources?: string[] | null };
+  idea: {
+    description?: string | null;
+    notes?: string | null;
+    thumbnail?: string | null;
+    resources?: string[] | null;
+  };
+  missingProperties?: string[];
 }) => {
-  const children = buildSyncedContentChildren(idea);
+  const children = buildSyncedContentChildren(idea, missingProperties);
   if (children.length === 0) {
     return;
   }
 
-  const listData = await notion.blocks.children.list({
-    block_id: pageId,
-    page_size: 100,
-  });
-  const blocks = Array.isArray(listData?.results) ? listData.results : [];
+  const blocks = await fetchAllBlocks(pageId, notion);
   const isCalloutBlock = (
     block: PartialBlockObjectResponse | BlockObjectResponse
   ): block is CalloutBlockObjectResponse => "type" in block && block.type === "callout";
-  const syncedBlock = blocks.find(
-    (block) => isCalloutBlock(block) && getRichTextPlain(block.callout.rich_text) === SYNCED_CONTENT_TITLE
+  const syncedBlockIndex = blocks.findIndex(
+    (block) =>
+      isCalloutBlock(block) &&
+      getRichTextPlain(block.callout.rich_text) === SYNCED_CONTENT_TITLE
   );
-  const syncedBlockId = syncedBlock?.id ?? null;
+  const syncedBlock =
+    syncedBlockIndex >= 0 ? blocks[syncedBlockIndex] : null;
+  let syncedBlockId =
+    syncedBlock && "id" in syncedBlock && typeof syncedBlock.id === "string"
+      ? syncedBlock.id
+      : null;
+  const shouldRecreateAtEnd =
+    syncedBlockId && syncedBlockIndex !== blocks.length - 1;
+
+  if (shouldRecreateAtEnd && syncedBlockId) {
+    await notion.blocks.delete({ block_id: syncedBlockId });
+    syncedBlockId = null;
+  }
 
   if (syncedBlockId) {
     const existingChildren = await fetchAllBlockChildren(syncedBlockId, notion);
@@ -206,17 +312,24 @@ const upsertSyncedContent = async ({
     return;
   }
 
+  const prependSpacer = blocks.length === 0;
+  const spacerBlock: BlockObjectRequest = {
+    object: "block",
+    type: "paragraph",
+    paragraph: {
+      rich_text: [],
+    },
+  };
+  const calloutBlock: BlockObjectRequest = {
+    object: "block",
+    type: "callout",
+    callout: {
+      rich_text: createRichText(SYNCED_CONTENT_TITLE),
+    },
+  };
   const appendResponse = await notion.blocks.children.append({
     block_id: pageId,
-    children: [
-      {
-        object: "block",
-        type: "callout",
-        callout: {
-          rich_text: createRichText(SYNCED_CONTENT_TITLE),
-        },
-      },
-    ],
+    children: prependSpacer ? [spacerBlock, calloutBlock] : [calloutBlock],
   });
   const calloutId = appendResponse.results[0]?.id;
   if (calloutId) {
@@ -306,13 +419,28 @@ const getIdeaUpdatesFromNotion = ({
   const notesProperty = notesEntry ? properties[notesEntry.name] : undefined;
 
   const rawStatus = getNotionStatusName(resolvedStatusProperty);
-
   const mappedStatus = normalizeIdeaStatus(rawStatus);
+
+  // Derive recorded and column from Notion status
+  let recorded: boolean | undefined;
+  let column: "ideas" | "to-stream" | undefined;
+
+  if (mappedStatus === "Recorded") {
+    recorded = true;
+    // Keep current column when marking as recorded
+  } else if (mappedStatus === "To Stream") {
+    recorded = false;
+    column = "to-stream";
+  } else if (mappedStatus === "idea") {
+    recorded = false;
+    column = "ideas";
+  }
 
   return {
     mappedStatus,
     updates: {
-      status: mappedStatus,
+      recorded,
+      column,
       title: getNotionTitle(resolvedTitleProperty) ?? undefined,
       description: getNotionRichText(descriptionProperty) ?? undefined,
       notes: getNotionRichText(notesProperty) ?? undefined,
@@ -337,16 +465,10 @@ const getIdeaUpdatesFromNotion = ({
   };
 };
 
-const restrictUpdatesToToStream = (updates: IdeaUpdates, mappedStatus?: string) => {
-  if (mappedStatus !== "To Stream") {
-    return { status: updates.status };
-  }
-  return updates;
-};
-
 const omitUndefinedUpdates = (updates: IdeaUpdates): IdeaUpdates => {
   const payload: IdeaUpdates = {};
-  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.recorded !== undefined) payload.recorded = updates.recorded;
+  if (updates.column !== undefined) payload.column = updates.column;
   if (updates.title !== undefined) payload.title = updates.title;
   if (updates.description !== undefined) payload.description = updates.description;
   if (updates.notes !== undefined) payload.notes = updates.notes;
@@ -367,32 +489,43 @@ export const syncToNotion = internalAction({
     ideaId: v.id("ideas"),
   },
   handler: async (ctx, args) => {
+    console.log("syncToNotion: Starting sync for idea", args.ideaId);
+
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, {
       ideaId: args.ideaId,
     });
 
     if (!idea) {
+      console.log("syncToNotion: Idea not found");
       return;
     }
+
+    console.log("syncToNotion: Idea found", { title: idea.title, column: idea.column, recorded: idea.recorded });
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
       userId: idea.userId,
     });
 
     if (!connection) {
+      console.log("syncToNotion: No connection found for user");
       return;
     }
 
     const accessToken = connection.accessToken ?? connection.integrationToken;
     if (!accessToken || !connection.databaseId) {
+      console.log("syncToNotion: No access token or database ID", { hasToken: !!accessToken, databaseId: connection.databaseId });
       return;
     }
+
+    console.log("syncToNotion: Using database", connection.databaseId);
 
     const notion = createNotionClient(accessToken);
     const propertyNames = await fetchDataSourceProperties(
       notion,
       connection.databaseId
     );
+
+    console.log("syncToNotion: Found properties", Array.from(propertyNames.keys()));
 
     const titlePropertyName = connection.titlePropertyName || "Name";
     const statusPropertyName = connection.statusPropertyName || "Status";
@@ -417,7 +550,7 @@ export const syncToNotion = internalAction({
     const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
     const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
     const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
-    const statusValue = normalizeText(idea.status ?? connection.targetSection);
+    const statusValue = normalizeText(deriveStatusForNotion(idea.column, idea.recorded) ?? connection.targetSection);
     const descriptionValue = normalizeText(idea.description);
     const notesValue = normalizeText(idea.notes);
     const ownerValue = normalizeText(idea.owner);
@@ -499,36 +632,65 @@ export const syncToNotion = internalAction({
       };
     }
 
-    const data = await notion.pages.create({
-      parent: {
-        type: "data_source_id",
-        data_source_id: connection.databaseId,
-      },
-      properties,
+    // Track properties that don't exist in Notion schema
+    const missingProperties: string[] = [];
+    if (!ownerEntry && idea.owner) {
+      missingProperties.push(`Owner: ${idea.owner}`);
+    }
+    if (!channelEntry && idea.channel) {
+      missingProperties.push(`Channel: ${idea.channel}`);
+    }
+    if (!labelEntry && idea.label) {
+      missingProperties.push(`Label: ${idea.label}`);
+    }
+    if (!adReadEntry && idea.adReadTracker) {
+      missingProperties.push(`Ad Read Tracker: ${idea.adReadTracker}`);
+    }
+    if (!potentialEntry && idea.potential !== undefined) {
+      missingProperties.push(`Potential: ${idea.potential}`);
+    }
+    if (!thumbnailEntry && idea.thumbnailReady !== undefined) {
+      missingProperties.push(`Thumbnail Ready: ${idea.thumbnailReady ? "Yes" : "No"}`);
+    }
+    if (!unsponsoredEntry && idea.unsponsored !== undefined) {
+      missingProperties.push(`Unsponsored: ${idea.unsponsored ? "Yes" : "No"}`);
+    }
+    if (!vodEntry && idea.vodRecordingDate) {
+      missingProperties.push(`VOD Recording Date: ${idea.vodRecordingDate}`);
+    }
+    if (!releaseEntry && idea.releaseDate) {
+      missingProperties.push(`Release Date: ${idea.releaseDate}`);
+    }
+
+    console.log("syncToNotion: Creating page with properties", {
+      titleEntry: titleEntry?.name,
+      statusEntry: statusEntry?.name,
+      statusValue,
+      propertyKeys: Object.keys(properties),
+      missingProperties,
     });
 
-    const syncedChildren = buildSyncedContentChildren(idea);
-    if (syncedChildren.length > 0) {
-      const appendResponse = await notion.blocks.children.append({
-        block_id: data.id,
-        children: [
-          {
-            object: "block",
-            type: "callout",
-            callout: {
-              rich_text: createRichText(SYNCED_CONTENT_TITLE),
-            },
-          },
-        ],
+    let data;
+    try {
+      data = await notion.pages.create({
+        parent: {
+          type: "data_source_id",
+          data_source_id: connection.databaseId,
+        },
+        properties,
       });
-      const calloutId = appendResponse.results[0]?.id;
-      if (calloutId) {
-        await notion.blocks.children.append({
-          block_id: calloutId,
-          children: syncedChildren,
-        });
-      }
+      console.log("syncToNotion: Page created successfully", data.id);
+    } catch (error) {
+      console.error("syncToNotion: Failed to create page", error);
+      throw error;
     }
+
+    await upsertSyncedContent({
+      pageId: data.id,
+      notion,
+      idea,
+      missingProperties,
+    });
 
     await ctx.runMutation(internal.notion.updateIdeaSynced, {
       ideaId: args.ideaId,
@@ -591,13 +753,12 @@ export const syncStatusesFromNotion = action({
         if (!result) continue;
 
         const { idea, data } = result;
-        const { mappedStatus, updates } = getIdeaUpdatesFromNotion({
+        const { updates } = getIdeaUpdatesFromNotion({
           data,
           propertyNames,
           connection,
         });
-        const scopedUpdates = restrictUpdatesToToStream(updates, mappedStatus);
-        const payload = omitUndefinedUpdates(scopedUpdates);
+        const payload = omitUndefinedUpdates(updates);
         if (Object.keys(payload).length === 0) {
           continue;
         }
@@ -618,11 +779,24 @@ export const syncIdeaFromNotionPage = internalAction({
     notionPageId: v.string(),
   },
   handler: async (ctx, args) => {
-    const idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+    // Normalize page ID (remove dashes for comparison)
+    const normalizedPageId = args.notionPageId.replace(/-/g, "");
+    console.log("syncIdeaFromNotionPage: Starting sync for page", args.notionPageId);
+
+    // Try both with and without dashes
+    let idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
       notionPageId: args.notionPageId,
     });
 
     if (!idea) {
+      // Try normalized version
+      idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+        notionPageId: normalizedPageId,
+      });
+    }
+
+    if (!idea) {
+      console.log("syncIdeaFromNotionPage: No idea found for notionPageId", args.notionPageId);
       return;
     }
 
@@ -632,6 +806,7 @@ export const syncIdeaFromNotionPage = internalAction({
 
     const accessToken = connection?.accessToken ?? connection?.integrationToken;
     if (!accessToken || !connection?.databaseId) {
+      console.log("syncIdeaFromNotionPage: No connection or database for user", idea.userId);
       return;
     }
 
@@ -641,7 +816,8 @@ export const syncIdeaFromNotionPage = internalAction({
       data = await notion.pages.retrieve({
         page_id: args.notionPageId,
       });
-    } catch {
+    } catch (error) {
+      console.log("syncIdeaFromNotionPage: Failed to retrieve Notion page", args.notionPageId, error);
       return;
     }
 
@@ -650,17 +826,18 @@ export const syncIdeaFromNotionPage = internalAction({
       connection.databaseId
     );
 
-    const { mappedStatus, updates } = getIdeaUpdatesFromNotion({
+    const { updates } = getIdeaUpdatesFromNotion({
       data,
       propertyNames,
       connection,
     });
-    const scopedUpdates = restrictUpdatesToToStream(updates, mappedStatus);
-    const payload = omitUndefinedUpdates(scopedUpdates);
+    const payload = omitUndefinedUpdates(updates);
     if (Object.keys(payload).length === 0) {
+      console.log("syncIdeaFromNotionPage: No updates to apply for page", args.notionPageId);
       return;
     }
 
+    console.log("syncIdeaFromNotionPage: Applying updates", payload);
     await ctx.runMutation(internal.notion.updateIdeaFromNotion, {
       ideaId: idea._id,
       ...payload,
@@ -671,18 +848,23 @@ export const syncIdeaFromNotionPage = internalAction({
 export const deleteFromNotion = internalAction({
   args: {
     ideaId: v.id("ideas"),
+    userId: v.optional(v.string()),
+    notionPageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, {
       ideaId: args.ideaId,
     });
 
-    if (!idea || !idea.notionPageId) {
+    const userId = idea?.userId ?? args.userId;
+    const notionPageId = idea?.notionPageId ?? args.notionPageId;
+
+    if (!userId || !notionPageId) {
       return;
     }
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: idea.userId,
+      userId,
     });
 
     if (!connection) {
@@ -697,16 +879,18 @@ export const deleteFromNotion = internalAction({
     const notion = createNotionClient(accessToken);
     try {
       await notion.pages.update({
-        page_id: idea.notionPageId,
+        page_id: notionPageId,
         archived: true,
       });
     } catch {
       return;
     }
 
-    await ctx.runMutation(internal.notion.clearIdeaSynced, {
-      ideaId: args.ideaId,
-    });
+    if (idea) {
+      await ctx.runMutation(internal.notion.clearIdeaSynced, {
+        ideaId: args.ideaId,
+      });
+    }
   },
 });
 
@@ -765,7 +949,7 @@ export const updateInNotion = internalAction({
     const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
     const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
     const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
-    const statusValue = normalizeText(idea.status ?? connection.targetSection);
+    const statusValue = normalizeText(deriveStatusForNotion(idea.column, idea.recorded) ?? connection.targetSection);
     const descriptionValue = normalizeText(idea.description);
     const notesValue = normalizeText(idea.notes);
     const ownerValue = normalizeText(idea.owner);
@@ -847,6 +1031,36 @@ export const updateInNotion = internalAction({
       };
     }
 
+    // Track properties that don't exist in Notion schema
+    const missingProperties: string[] = [];
+    if (!ownerEntry && idea.owner) {
+      missingProperties.push(`Owner: ${idea.owner}`);
+    }
+    if (!channelEntry && idea.channel) {
+      missingProperties.push(`Channel: ${idea.channel}`);
+    }
+    if (!labelEntry && idea.label) {
+      missingProperties.push(`Label: ${idea.label}`);
+    }
+    if (!adReadEntry && idea.adReadTracker) {
+      missingProperties.push(`Ad Read Tracker: ${idea.adReadTracker}`);
+    }
+    if (!potentialEntry && idea.potential !== undefined) {
+      missingProperties.push(`Potential: ${idea.potential}`);
+    }
+    if (!thumbnailEntry && idea.thumbnailReady !== undefined) {
+      missingProperties.push(`Thumbnail Ready: ${idea.thumbnailReady ? "Yes" : "No"}`);
+    }
+    if (!unsponsoredEntry && idea.unsponsored !== undefined) {
+      missingProperties.push(`Unsponsored: ${idea.unsponsored ? "Yes" : "No"}`);
+    }
+    if (!vodEntry && idea.vodRecordingDate) {
+      missingProperties.push(`VOD Recording Date: ${idea.vodRecordingDate}`);
+    }
+    if (!releaseEntry && idea.releaseDate) {
+      missingProperties.push(`Release Date: ${idea.releaseDate}`);
+    }
+
     try {
       await notion.pages.update({
         page_id: idea.notionPageId,
@@ -860,6 +1074,7 @@ export const updateInNotion = internalAction({
       pageId: idea.notionPageId,
       notion,
       idea,
+      missingProperties,
     });
 
     await ctx.runMutation(internal.notion.updateIdeaSynced, {
@@ -933,7 +1148,8 @@ export const clearIdeaSynced = internalMutation({
 export const updateIdeaFromNotion = internalMutation({
   args: {
     ideaId: v.id("ideas"),
-    status: v.optional(v.union(v.literal("idea"), v.literal("To Stream"), v.literal("Recorded"))),
+    recorded: v.optional(v.boolean()),
+    column: v.optional(v.union(v.literal("ideas"), v.literal("to-stream"))),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
@@ -965,7 +1181,7 @@ export const updateIdeaFromNotion = internalMutation({
 
     const updates = Object.fromEntries(
       Object.entries({
-        status: args.status,
+        recorded: args.recorded,
         title: args.title,
         description: args.description,
         notes: args.notes,
@@ -981,14 +1197,12 @@ export const updateIdeaFromNotion = internalMutation({
       }).filter(([_, value]) => value !== undefined)
     );
 
-    let nextColumn: "ideas" | "vid-it" | undefined;
+    let nextColumn: "ideas" | "to-stream" | undefined;
     let nextOrder: number | undefined;
-    if (args.status && args.status !== idea.status) {
-      if (args.status === "To Stream" && idea.column !== "vid-it") {
-        nextColumn = "vid-it";
-      } else if (args.status === "idea" && idea.column !== "ideas") {
-        nextColumn = "ideas";
-      }
+
+    // Handle column change from Notion
+    if (args.column && args.column !== idea.column) {
+      nextColumn = args.column;
     }
 
     if (nextColumn) {
