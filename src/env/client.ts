@@ -6,8 +6,7 @@ export const env = createEnv({
 	client: {
 		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
 		VITE_NOTION_CLIENT_ID: z.string().min(1),
-		VITE_NOTION_OAUTH_REDIRECT_URI: z.string().url().min(1),
-		VITE_CONVEX_URL: z.string().url(),
+		VITE_CONVEX_URL: z.url(),
 	},
 	runtimeEnv: process.env,
 });
