@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import { action, mutation, internalMutation, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { createNotionClient } from "./client";
-import { NOTION_VERSION } from "./types";
 
 const encodeBasicAuth = (clientId: string, clientSecret: string) => {
   const bytes = new TextEncoder().encode(`${clientId}:${clientSecret}`);
@@ -53,6 +52,10 @@ export const exchangeOAuthCode = action({
     });
 
     if (!stateRecord || stateRecord.userId !== identity.subject) {
+      console.error("Invalid or expired OAuth state.", {
+        stateRecord,
+        identity,
+      });
       throw new Error("Invalid or expired OAuth state.");
     }
 
@@ -74,7 +77,6 @@ export const exchangeOAuthCode = action({
       headers: {
         Authorization: `Basic ${basicAuth}`,
         "Content-Type": "application/json",
-        "Notion-Version": NOTION_VERSION,
       },
       body: JSON.stringify({
         grant_type: "authorization_code",
@@ -100,6 +102,8 @@ export const exchangeOAuthCode = action({
     await ctx.runMutation(internal.notion.upsertConnectionFromOAuth, {
       userId: identity.subject,
       accessToken,
+      refreshToken: isRecord(data) ? getString(data.refresh_token) : undefined,
+      botId: isRecord(data) ? getString(data.bot_id) : undefined,
       workspaceId: isRecord(data) ? getString(data.workspace_id) : undefined,
       workspaceName: isRecord(data) ? getString(data.workspace_name) : undefined,
     });
@@ -125,7 +129,10 @@ export const deleteOAuthState = internalMutation({
     id: v.id("notionOAuthStates"),
   },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.id);
+    const existing = await ctx.db.get(args.id);
+    if (existing) {
+      await ctx.db.delete(args.id);
+    }
   },
 });
 
@@ -133,6 +140,8 @@ export const upsertConnectionFromOAuth = internalMutation({
   args: {
     userId: v.string(),
     accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    botId: v.optional(v.string()),
     workspaceId: v.optional(v.string()),
     workspaceName: v.optional(v.string()),
   },
@@ -145,6 +154,8 @@ export const upsertConnectionFromOAuth = internalMutation({
     const payload = {
       userId: args.userId,
       accessToken: args.accessToken,
+      refreshToken: args.refreshToken,
+      botId: args.botId,
       connectedAt: Date.now(),
       workspaceId: args.workspaceId,
       workspaceName: args.workspaceName,

@@ -88,6 +88,7 @@ export default defineSchema({
   notionConnections: defineTable({
     userId: v.string(),
     accessToken: v.optional(v.string()),
+    refreshToken: v.optional(v.string()),
     integrationToken: v.optional(v.string()),
     connectedAt: v.optional(v.number()),
     workspaceId: v.optional(v.string()),
