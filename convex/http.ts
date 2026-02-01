@@ -53,6 +53,20 @@ const isValidSignature = async (
   return timingSafeEqual(signature, computedWithPrefix);
 };
 
+const normalizeNotionId = (id: string): string => id.replace(/-/g, "");
+
+type WebhookPayload = {
+  type?: string;
+  entity?: { id?: string; type?: string };
+  data?: {
+    parent?: { id?: string; type?: string };
+    updated_blocks?: Array<{ id?: string; type?: string }>;
+  };
+  authors?: Array<{ type?: string; id?: string }>;
+  workspace_id?: string;
+  verification_token?: string;
+};
+
 http.route({
   path: "/notion/webhook",
   method: "POST",
@@ -67,12 +81,7 @@ http.route({
       }
     }
 
-    let payload: {
-      type?: string;
-      entity?: { id?: string; type?: string };
-      authors?: Array<{ type?: string; id?: string }>;
-      verification_token?: string;
-    };
+    let payload: WebhookPayload;
 
     try {
       payload = JSON.parse(body);
@@ -80,27 +89,49 @@ http.route({
       return new Response("Invalid JSON", { status: 400 });
     }
 
-    // Handle webhook verification
     if (payload.verification_token) {
       console.log("Notion webhook verification token:", payload.verification_token);
       return new Response("ok", { status: 200 });
     }
 
     const eventType = payload.type;
-    const pageId = payload.entity?.type === "page" ? payload.entity?.id : undefined;
+    const entityType = payload.entity?.type;
+    const entityId = payload.entity?.id;
+    const parentId = payload.data?.parent?.id;
+    const parentType = payload.data?.parent?.type;
+    const workspaceId = payload.workspace_id;
 
-    console.log("Webhook received:", { eventType, pageId });
+    console.log("Webhook received:", { eventType, entityType, entityId, parentType, parentId });
 
-    if (!pageId) {
-      // Not a page event, ignore for now
+    if (eventType?.startsWith("database.") || eventType?.startsWith("data_source.")) {
+      const dataSourceId = entityId;
+      if (dataSourceId) {
+        console.log("Data source event:", { eventType, dataSourceId });
+        await ctx.scheduler.runAfter(0, internal.notion.syncFromDataSource, {
+          dataSourceId,
+          workspaceId,
+          eventType,
+        });
+      }
       return new Response("ok", { status: 200 });
     }
 
-    // Skip events triggered by our own bot to avoid loops
-    // Look up idea to get userId, then get connection to check bot ID
-    const idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+    if (entityType !== "page" || !entityId) {
+      return new Response("ok", { status: 200 });
+    }
+
+    const pageId = entityId;
+    const normalizedPageId = normalizeNotionId(pageId);
+
+    let idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
       notionPageId: pageId,
     });
+
+    if (!idea) {
+      idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+        notionPageId: normalizedPageId,
+      });
+    }
 
     if (idea) {
       const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
@@ -120,43 +151,66 @@ http.route({
     switch (eventType) {
       case "page.properties_updated":
       case "page.content_updated":
-        // Sync changes from Notion to local database
-        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
-          notionPageId: pageId,
-        });
-        break;
-
-      case "page.deleted":
-        // Page was deleted in Notion, delete local idea (no API call needed)
-        await ctx.scheduler.runAfter(0, internal.notion.deleteIdeaByNotionPageId, {
-          notionPageId: pageId,
-        });
+      case "page.moved":
+        if (idea) {
+          await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+            notionPageId: pageId,
+            ideaId: idea._id,
+            userId: idea.userId,
+          });
+        } else if (parentId && parentType === "database") {
+          await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
+            notionPageId: pageId,
+            databaseId: parentId,
+          });
+        }
         break;
 
       case "page.created":
-        // Sync is one-way (app → Notion), ignore pages created directly in Notion
-        console.log("page.created: Ignoring (sync is app → Notion only)", { pageId });
+        if (idea) {
+          console.log("page.created: Syncing existing linked page", { pageId });
+          await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+            notionPageId: pageId,
+            ideaId: idea._id,
+            userId: idea.userId,
+          });
+        } else if (parentId && parentType === "database") {
+          console.log("page.created: Creating new idea from Notion page", { pageId, parentId });
+          await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
+            notionPageId: pageId,
+            databaseId: parentId,
+          });
+        }
+        break;
+
+      case "page.deleted":
+        if (idea) {
+          console.log("page.deleted: Marking idea as archived", { pageId, ideaId: idea._id });
+          await ctx.scheduler.runAfter(0, internal.notion.handleNotionPageDeleted, {
+            ideaId: idea._id,
+            notionPageId: pageId,
+          });
+        }
         break;
 
       case "page.undeleted":
-        // Page was restored in Notion
-        // syncIdeaFromNotionPage will update the idea if it exists
-        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
-          notionPageId: pageId,
-        });
-        break;
-
-      case "page.moved":
-        // Page was moved to different parent, sync to update any relevant data
-        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
-          notionPageId: pageId,
-        });
+        if (idea) {
+          console.log("page.undeleted: Syncing restored page", { pageId });
+          await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+            notionPageId: pageId,
+            ideaId: idea._id,
+            userId: idea.userId,
+          });
+        } else if (parentId && parentType === "database") {
+          await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
+            notionPageId: pageId,
+            databaseId: parentId,
+          });
+        }
         break;
 
       case "page.locked":
       case "page.unlocked":
-        // Lock state changed, no action needed for our use case
-        console.log(`${eventType}: No action needed`, { pageId });
         break;
 
       default:

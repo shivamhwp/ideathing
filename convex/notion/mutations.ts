@@ -1,6 +1,61 @@
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
 import { mutation, internalMutation } from "../_generated/server";
+
+const ownerValues = ["Theo", "Phase", "Mir", "flip", "melkey", "gabriel", "ben", "shivam"] as const;
+
+const channelValues = ["C:Main", "C:Rants", "C:Throwaways", "C:Other", "C:Main(SHORT)"] as const;
+
+const labelValues = [
+  "Requires Planning",
+  "Priority",
+  "Mid Priority",
+  "Strict deadline",
+  "Sponsored",
+  "High Effort",
+  "Worth it?",
+  "Evergreen",
+  "Database Week",
+] as const;
+
+const statusValues = [
+  "To Record(Off stream)",
+  "To Stream",
+  "Recorded",
+  "Editing",
+  "Done Editing",
+  "NEEDS THUMBNAIL",
+  "Ready To Publish",
+  "Scheduled",
+  "Published",
+  "Concept",
+  "Commited",
+  "dead",
+  "Shorts",
+  "2nd & 3rd Channel",
+  "Needs sponsor spot",
+  "Theo's Problem",
+  "archived",
+] as const;
+
+const adReadTrackerValues = ["planned", "in da edit", "done"] as const;
+
+type Owner = (typeof ownerValues)[number];
+type Channel = (typeof channelValues)[number];
+type Label = (typeof labelValues)[number];
+type Status = (typeof statusValues)[number];
+type AdReadTracker = (typeof adReadTrackerValues)[number];
+
+const isValidOwner = (value?: string): value is Owner => ownerValues.includes(value as Owner);
+
+const isValidChannel = (value?: string): value is Channel =>
+  channelValues.includes(value as Channel);
+
+const isValidLabel = (value?: string): value is Label => labelValues.includes(value as Label);
+
+const isValidStatus = (value?: string): value is Status => statusValues.includes(value as Status);
+
+const isValidAdReadTracker = (value?: string): value is AdReadTracker =>
+  adReadTrackerValues.includes(value as AdReadTracker);
 
 export const saveDatabaseSettings = mutation({
   args: {
@@ -92,44 +147,6 @@ export const clearIdeaSynced = internalMutation({
   },
 });
 
-const isStorageId = (value: string | null | undefined): value is string =>
-  !!value && value.startsWith("k") && !value.includes("://");
-
-export const deleteIdeaByNotionPageId = internalMutation({
-  args: {
-    notionPageId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const idea = await ctx.db
-      .query("ideas")
-      .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
-      .first();
-
-    if (!idea) {
-      console.log("deleteIdeaByNotionPageId: No matching idea found", {
-        notionPageId: args.notionPageId,
-      });
-      return;
-    }
-
-    // Only delete if idea is in "To Stream" column (synced with Notion)
-    if (idea.column !== "To Stream") {
-      console.log("deleteIdeaByNotionPageId: Idea not in To Stream, skipping", {
-        ideaId: idea._id,
-      });
-      return;
-    }
-
-    // Clean up storage if thumbnail is a storage ID (same pattern as ideas.remove)
-    if (isStorageId(idea.thumbnail)) {
-      await ctx.storage.delete(idea.thumbnail as Id<"_storage">);
-    }
-
-    await ctx.db.delete(idea._id);
-    console.log("deleteIdeaByNotionPageId: Deleted idea", { ideaId: idea._id });
-  },
-});
-
 export const updateIdeaFromNotion = internalMutation({
   args: {
     ideaId: v.id("ideas"),
@@ -138,18 +155,10 @@ export const updateIdeaFromNotion = internalMutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
-    owner: v.optional(
-      v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"), v.literal("shivam")),
-    ),
-    channel: v.optional(
-      v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
-    ),
-    label: v.optional(
-      v.union(v.literal("mid priority"), v.literal("low priority"), v.literal("high priority")),
-    ),
-    adReadTracker: v.optional(
-      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
-    ),
+    owner: v.optional(v.string()),
+    channel: v.optional(v.string()),
+    label: v.optional(v.string()),
+    adReadTracker: v.optional(v.string()),
     potential: v.optional(v.number()),
     thumbnailReady: v.optional(v.boolean()),
     unsponsored: v.optional(v.boolean()),
@@ -210,5 +219,85 @@ export const updateIdeaFromNotion = internalMutation({
     }
 
     await ctx.db.patch(args.ideaId, updatesWithColumn);
+  },
+});
+
+export const createIdeaFromWebhook = internalMutation({
+  args: {
+    userId: v.string(),
+    notionPageId: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    status: v.optional(v.string()),
+    column: v.union(v.literal("Concept"), v.literal("To Stream")),
+    owner: v.optional(v.string()),
+    channel: v.optional(v.string()),
+    label: v.optional(v.string()),
+    adReadTracker: v.optional(v.string()),
+    potential: v.optional(v.number()),
+    thumbnailReady: v.optional(v.boolean()),
+    unsponsored: v.optional(v.boolean()),
+    vodRecordingDate: v.optional(v.string()),
+    releaseDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existingIdea = await ctx.db
+      .query("ideas")
+      .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
+      .first();
+
+    if (existingIdea) {
+      console.log("createIdeaFromWebhook: Idea already exists for page", args.notionPageId);
+      return existingIdea._id;
+    }
+
+    const columnIdeas = await ctx.db
+      .query("ideas")
+      .withIndex("by_user_column", (q) => q.eq("userId", args.userId).eq("column", args.column))
+      .collect();
+    const maxOrder = columnIdeas.reduce((max, idea) => Math.max(max, idea.order), -1);
+
+    const ideaId = await ctx.db.insert("ideas", {
+      userId: args.userId,
+      title: args.title,
+      description: args.description,
+      notes: args.notes,
+      status: isValidStatus(args.status) ? args.status : undefined,
+      column: args.column,
+      order: maxOrder + 1,
+      owner: isValidOwner(args.owner) ? args.owner : undefined,
+      channel: isValidChannel(args.channel) ? args.channel : undefined,
+      label: isValidLabel(args.label) ? args.label : undefined,
+      adReadTracker: isValidAdReadTracker(args.adReadTracker) ? args.adReadTracker : undefined,
+      potential: args.potential,
+      thumbnailReady: args.thumbnailReady ?? false,
+      unsponsored: args.unsponsored,
+      vodRecordingDate: args.vodRecordingDate,
+      releaseDate: args.releaseDate,
+      notionPageId: args.notionPageId,
+      syncedAt: Date.now(),
+    });
+
+    console.log("createIdeaFromWebhook: Created idea", ideaId);
+    return ideaId;
+  },
+});
+
+export const archiveIdeaFromNotion = internalMutation({
+  args: {
+    ideaId: v.id("ideas"),
+  },
+  handler: async (ctx, args) => {
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea) {
+      return;
+    }
+
+    await ctx.db.patch(args.ideaId, {
+      status: "archived",
+      notionPageId: undefined,
+      syncedAt: undefined,
+    });
   },
 });

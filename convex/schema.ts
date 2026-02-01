@@ -67,6 +67,7 @@ export default defineSchema({
         v.literal("2nd & 3rd Channel"),
         v.literal("Needs sponsor spot"),
         v.literal("Theo's Problem"),
+        v.literal("archived"),
       ),
     ),
     adReadTracker: v.optional(

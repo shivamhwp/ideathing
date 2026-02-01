@@ -66,6 +66,7 @@ export const getIdeaByNotionPageId = internalQuery({
     notionPageId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Direct lookup - IDs should match exactly as stored
     return await ctx.db
       .query("ideas")
       .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
@@ -79,5 +80,26 @@ export const getIdeaInternal = internalQuery({
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.ideaId);
+  },
+});
+
+export const getConnectionByDatabaseId = internalQuery({
+  args: {
+    databaseId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const normalizedId = args.databaseId.replace(/-/g, "");
+
+    const connections = await ctx.db.query("notionConnections").collect();
+
+    for (const connection of connections) {
+      if (!connection.databaseId) continue;
+      const connDbId = connection.databaseId.replace(/-/g, "");
+      if (connDbId === normalizedId || connection.databaseId === args.databaseId) {
+        return connection;
+      }
+    }
+
+    return null;
   },
 });

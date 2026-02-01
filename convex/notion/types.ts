@@ -12,15 +12,3 @@ export const NOTION_PROPERTY_NAMES = {
   releaseDate: "Release Date",
   notes: "Notes",
 } as const;
-
-export type IdeaStatus = "Concept" | "To Stream" | "Recorded";
-export type IdeaOwner = "Theo" | "Phase" | "Ben" | "shivam";
-export type IdeaChannel = "main" | "theo rants" | "theo throwaways";
-export type IdeaLabel = "mid priority" | "low priority" | "high priority";
-export type IdeaAdReadTracker = "planned" | "in da edit" | "done";
-
-export type NotionPropertyEntry = {
-  name: string;
-  type?: string;
-  options?: Map<string, string>;
-};

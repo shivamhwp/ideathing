@@ -20,7 +20,6 @@ import type * as notion_oauth from "../notion/oauth.js";
 import type * as notion_queries from "../notion/queries.js";
 import type * as notion_sync from "../notion/sync.js";
 import type * as notion_types from "../notion/types.js";
-import type * as notion_utils from "../notion/utils.js";
 
 import type {
   ApiFromModules,
@@ -41,7 +40,6 @@ declare const fullApi: ApiFromModules<{
   "notion/queries": typeof notion_queries;
   "notion/sync": typeof notion_sync;
   "notion/types": typeof notion_types;
-  "notion/utils": typeof notion_utils;
 }>;
 
 /**

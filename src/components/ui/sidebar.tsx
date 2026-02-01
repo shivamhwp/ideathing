@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { SidebarSimpleIcon } from "@phosphor-icons/react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -589,8 +590,7 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean;
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
+  const width = useMemo(() => {
     return `${Math.floor(Math.random() * 40) + 50}%`;
   }, []);
 

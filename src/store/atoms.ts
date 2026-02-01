@@ -41,6 +41,7 @@ export type StatusType =
   | "2nd & 3rd Channel"
   | "Needs sponsor spot"
   | "Theo's Problem"
+  | "archived"
   | "";
 
 export interface IdeaDraft {

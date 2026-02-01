@@ -109,7 +109,7 @@ function useScheduledUpdate(organizationId?: string) {
       ...payload,
       organizationId,
     });
-  }, 900);
+  }, 750);
 
   const scheduleUpdate = (updates: Record<string, unknown>) => {
     pendingUpdatesRef.current = {
@@ -566,21 +566,8 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="Concept">Concept</SelectItem>
-            <SelectItem value="Commited">Commited</SelectItem>
-            <SelectItem value="To Record(Off stream)">To Record (Off stream)</SelectItem>
             <SelectItem value="To Stream">To Stream</SelectItem>
             <SelectItem value="Recorded">Recorded</SelectItem>
-            <SelectItem value="Editing">Editing</SelectItem>
-            <SelectItem value="Done Editing">Done Editing</SelectItem>
-            <SelectItem value="NEEDS THUMBNAIL">NEEDS THUMBNAIL</SelectItem>
-            <SelectItem value="Ready To Publish">Ready To Publish</SelectItem>
-            <SelectItem value="Scheduled">Scheduled</SelectItem>
-            <SelectItem value="Published">Published</SelectItem>
-            <SelectItem value="Shorts">Shorts</SelectItem>
-            <SelectItem value="2nd & 3rd Channel">2nd & 3rd Channel</SelectItem>
-            <SelectItem value="Needs sponsor spot">Needs sponsor spot</SelectItem>
-            <SelectItem value="Theo's Problem">Theo's Problem</SelectItem>
-            <SelectItem value="dead">dead</SelectItem>
           </SelectContent>
         </Select>
       </div>

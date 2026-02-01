@@ -17,6 +17,7 @@ export {
   listIdeasWithNotion,
   getIdeaByNotionPageId,
   getIdeaInternal,
+  getConnectionByDatabaseId,
 } from "./notion/queries";
 
 export {
@@ -26,7 +27,8 @@ export {
   updateIdeaSynced,
   clearIdeaSynced,
   updateIdeaFromNotion,
-  deleteIdeaByNotionPageId,
+  createIdeaFromWebhook,
+  archiveIdeaFromNotion,
 } from "./notion/mutations";
 
 export {
@@ -36,6 +38,9 @@ export {
   syncIdeaFromNotionPage,
   deleteFromNotion,
   updateInNotion,
+  createIdeaFromNotionPage,
+  handleNotionPageDeleted,
+  syncFromDataSource,
 } from "./notion/sync";
 
 export {
