@@ -6,6 +6,7 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/utils/utils";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -17,13 +18,16 @@ function SettingsLayout() {
 
 	return (
 		<div className="container mx-auto w-full max-w-3xl">
-			<Link
-				to="/"
-				className="inline-flex items-center pt-10 gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-			>
-				<ArrowLeftIcon className="w-4 h-4" />
-				back to home
-			</Link>
+			<div className="flex items-center justify-between pt-10">
+				<Link
+					to="/"
+					className="inline-flex items-center  gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+				>
+					<ArrowLeftIcon className="w-4 h-4" />
+					back to home
+				</Link>
+				<ThemeToggle />
+			</div>
 			<Root value={current}>
 				<List className="mt-6 flex h-10 items-end gap-6 border-b">
 					{(

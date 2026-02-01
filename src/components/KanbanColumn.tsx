@@ -1,5 +1,11 @@
 import { useDroppable } from "@dnd-kit/core";
-import { Lightbulb, PlusIcon, VideoCamera } from "@phosphor-icons/react";
+import {
+	LightbulbIcon,
+	LockIcon,
+	NotionLogoIcon,
+	PlusIcon,
+	VideoCameraIcon,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
@@ -8,12 +14,13 @@ import type { Idea } from "./KanbanBoard";
 interface KanbanColumnProps {
 	id: "ideas" | "to-stream";
 	title: string;
-	color: "ideas" | "vidit";
+	color: "ideas" | "to-stream";
 	items: Idea[];
 	onAddClick?: () => void;
 	onItemClick?: (idea: Idea) => void;
 	isSignedIn?: boolean;
 	organizationId?: string;
+	isNotionConnected?: boolean;
 }
 
 export function KanbanColumn({
@@ -25,15 +32,23 @@ export function KanbanColumn({
 	onItemClick,
 	isSignedIn = true,
 	organizationId,
+	isNotionConnected = true,
 }: KanbanColumnProps) {
-	const { setNodeRef, isOver } = useDroppable({ id });
+	const isDisabled = id === "to-stream" && (!isSignedIn || !isNotionConnected);
+	const { setNodeRef, isOver } = useDroppable({
+		id,
+		disabled: isDisabled,
+	});
 
 	return (
 		<div
 			ref={setNodeRef}
 			className={cn(
 				"flex flex-col h-full overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
-				isOver && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
+				isOver &&
+					!isDisabled &&
+					"ring-2 ring-primary/30 border-primary/50 bg-primary/5",
+				isDisabled && "opacity-60",
 			)}
 		>
 			{/* Column Header */}
@@ -43,12 +58,26 @@ export function KanbanColumn({
 						className={cn(
 							"w-2 h-2 rounded-full",
 							color === "ideas" ? "bg-amber-500" : "bg-pink-500",
+							isDisabled && "opacity-50",
 						)}
 					/>
-					<span className="text-sm font-medium text-foreground">{title}</span>
+					<span
+						className={cn(
+							"text-sm font-medium text-foreground",
+							isDisabled && "text-muted-foreground",
+						)}
+					>
+						{title}
+					</span>
 					<span className="text-xs text-muted-foreground">
 						({items.length})
 					</span>
+					{isDisabled && (
+						<LockIcon
+							className="w-3.5 h-3.5 text-muted-foreground"
+							weight="fill"
+						/>
+					)}
 				</div>
 				{onAddClick && isSignedIn && (
 					<Button onClick={onAddClick} variant="secondary">
@@ -57,19 +86,32 @@ export function KanbanColumn({
 				)}
 			</div>
 
+			{/* Disabled message for to-stream column */}
+			{isDisabled && items.length === 0 && (
+				<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/70 gap-3 px-4">
+					<div className="flex items-center gap-2">
+						<NotionLogoIcon className="w-6 h-6" weight="fill" />
+						<LockIcon className="w-4 h-4" weight="fill" />
+					</div>
+					<p className="text-xs text-center">
+						Connect Notion to move ideas to "To Stream"
+					</p>
+				</div>
+			)}
+
 			{/* Grid of cards */}
-			{items.length === 0 ? (
+			{!isDisabled && items.length === 0 ? (
 				<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50">
 					{id === "ideas" ? (
-						<Lightbulb className="w-8 h-8 mb-2" weight="duotone" />
+						<LightbulbIcon className="w-8 h-8 mb-2" weight="duotone" />
 					) : (
-						<VideoCamera className="w-8 h-8 mb-2" weight="duotone" />
+						<VideoCameraIcon className="w-8 h-8 mb-2" weight="duotone" />
 					)}
 					<p className="text-xs">
 						{id === "ideas" ? "Add your first idea" : "Drag ideas here"}
 					</p>
 				</div>
-			) : (
+			) : items.length > 0 ? (
 				<div className="flex-1 overflow-y-auto min-h-0">
 					<div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
 						{items.map((idea) => (
@@ -82,7 +124,7 @@ export function KanbanColumn({
 						))}
 					</div>
 				</div>
-			)}
+			) : null}
 		</div>
 	);
 }

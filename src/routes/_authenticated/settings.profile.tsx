@@ -57,7 +57,7 @@ function ProfileSettings() {
 							{user.primaryEmailAddress?.emailAddress}
 						</p>
 						{organization && (
-							<p className="text-xs text-muted-foreground mt-1">
+							<p className="text-xs text-muted-foreground mt-1 ">
 								Organization: {organization.name}
 							</p>
 						)}
@@ -71,9 +71,10 @@ function ProfileSettings() {
 						afterLeaveOrganizationUrl="/"
 						appearance={{
 							elements: {
-								rootBox: "flex items-center",
+								rootBox:
+									"flex items-center items-center justify-center text-white",
 								organizationSwitcherTrigger:
-									"rounded-md border border-border/50  hover:bg-accent/50 transition-colors text-lg",
+									"rounded-md border border-border/50 bg-background text-white hover:bg-accent/50 transition-colors text-lg",
 							},
 						}}
 					/>

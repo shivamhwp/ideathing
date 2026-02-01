@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action, mutation, query, internalQuery } from "../_generated/server";
+import { action } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { createNotionClient } from "./client";
 
@@ -17,52 +17,6 @@ const getTitleText = (value: unknown) => {
     .join("")
     .trim();
 };
-
-export const getConnection = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .first();
-
-    if (!connection) {
-      return null;
-    }
-
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken) {
-      return null;
-    }
-
-    return {
-      databaseId: connection.databaseId,
-      databaseName: connection.databaseName,
-      targetSection: connection.targetSection,
-      titlePropertyName: connection.titlePropertyName,
-      statusPropertyName: connection.statusPropertyName,
-      statusPropertyType: connection.statusPropertyType,
-      descriptionPropertyName: connection.descriptionPropertyName,
-    };
-  },
-});
-
-export const getConnectionInternal = internalQuery({
-  args: {
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .first();
-  },
-});
 
 export const listDatabases = action({
   args: {},
@@ -217,70 +171,5 @@ export const getDataSourceSchema = action({
       statusPropertyType: statusProperty ? "status" : selectProperty ? "select" : "status",
       descriptionPropertyName: descriptionProperty?.[0] ?? "Description",
     };
-  },
-});
-
-export const saveDatabaseSettings = mutation({
-  args: {
-    databaseId: v.string(),
-    databaseName: v.optional(v.string()),
-    targetSection: v.optional(v.string()),
-    titlePropertyName: v.optional(v.string()),
-    statusPropertyName: v.optional(v.string()),
-    statusPropertyType: v.optional(v.union(v.literal("status"), v.literal("select"))),
-    descriptionPropertyName: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .first();
-
-    if (!connection) {
-      throw new Error("Notion is not connected.");
-    }
-
-    await ctx.db.patch(connection._id, {
-      databaseId: args.databaseId,
-      databaseName: args.databaseName?.trim() || undefined,
-      targetSection: args.targetSection?.trim() || undefined,
-      titlePropertyName: args.titlePropertyName?.trim() || "Name",
-      statusPropertyName: args.statusPropertyName?.trim() || "Status",
-      statusPropertyType: args.statusPropertyType ?? "status",
-      descriptionPropertyName: args.descriptionPropertyName?.trim() || "Description",
-    });
-  },
-});
-
-export const disconnect = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .first();
-
-    if (connection) {
-      await ctx.db.delete(connection._id);
-    }
-
-    const states = await ctx.db
-      .query("notionOAuthStates")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .collect();
-
-    for (const state of states) {
-      await ctx.db.delete(state._id);
-    }
   },
 });

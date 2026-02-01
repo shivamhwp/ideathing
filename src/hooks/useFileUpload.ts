@@ -28,6 +28,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   const [preview, setPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<File | null>(null);
 
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
@@ -51,6 +52,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       return;
     }
 
+    fileRef.current = selectedFile;
     setFile(selectedFile);
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -60,15 +62,16 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   }, [maxSize, allowedTypes]);
 
   const upload = useCallback(async (): Promise<string | null> => {
-    if (!file) return null;
+    const fileToUpload = fileRef.current ?? file;
+    if (!fileToUpload) return null;
 
     setIsUploading(true);
     try {
       const uploadUrl = await generateUploadUrl();
       const response = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
+        headers: { "Content-Type": fileToUpload.type },
+        body: fileToUpload,
       });
 
       if (!response.ok) {
@@ -86,6 +89,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   }, [file, generateUploadUrl]);
 
   const clear = useCallback(() => {
+    fileRef.current = null;
     setFile(null);
     setPreview(null);
     if (fileInputRef.current) {

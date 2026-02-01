@@ -10,7 +10,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -46,62 +46,42 @@ type DatabaseOption = {
 };
 
 export function NotionConnect() {
-	const [showModal, setShowModal] = useState(false);
 	const connection = useQuery(api.notion.getConnection);
 
 	if (connection === undefined) {
 		return null;
 	}
 
-	const isConnected = !!connection;
-	const hasDatabase = !!connection?.databaseId;
-
-	return (
-		<>
-			<Button
-				variant={isConnected ? "outline" : "secondary"}
-				size="sm"
-				onClick={() => setShowModal(true)}
-				className={cn(
-					isConnected &&
-						" cursor-pointer border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
-				)}
-			>
-				<NotionLogoIcon className="w-4 h-4 mr-1.5" weight="fill" />
-				<span className="text-xs">
-					{hasDatabase ? "Connected" : "Connect Notion"}
-				</span>
-				{hasDatabase && <CheckIcon className="w-4 h-4 ml-1" weight="bold" />}
-			</Button>
-
-			<NotionConnectModal
-				open={showModal}
-				onOpenChange={setShowModal}
-				connection={connection}
-			/>
-		</>
-	);
+	return <NotionConnectModal connection={connection} />;
 }
 
 function NotionConnectModal({
-	open,
-	onOpenChange,
 	connection,
 }: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
 	connection: NotionConnection | null;
 }) {
-	const [targetSection, setTargetSection] = useState("To Stream");
-	const [titlePropertyName, setTitlePropertyName] = useState("Name");
-	const [statusPropertyName, setStatusPropertyName] = useState("Status");
+	const [open, setOpen] = useState(false);
+	const [targetSection, setTargetSection] = useState(
+		connection?.targetSection ?? "To Stream",
+	);
+	const [titlePropertyName, setTitlePropertyName] = useState(
+		connection?.titlePropertyName ?? "Name",
+	);
+	const [statusPropertyName, setStatusPropertyName] = useState(
+		connection?.statusPropertyName ?? "Status",
+	);
 	const [statusPropertyType, setStatusPropertyType] = useState<
 		"status" | "select"
-	>("status");
-	const [descriptionPropertyName, setDescriptionPropertyName] =
-		useState("Description");
-	const [selectedDatabaseId, setSelectedDatabaseId] = useState("");
-	const [selectedDatabaseName, setSelectedDatabaseName] = useState("");
+	>(connection?.statusPropertyType ?? "status");
+	const [descriptionPropertyName, setDescriptionPropertyName] = useState(
+		connection?.descriptionPropertyName ?? "Description",
+	);
+	const [selectedDatabaseId, setSelectedDatabaseId] = useState(
+		connection?.databaseId ?? "",
+	);
+	const [selectedDatabaseName, setSelectedDatabaseName] = useState(
+		connection?.databaseName ?? "",
+	);
 	const [databases, setDatabases] = useState<DatabaseOption[]>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isLoadingDatabases, setIsLoadingDatabases] = useState(false);
@@ -124,155 +104,107 @@ function NotionConnectModal({
 		[databases],
 	);
 
-	useEffect(() => {
-		if (!open || !connection) {
-			return;
-		}
-
+	const initializeFromConnection = () => {
 		setAutoSaved(false);
-		setTargetSection(connection.targetSection ?? "To Stream");
-		setTitlePropertyName(connection.titlePropertyName ?? "Name");
-		setStatusPropertyName(connection.statusPropertyName ?? "Status");
-		setStatusPropertyType(connection.statusPropertyType ?? "status");
-		setDescriptionPropertyName(
-			connection.descriptionPropertyName ?? "Description",
-		);
-		setSelectedDatabaseId(connection.databaseId ?? "");
-		setSelectedDatabaseName(connection.databaseName ?? "");
-	}, [open, connection]);
+		setTargetSection(connection?.targetSection ?? "To Stream");
+		setTitlePropertyName(connection?.titlePropertyName ?? "Name");
+		setStatusPropertyName(connection?.statusPropertyName ?? "Status");
+		setStatusPropertyType(connection?.statusPropertyType ?? "status");
+		setDescriptionPropertyName(connection?.descriptionPropertyName ?? "Description");
+		setSelectedDatabaseId(connection?.databaseId ?? "");
+		setSelectedDatabaseName(connection?.databaseName ?? "");
+		setDatabases([]);
+		setError(null);
+		setShowHelp(false);
+	};
 
-	useEffect(() => {
-		if (!open || !connection) {
-			return;
-		}
-
-		let isActive = true;
-
-		const fetchDatabases = async () => {
-			setIsLoadingDatabases(true);
-			setError(null);
-			try {
-				const result = await listDatabases();
-				if (!isActive) return;
-				const list = result.databases as DatabaseOption[];
-				setDatabases(list);
-
-				if (!selectedDatabaseId) {
-					const preferred = list.find(
-						(db) => db.name.toLowerCase() === "content planning",
-					);
-					const fallback = preferred ?? list[0];
-					if (fallback) {
-						setSelectedDatabaseId(fallback.id);
-						setSelectedDatabaseName(fallback.name);
-					}
-				}
-			} catch (err) {
-				if (!isActive) return;
-				setError(
-					err instanceof Error
-						? err.message
-						: "Failed to load Notion databases.",
-				);
-			} finally {
-				if (isActive) {
-					setIsLoadingDatabases(false);
-				}
-			}
-		};
-
-		void fetchDatabases();
-
-		return () => {
-			isActive = false;
-		};
-	}, [open, connection, listDatabases, selectedDatabaseId]);
-
-	useEffect(() => {
-		if (!open || !connection || !selectedDatabaseId) {
-			return;
-		}
-
-		let isActive = true;
-
-		const detectSchema = async () => {
-			setIsDetectingSchema(true);
-			setError(null);
-			try {
-				const result = await getDataSourceSchema({
-					dataSourceId: selectedDatabaseId,
-				});
-				if (!isActive) return;
-				setTitlePropertyName(result.titlePropertyName);
-				setStatusPropertyName(result.statusPropertyName);
-				setStatusPropertyType(result.statusPropertyType as "status" | "select");
-				setDescriptionPropertyName(result.descriptionPropertyName);
-			} catch (err) {
-				if (!isActive) return;
-				setError(
-					err instanceof Error
-						? err.message
-						: "Failed to detect Notion database properties.",
-				);
-			} finally {
-				if (isActive) {
-					setIsDetectingSchema(false);
-				}
-			}
-		};
-
-		void detectSchema();
-
-		return () => {
-			isActive = false;
-		};
-	}, [open, connection, selectedDatabaseId, getDataSourceSchema]);
-
-	useEffect(() => {
-		if (
-			!open ||
-			!connection ||
-			connection.databaseId ||
-			!selectedDatabaseId ||
-			isDetectingSchema ||
-			isSubmitting ||
-			autoSaved
-		) {
-			return;
-		}
-
-		if (databases.length === 1) {
-			setAutoSaved(true);
-			void saveDatabaseSettings({
-				databaseId: selectedDatabaseId,
-				databaseName: selectedDatabaseName,
-				targetSection: targetSection.trim() || "To Stream",
-				titlePropertyName: titlePropertyName.trim() || "Name",
-				statusPropertyName: statusPropertyName.trim() || "Status",
-				statusPropertyType,
-				descriptionPropertyName:
-					descriptionPropertyName.trim() || "Description",
-			}).then(() => {
-				onOpenChange(false);
+	const detectSchema = async (dataSourceId: string) => {
+		setIsDetectingSchema(true);
+		setError(null);
+		try {
+			const result = await getDataSourceSchema({
+				dataSourceId,
 			});
+			setTitlePropertyName(result.titlePropertyName);
+			setStatusPropertyName(result.statusPropertyName);
+			setStatusPropertyType(result.statusPropertyType as "status" | "select");
+			setDescriptionPropertyName(result.descriptionPropertyName);
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to detect Notion database properties.",
+			);
+		} finally {
+			setIsDetectingSchema(false);
 		}
-	}, [
-		open,
-		connection,
-		selectedDatabaseId,
-		selectedDatabaseName,
-		isDetectingSchema,
-		isSubmitting,
-		autoSaved,
-		databases.length,
-		targetSection,
-		titlePropertyName,
-		statusPropertyName,
-		statusPropertyType,
-		descriptionPropertyName,
-		saveDatabaseSettings,
-		onOpenChange,
-	]);
+	};
+
+	const loadDatabases = async () => {
+		if (!connection) return;
+		setIsLoadingDatabases(true);
+		setError(null);
+		try {
+			const result = await listDatabases();
+			const list = result.databases as DatabaseOption[];
+			setDatabases(list);
+
+			let nextDatabaseId = selectedDatabaseId;
+			let nextDatabaseName = selectedDatabaseName;
+			if (!nextDatabaseId) {
+				const preferred = list.find(
+					(db) => db.name.toLowerCase() === "content planning",
+				);
+				const fallback = preferred ?? list[0];
+				if (fallback) {
+					nextDatabaseId = fallback.id;
+					nextDatabaseName = fallback.name;
+					setSelectedDatabaseId(nextDatabaseId);
+					setSelectedDatabaseName(nextDatabaseName);
+				}
+			}
+
+			if (nextDatabaseId) {
+				await detectSchema(nextDatabaseId);
+			}
+
+			if (
+				!connection.databaseId &&
+				list.length === 1 &&
+				nextDatabaseId &&
+				!autoSaved
+			) {
+				setAutoSaved(true);
+				await saveDatabaseSettings({
+					databaseId: nextDatabaseId,
+					databaseName: nextDatabaseName,
+					targetSection: targetSection.trim() || "To Stream",
+					titlePropertyName: titlePropertyName.trim() || "Name",
+					statusPropertyName: statusPropertyName.trim() || "Status",
+					statusPropertyType,
+					descriptionPropertyName:
+						descriptionPropertyName.trim() || "Description",
+				});
+				setOpen(false);
+			}
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to load Notion databases.",
+			);
+		} finally {
+			setIsLoadingDatabases(false);
+		}
+	};
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) {
+			initializeFromConnection();
+			void loadDatabases();
+		}
+		setOpen(nextOpen);
+	};
 
 	const handleStartOAuth = async () => {
 		setIsSubmitting(true);
@@ -330,7 +262,7 @@ function NotionConnectModal({
 				descriptionPropertyName:
 					descriptionPropertyName.trim() || "Description",
 			});
-			onOpenChange(false);
+			setOpen(false);
 		} catch (err) {
 			setError(
 				err instanceof Error ? err.message : "Failed to save Notion settings.",
@@ -342,17 +274,35 @@ function NotionConnectModal({
 
 	const handleDisconnect = async () => {
 		await disconnect();
-		onOpenChange(false);
+		setOpen(false);
 	};
 
 	const handleDatabaseChange = (value: string) => {
 		setSelectedDatabaseId(value);
 		const match = databases.find((db) => db.id === value);
 		setSelectedDatabaseName(match?.name ?? "");
+		if (value) {
+			void detectSchema(value);
+		}
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
+			<Button
+				variant={isConnected ? "outline" : "secondary"}
+				size="sm"
+				onClick={() => handleOpenChange(true)}
+				className={cn(
+					isConnected &&
+						" cursor-pointer border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
+				)}
+			>
+				<NotionLogoIcon className="w-4 h-4 mr-1.5" weight="fill" />
+				<span className="text-xs">
+					{hasDatabase ? "Connected" : "Connect Notion"}
+				</span>
+				{hasDatabase && <CheckIcon className="w-4 h-4 ml-1" weight="bold" />}
+			</Button>
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle>
@@ -501,7 +451,7 @@ function NotionConnectModal({
 							<Button
 								type="button"
 								variant="outline"
-								onClick={() => onOpenChange(false)}
+								onClick={() => setOpen(false)}
 							>
 								Cancel
 							</Button>

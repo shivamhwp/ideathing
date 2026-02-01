@@ -1,4 +1,5 @@
 import { useOrganization, useUser } from "@clerk/tanstack-react-start";
+import { convexQuery } from "@convex-dev/react-query";
 import {
 	closestCenter,
 	DndContext,
@@ -16,16 +17,26 @@ import {
 	sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { SpinnerIcon } from "@phosphor-icons/react";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
-import { useAction, useQuery } from "convex/react";
-import { useSetAtom } from "jotai";
+import { useMutation, useQuery } from "convex/react";
+import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
-import { useNotionSync } from "@/hooks/useNotionSync";
+import { toast } from "sonner";
+import type {
+	ChannelType,
+	LabelType,
+	OwnerType,
+	StatusType,
+} from "@/store/atoms";
 import {
 	createIdeaDraftFromIdea,
 	defaultIdeaDraft,
-	ideaDraftAtom,
+	editIdeaDraftAtom,
+	editIdeaIdAtom,
+	editIdeaOpenAtom,
+	newIdeaDraftAtom,
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
@@ -42,10 +53,11 @@ export type Idea = {
 	recorded?: boolean;
 	vodRecordingDate?: string;
 	releaseDate?: string;
-	owner?: "Theo" | "Phase" | "Ben" | "shivam";
-	channel?: "main" | "theo rants" | "theo throwaways";
+	owner?: Exclude<OwnerType, "">;
+	channel?: Exclude<ChannelType, "">;
 	potential?: number;
-	label?: "mid priority" | "low priority" | "high priority";
+	label?: Exclude<LabelType, "">;
+	status?: Exclude<StatusType, "">;
 	adReadTracker?: "planned" | "in da edit" | "done";
 	unsponsored?: boolean;
 	column: "ideas" | "to-stream";
@@ -57,14 +69,20 @@ export function KanbanBoard() {
 	const { isSignedIn } = useUser();
 	const { organization } = useOrganization();
 	const organizationId = organization?.id;
-	const ideas = useQuery(api.ideas.list, { organizationId });
-	const moveIdea = useAction(api.ideas.move);
-	const setDraft = useSetAtom(ideaDraftAtom);
+
+	const setNewDraft = useSetAtom(newIdeaDraftAtom);
+	const setEditDraft = useSetAtom(editIdeaDraftAtom);
+	const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
+	const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
 	const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
 	const [showAddModal, setShowAddModal] = useState(false);
-	const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
 
-	useNotionSync(ideas);
+	const ideas = useQuery(api.ideas.list, { organizationId });
+	const notionConnection = useSuspenseQuery(
+		convexQuery(api.notion.getConnection, {}),
+	);
+	const isNotionConnected = !!notionConnection?.data?.databaseId;
+	const moveIdea = useMutation(api.ideas.move);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -86,11 +104,13 @@ export function KanbanBoard() {
 	}
 
 	const ideasData = ideas ?? [];
+	// Ideas column: status is NOT "Recorded" or "To Stream"
 	const ideasColumn = ideasData
-		.filter((idea) => idea.column === "ideas")
+		.filter((idea) => idea.status !== "Recorded" && idea.status !== "To Stream")
 		.sort((a, b) => a.order - b.order);
+	// To Stream column: status is "To Stream"
 	const toStreamColumn = ideasData
-		.filter((idea) => idea.column === "to-stream" && !idea.recorded)
+		.filter((idea) => idea.status === "To Stream")
 		.sort((a, b) => a.order - b.order);
 
 	const activeIdea = activeId
@@ -98,13 +118,16 @@ export function KanbanBoard() {
 		: null;
 
 	const handleAddIdea = () => {
-		setDraft((prev) => (prev.ideaId ? defaultIdeaDraft : prev));
+		setNewDraft((prev) => (prev.ideaId ? defaultIdeaDraft : prev));
+		setIsEditOpen(false);
+		setEditIdeaId(null);
 		setShowAddModal(true);
 	};
 
 	const handleEditIdea = (idea: Idea) => {
-		setDraft(createIdeaDraftFromIdea(idea));
-		setEditingIdea(idea);
+		setEditDraft(createIdeaDraftFromIdea(idea));
+		setEditIdeaId(idea._id);
+		setIsEditOpen(true);
 	};
 
 	function handleDragStart(event: DragStartEvent) {
@@ -135,11 +158,21 @@ export function KanbanBoard() {
 			}
 		}
 
+		// Prevent moving to "to-stream" if not signed in or Notion not connected
+		if (newColumn === "to-stream" && (!isSignedIn || !isNotionConnected)) {
+			if (isSignedIn && !isNotionConnected) {
+				toast.error("Finish the Notion connection setup to move ideas here");
+			}
+			return;
+		}
+
 		if (activeIdea.column !== newColumn || activeIdea.order !== newOrder) {
 			await moveIdea({
 				id: activeIdea._id,
 				column: newColumn,
 				order: newOrder,
+				// Set status when moving to to-stream column
+				status: newColumn === "to-stream" ? "To Stream" : undefined,
 				organizationId,
 			});
 		}
@@ -183,10 +216,12 @@ export function KanbanBoard() {
 						<KanbanColumn
 							id="to-stream"
 							title="To Stream"
-							color="vidit"
+							color="to-stream"
 							items={toStreamColumn}
 							onItemClick={handleEditIdea}
 							organizationId={organizationId}
+							isSignedIn={isSignedIn}
+							isNotionConnected={isNotionConnected}
 						/>
 					</SortableContext>
 				</div>
@@ -223,10 +258,15 @@ export function KanbanBoard() {
 				organizationId={organizationId}
 			/>
 			<EditIdeaModal
-				key={editingIdea?._id ?? "edit-idea"}
-				idea={editingIdea}
-				open={!!editingIdea}
-				onOpenChange={(open) => !open && setEditingIdea(null)}
+				key={editIdeaId ?? "edit-idea"}
+				idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}
+				open={isEditOpen}
+				onOpenChange={(open) => {
+					setIsEditOpen(open);
+					if (!open) {
+						setEditIdeaId(null);
+					}
+				}}
 				organizationId={organizationId}
 			/>
 		</div>

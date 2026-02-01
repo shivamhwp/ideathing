@@ -1,15 +1,12 @@
 import { v } from "convex/values";
 import type { ActionCtx } from "../_generated/server";
-import { action, internalAction, internalMutation, internalQuery } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Client } from "@notionhq/client";
 import type {
   BlockObjectRequest,
-  BlockObjectResponse,
-  CalloutBlockObjectResponse,
   CreatePageParameters,
   GetPageResponse,
-  PartialBlockObjectResponse,
   UpdatePageParameters,
 } from "@notionhq/client/build/src/api-endpoints";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -75,23 +72,6 @@ const deriveStatusForNotion = (column: string, recorded?: boolean): string => {
   if (recorded) return "Recorded";
   return column === "to-stream" ? "To Stream" : "idea";
 };
-
-const getRichTextPlain = (value: unknown) => {
-  if (!Array.isArray(value)) return "";
-  return value
-    .map((part) =>
-      typeof part === "object" &&
-      part !== null &&
-      "plain_text" in part &&
-      typeof part.plain_text === "string"
-        ? part.plain_text
-        : ""
-    )
-    .join("")
-    .trim();
-};
-
-const SYNCED_CONTENT_TITLE = "Synced content";
 
 const createRichText = (content: string, link?: string): TextRichText[] => [
   {
@@ -451,7 +431,7 @@ const getThumbnailContent = async (
 };
 
 const fetchAllBlockChildren = async (blockId: string, notion: Client) => {
-  const results: Array<{ id: string }> = [];
+  const results: Array<{ id: string; archived: boolean }> = [];
   let cursor: string | null | undefined = undefined;
 
   do {
@@ -468,27 +448,12 @@ const fetchAllBlockChildren = async (blockId: string, notion: Client) => {
         "id" in block &&
         typeof block.id === "string"
       ) {
-        results.push({ id: block.id });
+        results.push({
+          id: block.id,
+          archived: "archived" in block ? Boolean(block.archived) : false,
+        });
       }
     }
-    cursor = data?.has_more ? data?.next_cursor : null;
-  } while (cursor);
-
-  return results;
-};
-
-const fetchAllBlocks = async (blockId: string, notion: Client) => {
-  const results: Array<PartialBlockObjectResponse | BlockObjectResponse> = [];
-  let cursor: string | null | undefined = undefined;
-
-  do {
-    const data = await notion.blocks.children.list({
-      block_id: blockId,
-      page_size: 100,
-      start_cursor: cursor ?? undefined,
-    });
-    const pageResults = Array.isArray(data?.results) ? data.results : [];
-    results.push(...pageResults);
     cursor = data?.has_more ? data?.next_cursor : null;
   } while (cursor);
 
@@ -522,37 +487,37 @@ const upsertSyncedContent = async ({
     return;
   }
 
-  const blocks = await fetchAllBlocks(pageId, notion);
-  const isCalloutBlock = (
-    block: PartialBlockObjectResponse | BlockObjectResponse
-  ): block is CalloutBlockObjectResponse => "type" in block && block.type === "callout";
-  const syncedBlocks = blocks.filter(
-    (block) =>
-      isCalloutBlock(block) &&
-      getRichTextPlain(block.callout.rich_text) === SYNCED_CONTENT_TITLE
-  );
-
-  for (const block of syncedBlocks) {
-    if ("id" in block && typeof block.id === "string") {
-      const existingChildren = await fetchAllBlockChildren(block.id, notion);
-      for (const child of existingChildren) {
-        await notion.blocks.delete({ block_id: child.id });
-      }
-      await notion.blocks.delete({ block_id: block.id });
-    }
-  }
-
-  const prependSpacer = blocks.length === 0;
-  const spacerBlock: BlockObjectRequest = {
+  const timestampSpacer: BlockObjectRequest = {
     object: "block",
     type: "paragraph",
     paragraph: {
       rich_text: [],
     },
   };
+  const lastSyncedAt = new Date().toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const timestampBlock: BlockObjectRequest = {
+    object: "block",
+    type: "paragraph",
+    paragraph: {
+      rich_text: createRichText(`Last synced: ${lastSyncedAt}`),
+    },
+  };
+  const nextChildren = [...children, timestampSpacer, timestampBlock];
+
+  const existingBlocks = await fetchAllBlockChildren(pageId, notion);
+  for (const block of existingBlocks) {
+    // Skip archived blocks - they can't be deleted
+    if (!block.archived) {
+      await notion.blocks.delete({ block_id: block.id });
+    }
+  }
+
   await notion.blocks.children.append({
     block_id: pageId,
-    children: prependSpacer ? [spacerBlock, ...children] : children,
+    children: nextChildren,
   });
 };
 
@@ -951,10 +916,11 @@ export const syncStatusesFromNotion = action({
     // Process in batches to avoid N+1 issue
     for (let i = 0; i < ideas.length; i += BATCH_SIZE) {
       const batch = ideas.slice(i, i + BATCH_SIZE);
+      const ideasWithNotion = batch.filter(
+        (idea): idea is Doc<"ideas"> & { notionPageId: string } => Boolean(idea.notionPageId)
+      );
       const results = await Promise.all(
-        batch
-          .filter((idea): idea is Doc<"ideas"> & { notionPageId: string } => Boolean(idea.notionPageId))
-          .map(async (idea) => {
+        ideasWithNotion.map(async (idea) => {
             try {
               const data = await notion.pages.retrieve({
                 page_id: idea.notionPageId,
@@ -1299,160 +1265,5 @@ export const updateInNotion = internalAction({
       ideaId: args.ideaId,
       notionPageId: idea.notionPageId,
     });
-  },
-});
-
-// Internal queries and mutations
-export const getIdeaInternal = internalQuery({
-  args: {
-    ideaId: v.id("ideas"),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.ideaId);
-  },
-});
-
-export const listIdeasWithNotion = internalQuery({
-  args: {
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const ideas = await ctx.db
-      .query("ideas")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-
-    return ideas.filter((idea) => Boolean(idea.notionPageId));
-  },
-});
-
-export const getIdeaByNotionPageId = internalQuery({
-  args: {
-    notionPageId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("ideas")
-      .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
-      .first();
-  },
-});
-
-export const updateIdeaSynced = internalMutation({
-  args: {
-    ideaId: v.id("ideas"),
-    notionPageId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.ideaId, {
-      notionPageId: args.notionPageId,
-      syncedAt: Date.now(),
-    });
-  },
-});
-
-export const clearIdeaSynced = internalMutation({
-  args: {
-    ideaId: v.id("ideas"),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.ideaId, {
-      notionPageId: undefined,
-      syncedAt: undefined,
-    });
-  },
-});
-
-export const updateIdeaFromNotion = internalMutation({
-  args: {
-    ideaId: v.id("ideas"),
-    recorded: v.optional(v.boolean()),
-    column: v.optional(v.union(v.literal("ideas"), v.literal("to-stream"))),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    notes: v.optional(v.string()),
-    owner: v.optional(
-      v.union(
-        v.literal("Theo"),
-        v.literal("Phase"),
-        v.literal("Ben"),
-        v.literal("shivam"),
-      ),
-    ),
-    channel: v.optional(
-      v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways"))
-    ),
-    label: v.optional(
-      v.union(
-        v.literal("mid priority"),
-        v.literal("low priority"),
-        v.literal("high priority")
-      )
-    ),
-    adReadTracker: v.optional(
-      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done"))
-    ),
-    potential: v.optional(v.number()),
-    thumbnailReady: v.optional(v.boolean()),
-    unsponsored: v.optional(v.boolean()),
-    vodRecordingDate: v.optional(v.string()),
-    releaseDate: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const idea = await ctx.db.get(args.ideaId);
-    if (!idea) {
-      return;
-    }
-
-    const updates = Object.fromEntries(
-      Object.entries({
-        recorded: args.recorded,
-        title: args.title,
-        description: args.description,
-        notes: args.notes,
-        owner: args.owner,
-        channel: args.channel,
-        label: args.label,
-        adReadTracker: args.adReadTracker,
-        potential: args.potential,
-        thumbnailReady: args.thumbnailReady,
-        unsponsored: args.unsponsored,
-        vodRecordingDate: args.vodRecordingDate,
-        releaseDate: args.releaseDate,
-      }).filter(([_, value]) => value !== undefined)
-    );
-
-    let nextColumn: "ideas" | "to-stream" | undefined;
-    let nextOrder: number | undefined;
-
-    // Handle column change from Notion
-    if (args.column && args.column !== idea.column) {
-      nextColumn = args.column;
-    }
-
-    if (nextColumn) {
-      const columnIdeas = await ctx.db
-        .query("ideas")
-        .withIndex("by_user_column", (q) =>
-          q.eq("userId", idea.userId).eq("column", nextColumn),
-        )
-        .collect();
-      const maxOrder = columnIdeas.reduce((max, entry) => Math.max(max, entry.order), -1);
-      nextOrder = maxOrder + 1;
-    }
-
-    const updatesWithColumn = Object.fromEntries(
-      Object.entries({
-        ...updates,
-        column: nextColumn,
-        order: nextOrder,
-      }).filter(([_, value]) => value !== undefined)
-    );
-
-    if (Object.keys(updatesWithColumn).length === 0) {
-      return;
-    }
-
-    await ctx.db.patch(args.ideaId, updatesWithColumn);
   },
 });
