@@ -4,7 +4,7 @@ import { format, isValid, parseISO } from "date-fns";
 import { api } from "convex/_generated/api";
 import { useMutation } from "convex/react";
 import { useAtom } from "jotai";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -50,6 +50,44 @@ const formatDateValue = (value: string) => {
 export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModalProps) {
   const [draft, setDraft] = useAtom(ideaDraftAtom);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resourceCount, setResourceCount] = useState(draft.resources.length || 1);
+
+  // Refs for text inputs to avoid re-renders on keystroke
+  const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+  const thumbnailRef = useRef<HTMLInputElement>(null);
+  const resourceRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced save to atom (200ms) - persists draft without causing re-renders
+  const debouncedSaveToAtom = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      setDraft((prev) => ({
+        ...prev,
+        title: titleRef.current?.value ?? prev.title,
+        description: descriptionRef.current?.value ?? prev.description,
+        notes: notesRef.current?.value ?? prev.notes,
+        thumbnail: thumbnailRef.current?.value ?? prev.thumbnail,
+        resources: resourceRefs.current
+          .slice(0, resourceCount)
+          .map((ref, i) => ref?.value ?? prev.resources[i] ?? ""),
+      }));
+    }, 200);
+  }, [setDraft, resourceCount]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
   const {
     file: thumbnailFile,
     preview: thumbnailPreview,
@@ -62,63 +100,91 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
 
   const createIdea = useMutation(api.ideas.create);
 
-  const updateDraft = (updates: Partial<IdeaDraft>) => {
-    setDraft((prev) => ({ ...prev, ...updates }));
-  };
+  // Sync refs with draft when dialog opens
+  useEffect(() => {
+    if (open) {
+      if (titleRef.current) titleRef.current.value = draft.title;
+      if (descriptionRef.current) descriptionRef.current.value = draft.description;
+      if (notesRef.current) notesRef.current.value = draft.notes;
+      if (thumbnailRef.current) thumbnailRef.current.value = draft.thumbnail;
+      setResourceCount(draft.resources.length || 1);
+      draft.resources.forEach((resource, index) => {
+        if (resourceRefs.current[index]) {
+          resourceRefs.current[index]!.value = resource;
+        }
+      });
+    }
+  }, [open, draft]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFileSelect(e);
-    updateDraft({ thumbnail: "", thumbnailReady: true });
-  };
-
-  const updateResource = (index: number, value: string) => {
-    updateDraft({
-      resources: draft.resources.map((resource, resourceIndex) =>
-        resourceIndex === index ? value : resource,
-      ),
-    });
+    if (thumbnailRef.current) thumbnailRef.current.value = "";
+    setDraft((prev) => ({ ...prev, thumbnail: "", thumbnailReady: true }));
   };
 
   const addResource = () => {
-    updateDraft({ resources: [...draft.resources, ""] });
+    setResourceCount((prev) => prev + 1);
   };
 
   const removeResource = (index: number) => {
-    const nextResources = draft.resources.filter((_, resourceIndex) => resourceIndex !== index);
-    updateDraft({ resources: nextResources.length ? nextResources : [""] });
+    if (resourceCount === 1) return;
+    // Shift values up from removed index
+    for (let i = index; i < resourceCount - 1; i++) {
+      if (resourceRefs.current[i] && resourceRefs.current[i + 1]) {
+        resourceRefs.current[i]!.value = resourceRefs.current[i + 1]!.value;
+      }
+    }
+    setResourceCount((prev) => prev - 1);
   };
 
   const clearThumbnail = () => {
     clearFileUpload();
-    updateDraft({ thumbnail: "", thumbnailReady: false });
+    if (thumbnailRef.current) thumbnailRef.current.value = "";
+    setDraft((prev) => ({ ...prev, thumbnail: "", thumbnailReady: false }));
   };
 
-  const clearDraft = () => {
+  const clearAll = () => {
     setDraft(defaultIdeaDraft);
     clearFileUpload();
+    setResourceCount(1);
+    if (titleRef.current) titleRef.current.value = "";
+    if (descriptionRef.current) descriptionRef.current.value = "";
+    if (notesRef.current) notesRef.current.value = "";
+    if (thumbnailRef.current) thumbnailRef.current.value = "";
+    resourceRefs.current.forEach((ref) => {
+      if (ref) ref.value = "";
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft.title.trim()) return;
+    const title = titleRef.current?.value.trim() || "";
+    if (!title) return;
 
     setIsSubmitting(true);
     try {
-      let finalThumbnail: string | undefined;
+      const description = descriptionRef.current?.value.trim() || "";
+      const notes = notesRef.current?.value.trim() || "";
+      const thumbnail = thumbnailRef.current?.value.trim() || "";
+      const resources = resourceRefs.current
+        .slice(0, resourceCount)
+        .map((ref) => ref?.value.trim() || "")
+        .filter(Boolean);
 
+      let finalThumbnail: string | undefined;
       if (thumbnailFile) {
         finalThumbnail = (await uploadFile()) ?? undefined;
-      } else if (draft.thumbnail.trim()) {
-        finalThumbnail = draft.thumbnail.trim();
+      } else if (thumbnail) {
+        finalThumbnail = thumbnail;
       }
 
       await createIdea({
-        title: draft.title.trim(),
-        description: draft.description.trim() || undefined,
-        notes: draft.notes.trim() || undefined,
+        title,
+        description: description || undefined,
+        notes: notes || undefined,
         thumbnail: finalThumbnail,
         thumbnailReady: draft.thumbnailReady || Boolean(finalThumbnail),
-        resources: draft.resources.filter((r) => r.trim()),
+        resources,
         vodRecordingDate: draft.vodRecordingDate || undefined,
         releaseDate: draft.releaseDate || undefined,
         owner: draft.owner || undefined,
@@ -131,7 +197,7 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
       });
 
       toast.success("Idea added successfully");
-      clearDraft();
+      clearAll();
       onOpenChange(false);
     } catch (error) {
       void error;
@@ -139,6 +205,10 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const updateDraft = (updates: Partial<IdeaDraft>) => {
+    setDraft((prev) => ({ ...prev, ...updates }));
   };
 
   return (
@@ -156,10 +226,11 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
                 Title <span className="text-destructive">*</span>
               </Label>
               <Input
+                ref={titleRef}
                 id="title"
                 type="text"
-                value={draft.title}
-                onChange={(e) => updateDraft({ title: e.target.value })}
+                defaultValue={draft.title}
+                onInput={debouncedSaveToAtom}
                 placeholder="What's the hook?"
                 autoFocus
               />
@@ -169,9 +240,10 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
                 Description
               </Label>
               <Input
+                ref={descriptionRef}
                 id="description"
-                value={draft.description}
-                onChange={(e) => updateDraft({ description: e.target.value })}
+                defaultValue={draft.description}
+                onInput={debouncedSaveToAtom}
                 placeholder="One-line summary"
               />
             </div>
@@ -183,13 +255,14 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
               Resources
             </Label>
             <div className="grid grid-cols-2 gap-2">
-              {draft.resources.map((resource, index) => (
+              {Array.from({ length: resourceCount }).map((_, index) => (
                 <div key={`resource-${index}`} className="flex items-center gap-2">
                   <Input
+                    ref={(el) => { resourceRefs.current[index] = el; }}
                     id={index === 0 ? "resources" : undefined}
                     type="url"
-                    value={resource}
-                    onChange={(e) => updateResource(index, e.target.value)}
+                    defaultValue={draft.resources[index] || ""}
+                    onInput={debouncedSaveToAtom}
                     placeholder={index === 0 ? "Add resource URL" : "Another resource URL"}
                     className="flex-1"
                   />
@@ -198,7 +271,7 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
                     variant="outline"
                     size="icon"
                     onClick={() => removeResource(index)}
-                    disabled={draft.resources.length === 1 && !resource}
+                    disabled={resourceCount === 1 && !resourceRefs.current[0]?.value}
                     aria-label="Remove resource"
                   >
                     <X className="w-4 h-4" />
@@ -241,14 +314,10 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
               ) : (
                 <div className="flex gap-2">
                   <Input
+                    ref={thumbnailRef}
                     type="url"
-                    value={draft.thumbnail}
-                    onChange={(e) =>
-                      updateDraft({
-                        thumbnail: e.target.value,
-                        thumbnailReady: Boolean(e.target.value),
-                      })
-                    }
+                    defaultValue={draft.thumbnail}
+                    onInput={debouncedSaveToAtom}
                     placeholder="Paste image URL"
                     className="flex-1"
                   />
@@ -466,9 +535,10 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
               Notes
             </Label>
             <Textarea
+              ref={notesRef}
               id="notes"
-              value={draft.notes}
-              onChange={(e) => updateDraft({ notes: e.target.value })}
+              defaultValue={draft.notes}
+              onInput={debouncedSaveToAtom}
               placeholder="Loose thoughts, beats, punchlines…"
               className="min-h-[120px] resize-none"
             />
@@ -482,7 +552,8 @@ export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModa
           </Button>
           <Button
             type="submit"
-            disabled={!draft.title.trim() || isSubmitting}
+            disabled={isSubmitting}
+            onClick={handleSubmit}
           >
             {isSubmitting ? (
               <>
