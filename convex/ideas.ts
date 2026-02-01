@@ -473,7 +473,15 @@ export const update = mutation({
     // If already in To Stream and has notionPageId, sync updates
     const shouldSyncToNotion = idea.column === "To Stream" && !!idea.notionPageId;
     if (shouldSyncToNotion) {
-      await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, { ideaId: args.id });
+      const contentFields = ["description", "notes", "thumbnail", "resources"] as const;
+      const contentChanged = contentFields.some(
+        (field) => args[field] !== undefined && args[field] !== idea[field],
+      );
+
+      await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, {
+        ideaId: args.id,
+        syncContent: contentChanged,
+      });
     }
   },
 });

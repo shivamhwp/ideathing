@@ -1150,7 +1150,10 @@ export const syncFromDataSource = internalAction({
 });
 
 export const updateInNotion = internalAction({
-  args: { ideaId: v.id("ideas") },
+  args: {
+    ideaId: v.id("ideas"),
+    syncContent: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
 
@@ -1243,7 +1246,9 @@ export const updateInNotion = internalAction({
       return;
     }
 
-    await upsertSyncedContent({ ctx, pageId: idea.notionPageId, notion, idea, missingProperties });
+    if (args.syncContent !== false) {
+      await upsertSyncedContent({ ctx, pageId: idea.notionPageId, notion, idea, missingProperties });
+    }
 
     await ctx.runMutation(internal.notion.updateIdeaSynced, {
       ideaId: args.ideaId,

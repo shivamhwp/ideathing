@@ -518,11 +518,15 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
     const nextValue = (value || "") as typeof status;
     setStatus(nextValue);
 
-    // Sync column based on status
+    // Only sync column for Concept <-> To Stream transitions
+    // "Recorded" and other statuses should NOT change the column
     if (value === "To Stream") {
       scheduleUpdate({ status: value, column: "To Stream" });
+    } else if (value === "Concept") {
+      scheduleUpdate({ status: value, column: "Concept" });
     } else {
-      scheduleUpdate({ status: value || undefined, column: "Concept" });
+      // For Recorded and other statuses, only update status, not column
+      scheduleUpdate({ status: value || undefined });
     }
   };
 

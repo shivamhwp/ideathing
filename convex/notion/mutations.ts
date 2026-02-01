@@ -45,17 +45,28 @@ type Label = (typeof labelValues)[number];
 type Status = (typeof statusValues)[number];
 type AdReadTracker = (typeof adReadTrackerValues)[number];
 
-const isValidOwner = (value?: string): value is Owner => ownerValues.includes(value as Owner);
+// Create case-insensitive lookup maps
+const createLookup = <T extends readonly string[]>(values: T) => {
+  const map = new Map(values.map((v) => [v.toLowerCase(), v]));
+  return (value?: string | null): T[number] | undefined => {
+    if (!value) return undefined;
+    return map.get(value.toLowerCase()) as T[number] | undefined;
+  };
+};
 
-const isValidChannel = (value?: string): value is Channel =>
-  channelValues.includes(value as Channel);
+const normalizeOwner = createLookup(ownerValues);
+const normalizeChannel = createLookup(channelValues);
+const normalizeLabel = createLookup(labelValues);
+const normalizeStatus = createLookup(statusValues);
+const normalizeAdReadTracker = createLookup(adReadTrackerValues);
 
-const isValidLabel = (value?: string): value is Label => labelValues.includes(value as Label);
-
-const isValidStatus = (value?: string): value is Status => statusValues.includes(value as Status);
-
+// Legacy validators (kept for compatibility)
+const isValidOwner = (value?: string): value is Owner => !!normalizeOwner(value);
+const isValidChannel = (value?: string): value is Channel => !!normalizeChannel(value);
+const isValidLabel = (value?: string): value is Label => !!normalizeLabel(value);
+const isValidStatus = (value?: string): value is Status => !!normalizeStatus(value);
 const isValidAdReadTracker = (value?: string): value is AdReadTracker =>
-  adReadTrackerValues.includes(value as AdReadTracker);
+  !!normalizeAdReadTracker(value);
 
 export const saveDatabaseSettings = mutation({
   args: {
@@ -173,14 +184,14 @@ export const updateIdeaFromNotion = internalMutation({
 
     const updates = Object.fromEntries(
       Object.entries({
-        status: args.status,
+        status: normalizeStatus(args.status),
         title: args.title,
         description: args.description,
         notes: args.notes,
-        owner: args.owner,
-        channel: args.channel,
-        label: args.label,
-        adReadTracker: args.adReadTracker,
+        owner: normalizeOwner(args.owner),
+        channel: normalizeChannel(args.channel),
+        label: normalizeLabel(args.label),
+        adReadTracker: normalizeAdReadTracker(args.adReadTracker),
         potential: args.potential,
         thumbnailReady: args.thumbnailReady,
         unsponsored: args.unsponsored,
@@ -263,13 +274,13 @@ export const createIdeaFromWebhook = internalMutation({
       title: args.title,
       description: args.description,
       notes: args.notes,
-      status: isValidStatus(args.status) ? args.status : undefined,
+      status: normalizeStatus(args.status),
       column: args.column,
       order: maxOrder + 1,
-      owner: isValidOwner(args.owner) ? args.owner : undefined,
-      channel: isValidChannel(args.channel) ? args.channel : undefined,
-      label: isValidLabel(args.label) ? args.label : undefined,
-      adReadTracker: isValidAdReadTracker(args.adReadTracker) ? args.adReadTracker : undefined,
+      owner: normalizeOwner(args.owner),
+      channel: normalizeChannel(args.channel),
+      label: normalizeLabel(args.label),
+      adReadTracker: normalizeAdReadTracker(args.adReadTracker),
       potential: args.potential,
       thumbnailReady: args.thumbnailReady ?? false,
       unsponsored: args.unsponsored,
