@@ -11,7 +11,7 @@ export default defineSchema({
     thumbnail: v.optional(v.union(v.string(), v.null())),
     thumbnailReady: v.optional(v.boolean()),
     resources: v.optional(v.array(v.string())),
-    recorded: v.optional(v.boolean()),
+
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
     owner: v.optional(
@@ -73,7 +73,7 @@ export default defineSchema({
       v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
     ),
     unsponsored: v.optional(v.boolean()),
-    column: v.union(v.literal("ideas"), v.literal("to-stream")),
+    column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
     notionPageId: v.optional(v.string()),
     syncedAt: v.optional(v.number()),
@@ -91,6 +91,7 @@ export default defineSchema({
     connectedAt: v.optional(v.number()),
     workspaceId: v.optional(v.string()),
     workspaceName: v.optional(v.string()),
+    botId: v.optional(v.string()),
     databaseId: v.optional(v.string()),
     databaseName: v.optional(v.string()),
     targetSection: v.optional(v.string()),

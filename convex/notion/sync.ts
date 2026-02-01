@@ -52,8 +52,8 @@ type TextRichText = {
 };
 
 type IdeaUpdates = {
-  recorded?: boolean;
-  column?: "ideas" | "to-stream";
+  column?: "Concept" | "To Stream";
+  status?: string;
   title?: string;
   description?: string;
   notes?: string;
@@ -68,9 +68,10 @@ type IdeaUpdates = {
   releaseDate?: string;
 };
 
-const deriveStatusForNotion = (column: string, recorded?: boolean): string => {
-  if (recorded) return "Recorded";
-  return column === "to-stream" ? "To Stream" : "idea";
+const deriveStatusForNotion = (status?: string, column?: string): string => {
+  if (status === "Recorded") return "Recorded";
+  if (status === "To Stream" || column === "To Stream") return "To Stream";
+  return "Concept";
 };
 
 const createRichText = (content: string, link?: string): TextRichText[] => [
@@ -83,8 +84,7 @@ const createRichText = (content: string, link?: string): TextRichText[] => [
   },
 ];
 
-const sanitizeContentType = (value: string | null) =>
-  value?.split(";")[0]?.trim() || null;
+const sanitizeContentType = (value: string | null) => value?.split(";")[0]?.trim() || null;
 
 const getFilenameFromUrl = (url: string, contentType: string | null) => {
   try {
@@ -117,7 +117,7 @@ const isImageFile = (contentType: string | null, filename: string) => {
 
 const resolveThumbnailUrl = async (
   ctx: ActionCtx,
-  thumbnail: string | null | undefined
+  thumbnail: string | null | undefined,
 ): Promise<string | null> => {
   if (!thumbnail) {
     return null;
@@ -139,7 +139,7 @@ const resolveThumbnailUrl = async (
 
 const uploadFileToNotion = async (
   notion: Client,
-  url: string
+  url: string,
 ): Promise<{
   fileUploadId: string;
   contentType: string | null;
@@ -207,7 +207,7 @@ const uploadFileToNotion = async (
 const buildThumbnailBlock = (
   fileUploadId: string,
   contentType: string | null,
-  filename: string
+  filename: string,
 ): NotionBlock => {
   const isImage = isImageFile(contentType, filename);
 
@@ -240,7 +240,7 @@ const buildThumbnailBlock = (
 const buildExternalThumbnailBlock = (
   url: string,
   contentType: string | null,
-  filename: string
+  filename: string,
 ): NotionBlock => {
   const isImage = isImageFile(contentType, filename);
 
@@ -281,7 +281,7 @@ const buildSyncedContentChildren = (
   options?: {
     thumbnailBlock?: NotionBlock | null;
     thumbnailText?: string | null;
-  }
+  },
 ) => {
   const blocks: NotionBlock[] = [];
 
@@ -393,7 +393,7 @@ const buildSyncedContentChildren = (
 const getThumbnailContent = async (
   ctx: ActionCtx,
   notion: Client,
-  thumbnail?: string | null
+  thumbnail?: string | null,
 ): Promise<{ block: NotionBlock | null; text: string | null }> => {
   if (!thumbnail) {
     return { block: null, text: null };
@@ -410,11 +410,7 @@ const getThumbnailContent = async (
   const uploaded = await uploadFileToNotion(notion, thumbnailUrl);
   if (uploaded) {
     return {
-      block: buildThumbnailBlock(
-        uploaded.fileUploadId,
-        uploaded.contentType,
-        uploaded.filename
-      ),
+      block: buildThumbnailBlock(uploaded.fileUploadId, uploaded.contentType, uploaded.filename),
       text: null,
     };
   }
@@ -534,31 +530,19 @@ const getIdeaUpdatesFromNotion = ({
     descriptionPropertyName?: string | null;
   };
 }) => {
-  const titleEntry = getTitlePropertyEntry(
-    propertyNames,
-    connection.titlePropertyName || "Name"
-  );
-  const statusEntry = getPropertyEntry(
-    propertyNames,
-    connection.statusPropertyName || "Status"
-  );
+  const titleEntry = getTitlePropertyEntry(propertyNames, connection.titlePropertyName || "Name");
+  const statusEntry = getPropertyEntry(propertyNames, connection.statusPropertyName || "Status");
   const descriptionEntry = getPropertyEntry(
     propertyNames,
-    connection.descriptionPropertyName || "Description"
+    connection.descriptionPropertyName || "Description",
   );
   const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
   const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
   const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
   const adReadEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.adReadTracker);
   const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
-  const thumbnailEntry = getPropertyEntry(
-    propertyNames,
-    NOTION_PROPERTY_NAMES.thumbnailReady
-  );
-  const unsponsoredEntry = getPropertyEntry(
-    propertyNames,
-    NOTION_PROPERTY_NAMES.unsponsored
-  );
+  const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
+  const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
   const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
   const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
   const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
@@ -571,7 +555,7 @@ const getIdeaUpdatesFromNotion = ({
       typeof property === "object" &&
       property !== null &&
       "type" in property &&
-      property.type === "title"
+      property.type === "title",
   );
   const resolvedTitleProperty = titleProperty ?? fallbackTitleProperty;
   const statusProperty = statusEntry ? properties[statusEntry.name] : undefined;
@@ -583,18 +567,14 @@ const getIdeaUpdatesFromNotion = ({
     return type === "status" || type === "select";
   });
   const resolvedStatusProperty = statusProperty ?? fallbackStatusProperty;
-  const descriptionProperty = descriptionEntry
-    ? properties[descriptionEntry.name]
-    : undefined;
+  const descriptionProperty = descriptionEntry ? properties[descriptionEntry.name] : undefined;
   const ownerProperty = ownerEntry ? properties[ownerEntry.name] : undefined;
   const channelProperty = channelEntry ? properties[channelEntry.name] : undefined;
   const labelProperty = labelEntry ? properties[labelEntry.name] : undefined;
   const adReadProperty = adReadEntry ? properties[adReadEntry.name] : undefined;
   const potentialProperty = potentialEntry ? properties[potentialEntry.name] : undefined;
   const thumbnailProperty = thumbnailEntry ? properties[thumbnailEntry.name] : undefined;
-  const unsponsoredProperty = unsponsoredEntry
-    ? properties[unsponsoredEntry.name]
-    : undefined;
+  const unsponsoredProperty = unsponsoredEntry ? properties[unsponsoredEntry.name] : undefined;
   const vodProperty = vodEntry ? properties[vodEntry.name] : undefined;
   const releaseProperty = releaseEntry ? properties[releaseEntry.name] : undefined;
   const notesProperty = notesEntry ? properties[notesEntry.name] : undefined;
@@ -602,41 +582,27 @@ const getIdeaUpdatesFromNotion = ({
   const rawStatus = getNotionStatusName(resolvedStatusProperty);
   const mappedStatus = normalizeIdeaStatus(rawStatus);
 
-  // Derive recorded and column from Notion status
-  let recorded: boolean | undefined;
-  let column: "ideas" | "to-stream" | undefined;
+  // Derive column from Notion status
+  let column: "Concept" | "To Stream" | undefined;
 
-  if (mappedStatus === "Recorded") {
-    recorded = true;
-    // Keep current column when marking as recorded
-  } else if (mappedStatus === "To Stream") {
-    recorded = false;
-    column = "to-stream";
-  } else if (mappedStatus === "idea") {
-    recorded = false;
-    column = "ideas";
+  if (mappedStatus === "To Stream") {
+    column = "To Stream";
+  } else if (mappedStatus === "Concept") {
+    column = "Concept";
   }
 
   return {
     mappedStatus,
     updates: {
-      recorded,
+      status: mappedStatus,
       column,
       title: getNotionTitle(resolvedTitleProperty) ?? undefined,
       description: getNotionRichText(descriptionProperty) ?? undefined,
       notes: getNotionRichText(notesProperty) ?? undefined,
-      owner: normalizeOwner(
-        getNotionSelect(ownerProperty) ?? null
-      ),
-      channel: normalizeChannel(
-        getNotionSelect(channelProperty) ?? null
-      ),
-      label: normalizeLabel(
-        getNotionSelect(labelProperty) ?? null
-      ),
-      adReadTracker: normalizeAdReadTracker(
-        getNotionSelect(adReadProperty) ?? null
-      ),
+      owner: normalizeOwner(getNotionSelect(ownerProperty) ?? null),
+      channel: normalizeChannel(getNotionSelect(channelProperty) ?? null),
+      label: normalizeLabel(getNotionSelect(labelProperty) ?? null),
+      adReadTracker: normalizeAdReadTracker(getNotionSelect(adReadProperty) ?? null),
       potential: getNotionNumber(potentialProperty),
       thumbnailReady: getNotionCheckbox(thumbnailProperty),
       unsponsored: getNotionCheckbox(unsponsoredProperty),
@@ -648,7 +614,7 @@ const getIdeaUpdatesFromNotion = ({
 
 const omitUndefinedUpdates = (updates: IdeaUpdates): IdeaUpdates => {
   const payload: IdeaUpdates = {};
-  if (updates.recorded !== undefined) payload.recorded = updates.recorded;
+  if (updates.status !== undefined) payload.status = updates.status;
   if (updates.column !== undefined) payload.column = updates.column;
   if (updates.title !== undefined) payload.title = updates.title;
   if (updates.description !== undefined) payload.description = updates.description;
@@ -681,7 +647,11 @@ export const syncToNotion = internalAction({
       return;
     }
 
-    console.log("syncToNotion: Idea found", { title: idea.title, column: idea.column, recorded: idea.recorded });
+    console.log("syncToNotion: Idea found", {
+      title: idea.title,
+      column: idea.column,
+      status: idea.status,
+    });
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
       userId: idea.userId,
@@ -694,17 +664,17 @@ export const syncToNotion = internalAction({
 
     const accessToken = connection.accessToken ?? connection.integrationToken;
     if (!accessToken || !connection.databaseId) {
-      console.log("syncToNotion: No access token or database ID", { hasToken: !!accessToken, databaseId: connection.databaseId });
+      console.log("syncToNotion: No access token or database ID", {
+        hasToken: !!accessToken,
+        databaseId: connection.databaseId,
+      });
       return;
     }
 
     console.log("syncToNotion: Using database", connection.databaseId);
 
     const notion = createNotionClient(accessToken);
-    const propertyNames = await fetchDataSourceProperties(
-      notion,
-      connection.databaseId
-    );
+    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
 
     console.log("syncToNotion: Found properties", Array.from(propertyNames.keys()));
 
@@ -720,18 +690,14 @@ export const syncToNotion = internalAction({
     const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
     const adReadEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.adReadTracker);
     const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
-    const thumbnailEntry = getPropertyEntry(
-      propertyNames,
-      NOTION_PROPERTY_NAMES.thumbnailReady
-    );
-    const unsponsoredEntry = getPropertyEntry(
-      propertyNames,
-      NOTION_PROPERTY_NAMES.unsponsored
-    );
+    const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
+    const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
     const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
     const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
     const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
-    const statusValue = normalizeText(deriveStatusForNotion(idea.column, idea.recorded) ?? connection.targetSection);
+    const statusValue = normalizeText(
+      deriveStatusForNotion(idea.status, idea.column) ?? connection.targetSection,
+    );
     const descriptionValue = normalizeText(idea.description);
     const notesValue = normalizeText(idea.notes);
     const ownerValue = normalizeText(idea.owner);
@@ -903,10 +869,7 @@ export const syncStatusesFromNotion = action({
     }
 
     const notion = createNotionClient(accessToken);
-    const propertyNames = await fetchDataSourceProperties(
-      notion,
-      connection.databaseId
-    );
+    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
     const ideas = await ctx.runQuery(internal.notion.listIdeasWithNotion, {
       userId: identity.subject,
     });
@@ -917,19 +880,19 @@ export const syncStatusesFromNotion = action({
     for (let i = 0; i < ideas.length; i += BATCH_SIZE) {
       const batch = ideas.slice(i, i + BATCH_SIZE);
       const ideasWithNotion = batch.filter(
-        (idea): idea is Doc<"ideas"> & { notionPageId: string } => Boolean(idea.notionPageId)
+        (idea): idea is Doc<"ideas"> & { notionPageId: string } => Boolean(idea.notionPageId),
       );
       const results = await Promise.all(
         ideasWithNotion.map(async (idea) => {
-            try {
-              const data = await notion.pages.retrieve({
-                page_id: idea.notionPageId,
-              });
-              return { idea, data };
-            } catch {
-              return null;
-            }
-          })
+          try {
+            const data = await notion.pages.retrieve({
+              page_id: idea.notionPageId,
+            });
+            return { idea, data };
+          } catch {
+            return null;
+          }
+        }),
       );
 
       for (const result of results) {
@@ -1000,14 +963,15 @@ export const syncIdeaFromNotionPage = internalAction({
         page_id: args.notionPageId,
       });
     } catch (error) {
-      console.log("syncIdeaFromNotionPage: Failed to retrieve Notion page", args.notionPageId, error);
+      console.log(
+        "syncIdeaFromNotionPage: Failed to retrieve Notion page",
+        args.notionPageId,
+        error,
+      );
       return;
     }
 
-    const propertyNames = await fetchDataSourceProperties(
-      notion,
-      connection.databaseId
-    );
+    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
 
     const { updates } = getIdeaUpdatesFromNotion({
       data,
@@ -1104,10 +1068,7 @@ export const updateInNotion = internalAction({
     }
 
     const notion = createNotionClient(accessToken);
-    const propertyNames = await fetchDataSourceProperties(
-      notion,
-      connection.databaseId
-    );
+    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
 
     const titlePropertyName = connection.titlePropertyName || "Name";
     const statusPropertyName = connection.statusPropertyName || "Status";
@@ -1121,18 +1082,14 @@ export const updateInNotion = internalAction({
     const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
     const adReadEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.adReadTracker);
     const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
-    const thumbnailEntry = getPropertyEntry(
-      propertyNames,
-      NOTION_PROPERTY_NAMES.thumbnailReady
-    );
-    const unsponsoredEntry = getPropertyEntry(
-      propertyNames,
-      NOTION_PROPERTY_NAMES.unsponsored
-    );
+    const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
+    const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
     const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
     const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
     const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
-    const statusValue = normalizeText(deriveStatusForNotion(idea.column, idea.recorded) ?? connection.targetSection);
+    const statusValue = normalizeText(
+      deriveStatusForNotion(idea.status, idea.column) ?? connection.targetSection,
+    );
     const descriptionValue = normalizeText(idea.description);
     const notesValue = normalizeText(idea.notes);
     const ownerValue = normalizeText(idea.owner);

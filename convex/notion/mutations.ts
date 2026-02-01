@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { mutation, internalMutation } from "../_generated/server";
 
 export const saveDatabaseSettings = mutation({
@@ -91,34 +92,63 @@ export const clearIdeaSynced = internalMutation({
   },
 });
 
+const isStorageId = (value: string | null | undefined): value is string =>
+  !!value && value.startsWith("k") && !value.includes("://");
+
+export const deleteIdeaByNotionPageId = internalMutation({
+  args: {
+    notionPageId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const idea = await ctx.db
+      .query("ideas")
+      .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
+      .first();
+
+    if (!idea) {
+      console.log("deleteIdeaByNotionPageId: No matching idea found", {
+        notionPageId: args.notionPageId,
+      });
+      return;
+    }
+
+    // Only delete if idea is in "To Stream" column (synced with Notion)
+    if (idea.column !== "To Stream") {
+      console.log("deleteIdeaByNotionPageId: Idea not in To Stream, skipping", {
+        ideaId: idea._id,
+      });
+      return;
+    }
+
+    // Clean up storage if thumbnail is a storage ID (same pattern as ideas.remove)
+    if (isStorageId(idea.thumbnail)) {
+      await ctx.storage.delete(idea.thumbnail as Id<"_storage">);
+    }
+
+    await ctx.db.delete(idea._id);
+    console.log("deleteIdeaByNotionPageId: Deleted idea", { ideaId: idea._id });
+  },
+});
+
 export const updateIdeaFromNotion = internalMutation({
   args: {
     ideaId: v.id("ideas"),
-    recorded: v.optional(v.boolean()),
-    column: v.optional(v.union(v.literal("ideas"), v.literal("to-stream"))),
+    status: v.optional(v.string()),
+    column: v.optional(v.union(v.literal("Concept"), v.literal("To Stream"))),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
     owner: v.optional(
-      v.union(
-        v.literal("Theo"),
-        v.literal("Phase"),
-        v.literal("Ben"),
-        v.literal("shivam"),
-      ),
+      v.union(v.literal("Theo"), v.literal("Phase"), v.literal("Ben"), v.literal("shivam")),
     ),
     channel: v.optional(
-      v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways"))
+      v.union(v.literal("main"), v.literal("theo rants"), v.literal("theo throwaways")),
     ),
     label: v.optional(
-      v.union(
-        v.literal("mid priority"),
-        v.literal("low priority"),
-        v.literal("high priority")
-      )
+      v.union(v.literal("mid priority"), v.literal("low priority"), v.literal("high priority")),
     ),
     adReadTracker: v.optional(
-      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done"))
+      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
     ),
     potential: v.optional(v.number()),
     thumbnailReady: v.optional(v.boolean()),
@@ -134,7 +164,7 @@ export const updateIdeaFromNotion = internalMutation({
 
     const updates = Object.fromEntries(
       Object.entries({
-        recorded: args.recorded,
+        status: args.status,
         title: args.title,
         description: args.description,
         notes: args.notes,
@@ -147,10 +177,10 @@ export const updateIdeaFromNotion = internalMutation({
         unsponsored: args.unsponsored,
         vodRecordingDate: args.vodRecordingDate,
         releaseDate: args.releaseDate,
-      }).filter(([_, value]) => value !== undefined)
+      }).filter(([_, value]) => value !== undefined),
     );
 
-    let nextColumn: "ideas" | "to-stream" | undefined;
+    let nextColumn: "Concept" | "To Stream" | undefined;
     let nextOrder: number | undefined;
 
     // Handle column change from Notion
@@ -161,9 +191,7 @@ export const updateIdeaFromNotion = internalMutation({
     if (nextColumn) {
       const columnIdeas = await ctx.db
         .query("ideas")
-        .withIndex("by_user_column", (q) =>
-          q.eq("userId", idea.userId).eq("column", nextColumn),
-        )
+        .withIndex("by_user_column", (q) => q.eq("userId", idea.userId).eq("column", nextColumn))
         .collect();
       const maxOrder = columnIdeas.reduce((max, entry) => Math.max(max, entry.order), -1);
       nextOrder = maxOrder + 1;
@@ -174,7 +202,7 @@ export const updateIdeaFromNotion = internalMutation({
         ...updates,
         column: nextColumn,
         order: nextOrder,
-      }).filter(([_, value]) => value !== undefined)
+      }).filter(([_, value]) => value !== undefined),
     );
 
     if (Object.keys(updatesWithColumn).length === 0) {

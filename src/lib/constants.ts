@@ -1,5 +1,5 @@
 export const STATUS = {
-  IDEA: "idea",
+  CONCEPT: "Concept",
   TO_STREAM: "To Stream",
   RECORDED: "Recorded",
 } as const;

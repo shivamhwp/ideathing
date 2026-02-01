@@ -93,10 +93,7 @@ export const listRecorded = query({
       .query("ideas")
       .withIndex("by_user", (q) => q.eq("userId", identity.subject))
       .filter((q) =>
-        q.and(
-          q.eq(q.field("status"), "Recorded"),
-          q.eq(q.field("organizationId"), undefined),
-        ),
+        q.and(q.eq(q.field("status"), "Recorded"), q.eq(q.field("organizationId"), undefined)),
       )
       .collect();
 
@@ -106,7 +103,7 @@ export const listRecorded = query({
 
 export const listByColumn = query({
   args: {
-    column: v.union(v.literal("ideas"), v.literal("to-stream")),
+    column: v.union(v.literal("Concept"), v.literal("To Stream")),
     organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -220,13 +217,15 @@ export const create = mutation({
       existingIdeas = await ctx.db
         .query("ideas")
         .withIndex("by_organization_column", (q) =>
-          q.eq("organizationId", args.organizationId).eq("column", "ideas"),
+          q.eq("organizationId", args.organizationId).eq("column", "Concept"),
         )
         .collect();
     } else {
       existingIdeas = await ctx.db
         .query("ideas")
-        .withIndex("by_user_column", (q) => q.eq("userId", identity.subject).eq("column", "ideas"))
+        .withIndex("by_user_column", (q) =>
+          q.eq("userId", identity.subject).eq("column", "Concept"),
+        )
         .filter((q) => q.eq(q.field("organizationId"), undefined))
         .collect();
     }
@@ -242,7 +241,7 @@ export const create = mutation({
       thumbnail: args.thumbnail,
       thumbnailReady: args.thumbnailReady ?? false,
       resources: args.resources,
-      recorded: false,
+
       vodRecordingDate: args.vodRecordingDate,
       releaseDate: args.releaseDate,
       owner: args.owner,
@@ -252,7 +251,7 @@ export const create = mutation({
       status: args.status,
       adReadTracker: args.adReadTracker,
       unsponsored: args.unsponsored ?? true,
-      column: "ideas",
+      column: "Concept",
       order: maxOrder + 1,
     });
 
@@ -263,9 +262,9 @@ export const create = mutation({
 export const move = mutation({
   args: {
     id: v.id("ideas"),
-    column: v.union(v.literal("ideas"), v.literal("to-stream")),
+    column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
-    status: v.optional(v.literal("To Stream")),
+    status: v.optional(v.union(v.literal("To Stream"), v.literal("Concept"))),
     organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -288,10 +287,10 @@ export const move = mutation({
       throw new Error("Idea not found");
     }
 
-    const wasInIdeas = idea.column === "ideas";
-    const wasInToStream = idea.column === "to-stream";
-    const movingToToStream = args.column === "to-stream";
-    const movingToIdeas = args.column === "ideas";
+    const wasInConcept = idea.column === "Concept";
+    const wasInToStream = idea.column === "To Stream";
+    const movingToToStream = args.column === "To Stream";
+    const movingToConcept = args.column === "Concept";
 
     await ctx.db.patch(args.id, {
       column: args.column,
@@ -330,11 +329,11 @@ export const move = mutation({
     }
 
     // Schedule Notion sync in background
-    if (wasInIdeas && movingToToStream) {
+    if (wasInConcept && movingToToStream) {
       await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, { ideaId: args.id });
     }
 
-    if (wasInToStream && movingToIdeas && idea.notionPageId) {
+    if (wasInToStream && movingToConcept && idea.notionPageId) {
       await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, { ideaId: args.id });
     }
   },
@@ -350,10 +349,9 @@ export const update = mutation({
     clearThumbnail: v.optional(v.boolean()),
     thumbnailReady: v.optional(v.boolean()),
     resources: v.optional(v.array(v.string())),
-    recorded: v.optional(v.boolean()),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    column: v.optional(v.union(v.literal("ideas"), v.literal("to-stream"))),
+    column: v.optional(v.union(v.literal("Concept"), v.literal("To Stream"))),
     owner: v.optional(
       v.union(
         v.literal("Theo"),
@@ -454,8 +452,26 @@ export const update = mutation({
 
     await ctx.db.patch(id, filteredUpdates);
 
-    // Schedule Notion sync in background if needed
-    const shouldSyncToNotion = idea.column === "to-stream" && !!idea.notionPageId;
+    // Handle column change sync logic
+    const wasInConcept = idea.column === "Concept";
+    const wasInToStream = idea.column === "To Stream";
+    const movingToToStream = args.column === "To Stream";
+    const movingToConcept = args.column === "Concept";
+
+    // If moving from Concept to To Stream, create Notion page
+    if (wasInConcept && movingToToStream && !idea.notionPageId) {
+      await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, { ideaId: args.id });
+      return;
+    }
+
+    // If moving from To Stream to Concept, delete from Notion
+    if (wasInToStream && movingToConcept && idea.notionPageId) {
+      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, { ideaId: args.id });
+      return;
+    }
+
+    // If already in To Stream and has notionPageId, sync updates
+    const shouldSyncToNotion = idea.column === "To Stream" && !!idea.notionPageId;
     if (shouldSyncToNotion) {
       await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, { ideaId: args.id });
     }
@@ -491,7 +507,7 @@ export const remove = mutation({
       await ctx.storage.delete(idea.thumbnail as Id<"_storage">);
     }
 
-    const shouldDeleteFromNotion = idea.column === "to-stream" && !!idea.notionPageId;
+    const shouldDeleteFromNotion = idea.column === "To Stream" && !!idea.notionPageId;
     const notionPageId = idea.notionPageId ?? null;
     const userId = idea.userId;
 

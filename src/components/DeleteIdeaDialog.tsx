@@ -28,8 +28,7 @@ export function DeleteIdeaDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete idea?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete "{ideaTitle}"? This action cannot be
-            undone.
+            Are you sure you want to delete "{ideaTitle}"? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

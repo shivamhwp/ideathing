@@ -25,7 +25,7 @@ const computeHmacSha256 = async (secret: string, message: string): Promise<strin
     keyData,
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const signature = await crypto.subtle.sign("HMAC", key, messageData);
@@ -46,7 +46,7 @@ const timingSafeEqual = (a: string, b: string): boolean => {
 const isValidSignature = async (
   signature: string,
   secret: string,
-  body: string
+  body: string,
 ): Promise<boolean> => {
   const computed = await computeHmacSha256(secret, body);
   const computedWithPrefix = `sha256=${computed}`;
@@ -70,6 +70,7 @@ http.route({
     let payload: {
       type?: string;
       entity?: { id?: string; type?: string };
+      authors?: Array<{ type?: string; id?: string }>;
       verification_token?: string;
     };
 
@@ -79,18 +80,87 @@ http.route({
       return new Response("Invalid JSON", { status: 400 });
     }
 
+    // Handle webhook verification
     if (payload.verification_token) {
       console.log("Notion webhook verification token:", payload.verification_token);
       return new Response("ok", { status: 200 });
     }
 
-    console.log("Webhook received:", payload.type, payload.entity?.id);
-
+    const eventType = payload.type;
     const pageId = payload.entity?.type === "page" ? payload.entity?.id : undefined;
-    if (pageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
-        notionPageId: pageId,
+
+    console.log("Webhook received:", { eventType, pageId });
+
+    if (!pageId) {
+      // Not a page event, ignore for now
+      return new Response("ok", { status: 200 });
+    }
+
+    // Skip events triggered by our own bot to avoid loops
+    // Look up idea to get userId, then get connection to check bot ID
+    const idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+      notionPageId: pageId,
+    });
+
+    if (idea) {
+      const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+        userId: idea.userId,
       });
+
+      const botId = connection?.botId;
+      if (
+        botId &&
+        payload.authors?.some((author) => author.type === "bot" && author.id === botId)
+      ) {
+        console.log("Skipping self-triggered event", { type: payload.type });
+        return new Response("ok", { status: 200 });
+      }
+    }
+
+    switch (eventType) {
+      case "page.properties_updated":
+      case "page.content_updated":
+        // Sync changes from Notion to local database
+        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+          notionPageId: pageId,
+        });
+        break;
+
+      case "page.deleted":
+        // Page was deleted in Notion, delete local idea (no API call needed)
+        await ctx.scheduler.runAfter(0, internal.notion.deleteIdeaByNotionPageId, {
+          notionPageId: pageId,
+        });
+        break;
+
+      case "page.created":
+        // Sync is one-way (app → Notion), ignore pages created directly in Notion
+        console.log("page.created: Ignoring (sync is app → Notion only)", { pageId });
+        break;
+
+      case "page.undeleted":
+        // Page was restored in Notion
+        // syncIdeaFromNotionPage will update the idea if it exists
+        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+          notionPageId: pageId,
+        });
+        break;
+
+      case "page.moved":
+        // Page was moved to different parent, sync to update any relevant data
+        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+          notionPageId: pageId,
+        });
+        break;
+
+      case "page.locked":
+      case "page.unlocked":
+        // Lock state changed, no action needed for our use case
+        console.log(`${eventType}: No action needed`, { pageId });
+        break;
+
+      default:
+        console.log("Unhandled webhook event type:", eventType, { pageId });
     }
 
     return new Response("ok", { status: 200 });

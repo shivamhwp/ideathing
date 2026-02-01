@@ -4,7 +4,7 @@ import { ConvexReactClient } from "convex/react";
 
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
 if (!CONVEX_URL) {
-	console.error("missing envar CONVEX_URL");
+  console.error("missing envar CONVEX_URL");
 }
 
 const convex = new ConvexReactClient(CONVEX_URL);
@@ -15,33 +15,31 @@ export { convex };
 let isConnected = false;
 
 export function getContext() {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				queryKeyHashFn: convexQueryClient.hashFn(),
-				queryFn: convexQueryClient.queryFn(),
-			},
-		},
-	});
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        queryKeyHashFn: convexQueryClient.hashFn(),
+        queryFn: convexQueryClient.queryFn(),
+      },
+    },
+  });
 
-	if (!isConnected && typeof window !== "undefined") {
-		convexQueryClient.connect(queryClient);
-		isConnected = true;
-	}
+  if (!isConnected && typeof window !== "undefined") {
+    convexQueryClient.connect(queryClient);
+    isConnected = true;
+  }
 
-	return {
-		queryClient,
-	};
+  return {
+    queryClient,
+  };
 }
 
 export function Provider({
-	children,
-	queryClient,
+  children,
+  queryClient,
 }: {
-	children: React.ReactNode;
-	queryClient: QueryClient;
+  children: React.ReactNode;
+  queryClient: QueryClient;
 }) {
-	return (
-		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-	);
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

@@ -19,7 +19,7 @@ export const normalizeIdeaStatus = (value?: string | null): IdeaStatus | undefin
   if (!normalized) return undefined;
   if (normalized === "recorded") return "Recorded";
   if (normalized === "to stream") return "To Stream";
-  if (normalized === "idea") return "idea";
+  if (normalized === "concept" || normalized === "idea") return "Concept";
   return undefined;
 };
 
@@ -51,9 +51,7 @@ export const normalizeLabel = (value?: string | null): IdeaLabel | undefined => 
   return undefined;
 };
 
-export const normalizeAdReadTracker = (
-  value?: string | null
-): IdeaAdReadTracker | undefined => {
+export const normalizeAdReadTracker = (value?: string | null): IdeaAdReadTracker | undefined => {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return undefined;
   if (normalized === "planned") return "planned";
@@ -72,18 +70,17 @@ const getString = (value: unknown) => (typeof value === "string" ? value : undef
 const getRichTextPlain = (value: unknown) => {
   if (!Array.isArray(value)) return null;
   const text = value
-    .map((part) => (isRecord(part) ? getString(part.plain_text) ?? "" : ""))
+    .map((part) => (isRecord(part) ? (getString(part.plain_text) ?? "") : ""))
     .join("")
     .trim();
   return text || null;
 };
 
-const getType = (value: unknown) =>
-  isRecord(value) ? getString(value.type) : undefined;
+const getType = (value: unknown) => (isRecord(value) ? getString(value.type) : undefined);
 
 export const resolveOptionName = (
   entry: NotionPropertyEntry | undefined,
-  value?: string | null
+  value?: string | null,
 ) => {
   if (!entry || !value) return value ?? null;
   const match = entry.options?.get(value.toLowerCase());
@@ -93,7 +90,7 @@ export const resolveOptionName = (
 export const addSelectProperty = (
   properties: NotionProperties,
   entry: NotionPropertyEntry,
-  value?: string | null
+  value?: string | null,
 ) => {
   const resolved = resolveOptionName(entry, value);
   // Use actual type from Notion schema, fallback to select
@@ -112,11 +109,10 @@ export const addStatusProperty = (
   properties: NotionProperties,
   entry: NotionPropertyEntry,
   fallbackType: "status" | "select",
-  value?: string | null
+  value?: string | null,
 ) => {
   const resolved = resolveOptionName(entry, value);
-  const actualType =
-    entry.type === "status" || entry.type === "select" ? entry.type : fallbackType;
+  const actualType = entry.type === "status" || entry.type === "select" ? entry.type : fallbackType;
   if (actualType === "status") {
     properties[entry.name] = {
       status: resolved ? { name: resolved } : null,
@@ -131,7 +127,7 @@ export const addStatusProperty = (
 export const addDateProperty = (
   properties: NotionProperties,
   name: string,
-  value?: string | null
+  value?: string | null,
 ) => {
   properties[name] = {
     date: value ? { start: value } : null,
@@ -141,7 +137,7 @@ export const addDateProperty = (
 export const addNumberProperty = (
   properties: NotionProperties,
   name: string,
-  value?: number | null
+  value?: number | null,
 ) => {
   properties[name] = {
     number: typeof value === "number" ? value : null,
@@ -151,7 +147,7 @@ export const addNumberProperty = (
 export const addCheckboxProperty = (
   properties: NotionProperties,
   name: string,
-  value?: boolean
+  value?: boolean,
 ) => {
   if (typeof value !== "boolean") return;
   properties[name] = {
@@ -159,10 +155,7 @@ export const addCheckboxProperty = (
   };
 };
 
-export const fetchDataSourceProperties = async (
-  notion: Client,
-  dataSourceId: string
-) => {
+export const fetchDataSourceProperties = async (notion: Client, dataSourceId: string) => {
   const data = await notion.dataSources.retrieve({
     data_source_id: dataSourceId,
   });
@@ -173,13 +166,9 @@ export const fetchDataSourceProperties = async (
     const entry = isRecord(value) ? value : undefined;
     const type = getType(entry);
     const selectOptions =
-      type === "select" && entry && isRecord(entry.select)
-        ? entry.select.options
-        : undefined;
+      type === "select" && entry && isRecord(entry.select) ? entry.select.options : undefined;
     const statusOptions =
-      type === "status" && entry && isRecord(entry.status)
-        ? entry.status.options
-        : undefined;
+      type === "status" && entry && isRecord(entry.status) ? entry.status.options : undefined;
     const options = Array.isArray(selectOptions)
       ? selectOptions
       : Array.isArray(statusOptions)
@@ -190,7 +179,7 @@ export const fetchDataSourceProperties = async (
           options
             .map((option) => (isRecord(option) ? getString(option.name)?.trim() : undefined))
             .filter((option): option is string => Boolean(option))
-            .map((option) => [option.toLowerCase(), option])
+            .map((option) => [option.toLowerCase(), option]),
         )
       : undefined;
 
@@ -206,7 +195,7 @@ export const fetchDataSourceProperties = async (
 
 export const getPropertyEntry = (
   propertyNames: Map<string, NotionPropertyEntry>,
-  name?: string | null
+  name?: string | null,
 ) => {
   if (!name) return undefined;
   return propertyNames.get(name.toLowerCase());
@@ -214,7 +203,7 @@ export const getPropertyEntry = (
 
 export const getTitlePropertyEntry = (
   propertyNames: Map<string, NotionPropertyEntry>,
-  preferredName?: string | null
+  preferredName?: string | null,
 ) => {
   const explicit = getPropertyEntry(propertyNames, preferredName);
   if (explicit) return explicit;

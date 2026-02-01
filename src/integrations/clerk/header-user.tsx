@@ -4,18 +4,18 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 
 export default function HeaderUser() {
-	return (
-		<div className="flex items-center gap-4">
-			<SignedIn>
-				<Button asChild variant="ghost" size="icon">
-					<Link to="/settings/profile">
-						<GearIcon className="w-5 h-5" />
-					</Link>
-				</Button>
-			</SignedIn>
-			<SignedOut>
-				<SignInButton />
-			</SignedOut>
-		</div>
-	);
+  return (
+    <div className="flex items-center gap-4">
+      <SignedIn>
+        <Button asChild variant="ghost" size="icon">
+          <Link to="/settings/profile">
+            <GearIcon className="w-5 h-5" />
+          </Link>
+        </Button>
+      </SignedIn>
+      <SignedOut>
+        <SignInButton />
+      </SignedOut>
+    </div>
+  );
 }

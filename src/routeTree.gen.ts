@@ -9,19 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RecordedRouteImport } from './routes/recorded'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRecordedRouteImport } from './routes/_authenticated/recorded'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings.route'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings.profile'
 import { Route as AuthenticatedNotionWebhooksRouteImport } from './routes/_authenticated/notion/webhooks'
 import { Route as AuthenticatedNotionCallbackRouteImport } from './routes/_authenticated/notion/callback'
 
-const RecordedRoute = RecordedRouteImport.update({
-  id: '/recorded',
-  path: '/recorded',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -30,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRecordedRoute = AuthenticatedRecordedRouteImport.update({
+  id: '/recorded',
+  path: '/recorded',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSettingsRouteRoute =
   AuthenticatedSettingsRouteRouteImport.update({
@@ -58,16 +58,16 @@ const AuthenticatedNotionCallbackRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/recorded': typeof RecordedRoute
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/recorded': typeof AuthenticatedRecordedRoute
   '/notion/callback': typeof AuthenticatedNotionCallbackRoute
   '/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/recorded': typeof RecordedRoute
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/recorded': typeof AuthenticatedRecordedRoute
   '/notion/callback': typeof AuthenticatedNotionCallbackRoute
   '/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
@@ -76,8 +76,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/recorded': typeof RecordedRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/_authenticated/recorded': typeof AuthenticatedRecordedRoute
   '/_authenticated/notion/callback': typeof AuthenticatedNotionCallbackRoute
   '/_authenticated/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
@@ -86,16 +86,16 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/recorded'
     | '/settings'
+    | '/recorded'
     | '/notion/callback'
     | '/notion/webhooks'
     | '/settings/profile'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/recorded'
     | '/settings'
+    | '/recorded'
     | '/notion/callback'
     | '/notion/webhooks'
     | '/settings/profile'
@@ -103,8 +103,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
-    | '/recorded'
     | '/_authenticated/settings'
+    | '/_authenticated/recorded'
     | '/_authenticated/notion/callback'
     | '/_authenticated/notion/webhooks'
     | '/_authenticated/settings/profile'
@@ -113,18 +113,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  RecordedRoute: typeof RecordedRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/recorded': {
-      id: '/recorded'
-      path: '/recorded'
-      fullPath: '/recorded'
-      preLoaderRoute: typeof RecordedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -138,6 +130,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/recorded': {
+      id: '/_authenticated/recorded'
+      path: '/recorded'
+      fullPath: '/recorded'
+      preLoaderRoute: typeof AuthenticatedRecordedRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
@@ -186,12 +185,14 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedRecordedRoute: typeof AuthenticatedRecordedRoute
   AuthenticatedNotionCallbackRoute: typeof AuthenticatedNotionCallbackRoute
   AuthenticatedNotionWebhooksRoute: typeof AuthenticatedNotionWebhooksRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedRecordedRoute: AuthenticatedRecordedRoute,
   AuthenticatedNotionCallbackRoute: AuthenticatedNotionCallbackRoute,
   AuthenticatedNotionWebhooksRoute: AuthenticatedNotionWebhooksRoute,
 }
@@ -203,7 +204,6 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  RecordedRoute: RecordedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { action, mutation, internalMutation, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
+import { createNotionClient } from "./client";
 import { NOTION_VERSION } from "./types";
 
 const encodeBasicAuth = (clientId: string, clientSecret: string) => {
@@ -154,5 +155,50 @@ export const upsertConnectionFromOAuth = internalMutation({
     } else {
       await ctx.db.insert("notionConnections", payload);
     }
+  },
+});
+
+export const fetchAndStoreBotId = action({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      userId: identity.subject,
+    });
+
+    if (!connection) {
+      throw new Error("Notion is not connected.");
+    }
+
+    const accessToken = connection.accessToken ?? connection.integrationToken;
+    if (!accessToken) {
+      throw new Error("No Notion access token found.");
+    }
+
+    const notion = createNotionClient(accessToken);
+    const botUser = await notion.users.me({});
+
+    await ctx.runMutation(internal.notion.updateBotId, {
+      connectionId: connection._id,
+      botId: botUser.id,
+    });
+
+    return { botId: botUser.id };
+  },
+});
+
+export const updateBotId = internalMutation({
+  args: {
+    connectionId: v.id("notionConnections"),
+    botId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.connectionId, {
+      botId: args.botId,
+    });
   },
 });

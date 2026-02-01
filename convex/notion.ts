@@ -6,6 +6,8 @@ export {
   getOAuthStateByState,
   deleteOAuthState,
   upsertConnectionFromOAuth,
+  fetchAndStoreBotId,
+  updateBotId,
 } from "./notion/oauth";
 
 export {
@@ -24,6 +26,7 @@ export {
   updateIdeaSynced,
   clearIdeaSynced,
   updateIdeaFromNotion,
+  deleteIdeaByNotionPageId,
 } from "./notion/mutations";
 
 export {

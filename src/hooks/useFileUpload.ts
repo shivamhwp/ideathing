@@ -32,34 +32,37 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = e.target.files?.[0];
+      if (!selectedFile) return;
 
-    if (selectedFile.size > maxSize) {
-      toast.error(`File too large. Maximum size is ${Math.round(maxSize / 1024 / 1024)}MB.`);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      if (selectedFile.size > maxSize) {
+        toast.error(`File too large. Maximum size is ${Math.round(maxSize / 1024 / 1024)}MB.`);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
       }
-      return;
-    }
 
-    if (!allowedTypes.includes(selectedFile.type)) {
-      toast.error("Invalid file type. Please upload an image (JPEG, PNG, GIF, or WebP).");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      if (!allowedTypes.includes(selectedFile.type)) {
+        toast.error("Invalid file type. Please upload an image (JPEG, PNG, GIF, or WebP).");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
       }
-      return;
-    }
 
-    fileRef.current = selectedFile;
-    setFile(selectedFile);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPreview(event.target?.result as string);
-    };
-    reader.readAsDataURL(selectedFile);
-  }, [maxSize, allowedTypes]);
+      fileRef.current = selectedFile;
+      setFile(selectedFile);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(selectedFile);
+    },
+    [maxSize, allowedTypes],
+  );
 
   const upload = useCallback(async (): Promise<string | null> => {
     const fileToUpload = fileRef.current ?? file;

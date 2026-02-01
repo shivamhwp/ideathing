@@ -11,9 +11,7 @@ const getString = (value: unknown) => (typeof value === "string" ? value : undef
 const getTitleText = (value: unknown) => {
   if (!Array.isArray(value)) return "";
   return value
-    .map((part) =>
-      isRecord(part) && typeof part.plain_text === "string" ? part.plain_text : ""
-    )
+    .map((part) => (isRecord(part) && typeof part.plain_text === "string" ? part.plain_text : ""))
     .join("")
     .trim();
 };
@@ -61,8 +59,7 @@ export const listDatabases = action({
     const dataSources: Array<{ id: string; name: string }> = [];
 
     const dataSourceResults = results.filter(
-      (item): item is Record<string, unknown> =>
-        isRecord(item) && item.object === "data_source"
+      (item): item is Record<string, unknown> => isRecord(item) && item.object === "data_source",
     );
 
     for (const item of dataSourceResults) {
@@ -74,8 +71,7 @@ export const listDatabases = action({
     }
 
     const databaseResults = results.filter(
-      (item): item is Record<string, unknown> =>
-        isRecord(item) && item.object === "database"
+      (item): item is Record<string, unknown> => isRecord(item) && item.object === "database",
     );
 
     for (const item of databaseResults) {
@@ -94,9 +90,7 @@ export const listDatabases = action({
       const databaseName = getTitleText(item.title);
 
       const dataSourceList =
-        databaseData &&
-        "data_sources" in databaseData &&
-        Array.isArray(databaseData.data_sources)
+        databaseData && "data_sources" in databaseData && Array.isArray(databaseData.data_sources)
           ? databaseData.data_sources
           : [];
 
@@ -105,7 +99,7 @@ export const listDatabases = action({
         const sourceId = getString(source.id);
         if (!sourceId) continue;
         const sourceName =
-          (getString(source.name)?.trim() || "") || databaseName || "Untitled data source";
+          getString(source.name)?.trim() || "" || databaseName || "Untitled data source";
         dataSources.push({
           id: sourceId,
           name:
@@ -152,18 +146,15 @@ export const getDataSourceSchema = action({
     const properties = data?.properties ?? {};
     const entries = Object.entries(properties);
 
-    const getPropType = (prop: unknown) =>
-      isRecord(prop) ? getString(prop.type) : undefined;
-    const getPropName = (prop: unknown) =>
-      isRecord(prop) ? getString(prop.name) : undefined;
+    const getPropType = (prop: unknown) => (isRecord(prop) ? getString(prop.type) : undefined);
+    const getPropName = (prop: unknown) => (isRecord(prop) ? getString(prop.name) : undefined);
 
     const titleProperty = entries.find(([, prop]) => getPropType(prop) === "title");
     const statusProperty = entries.find(([, prop]) => getPropType(prop) === "status");
     const selectProperty = entries.find(([, prop]) => getPropType(prop) === "select");
     const descriptionProperty =
-      entries.find(
-        ([, prop]) => (getPropName(prop) || "").toLowerCase() === "description"
-      ) ?? entries.find(([, prop]) => getPropType(prop) === "rich_text");
+      entries.find(([, prop]) => (getPropName(prop) || "").toLowerCase() === "description") ??
+      entries.find(([, prop]) => getPropType(prop) === "rich_text");
 
     return {
       titlePropertyName: titleProperty?.[0] ?? "Name",
