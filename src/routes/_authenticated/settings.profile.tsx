@@ -71,9 +71,9 @@ function ProfileSettings() {
             afterLeaveOrganizationUrl="/"
             appearance={{
               elements: {
-                rootBox: "flex items-center items-center justify-center text-white",
+                rootBox: "flex items-center justify-center",
                 organizationSwitcherTrigger:
-                  "rounded-md border border-border/50 bg-background text-white hover:bg-accent/50 transition-colors text-lg",
+                  "rounded-md border border-border/50 bg-background hover:bg-accent/50 transition-colors text-lg",
               },
             }}
           />

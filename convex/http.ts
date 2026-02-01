@@ -133,21 +133,6 @@ http.route({
       });
     }
 
-    if (idea) {
-      const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-        userId: idea.userId,
-      });
-
-      const botId = connection?.botId;
-      if (
-        botId &&
-        payload.authors?.some((author) => author.type === "bot" && author.id === botId)
-      ) {
-        console.log("Skipping self-triggered event", { type: payload.type });
-        return new Response("ok", { status: 200 });
-      }
-    }
-
     switch (eventType) {
       case "page.properties_updated":
       case "page.content_updated":

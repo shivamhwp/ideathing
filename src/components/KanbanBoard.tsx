@@ -24,6 +24,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
 import type { ChannelType, LabelType, OwnerType, StatusType } from "@/store/atoms";
 import {
   createIdeaDraftFromIdea,
@@ -57,6 +58,7 @@ export type Idea = {
   column: "Concept" | "To Stream";
   order: number;
   notionPageId?: string;
+  syncedAt?: number;
 };
 
 export function KanbanBoard() {
@@ -75,6 +77,9 @@ export function KanbanBoard() {
   const notionConnection = useSuspenseQuery(convexQuery(api.notion.getConnection, {}));
   const isNotionConnected = !!notionConnection?.data?.databaseId;
   const moveIdea = useMutation(api.ideas.move);
+
+  // Show toast notifications when ideas are synced from Notion
+  useNotionSyncToast(ideas);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

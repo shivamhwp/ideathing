@@ -14,7 +14,6 @@ import { createNotionClient } from "./client";
 import { NOTION_PROPERTY_NAMES } from "./types";
 
 const BATCH_SIZE = 10;
-const MAX_NOTION_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
 type PropertyEntry = {
   name: string;
@@ -214,8 +213,6 @@ const createRichText = (content: string, link?: string): TextRichText[] => [
   },
 ];
 
-const sanitizeContentType = (value: string | null) => value?.split(";")[0]?.trim() || null;
-
 const getFilenameFromUrl = (url: string, contentType: string | null) => {
   try {
     const pathname = new URL(url).pathname;
@@ -253,73 +250,6 @@ const resolveThumbnailUrl = async (ctx: ActionCtx, thumbnail: string | null | un
   }
   if (thumbnail.startsWith("http://") || thumbnail.startsWith("https://")) return thumbnail;
   return null;
-};
-
-const uploadFileToNotion = async (notion: Client, url: string) => {
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch {
-    return null;
-  }
-
-  if (!response.ok) return null;
-
-  const contentType = sanitizeContentType(response.headers.get("content-type"));
-  const lengthHeader = response.headers.get("content-length");
-  if (lengthHeader) {
-    const length = Number(lengthHeader);
-    if (Number.isFinite(length) && length > MAX_NOTION_FILE_SIZE) return null;
-  }
-
-  const data = await response.arrayBuffer();
-  if (data.byteLength > MAX_NOTION_FILE_SIZE) return null;
-
-  const filename = getFilenameFromUrl(url, contentType);
-
-  let upload;
-  try {
-    upload = await notion.fileUploads.create({
-      mode: "single_part",
-      filename,
-      content_type: contentType ?? undefined,
-    });
-  } catch {
-    return null;
-  }
-
-  try {
-    await notion.fileUploads.send({
-      file_upload_id: upload.id,
-      file: {
-        data: new Blob([data], { type: contentType ?? "application/octet-stream" }),
-        filename,
-      },
-    });
-  } catch {
-    return null;
-  }
-
-  return { fileUploadId: upload.id, contentType, filename };
-};
-
-const buildThumbnailBlock = (
-  fileUploadId: string,
-  contentType: string | null,
-  filename: string,
-): BlockObjectRequest => {
-  if (isImageFile(contentType, filename)) {
-    return {
-      object: "block",
-      type: "image",
-      image: { type: "file_upload", file_upload: { id: fileUploadId } },
-    };
-  }
-  return {
-    object: "block",
-    type: "file",
-    file: { type: "file_upload", file_upload: { id: fileUploadId }, name: filename },
-  };
 };
 
 const buildExternalThumbnailBlock = (
@@ -435,7 +365,7 @@ const buildSyncedContentChildren = (
 
 const getThumbnailContent = async (
   ctx: ActionCtx,
-  notion: Client,
+  _notion: Client,
   thumbnail?: string | null,
 ): Promise<{ block: BlockObjectRequest | null; text: string | null }> => {
   if (!thumbnail) return { block: null, text: null };
@@ -444,16 +374,6 @@ const getThumbnailContent = async (
   if (!thumbnailUrl) {
     return { block: null, text: isStorageId(thumbnail) ? null : thumbnail };
   }
-
-  const uploaded = await uploadFileToNotion(notion, thumbnailUrl);
-  if (uploaded) {
-    return {
-      block: buildThumbnailBlock(uploaded.fileUploadId, uploaded.contentType, uploaded.filename),
-      text: null,
-    };
-  }
-
-  if (isStorageId(thumbnail)) return { block: null, text: null };
 
   const filename = getFilenameFromUrl(thumbnailUrl, null);
   return { block: buildExternalThumbnailBlock(thumbnailUrl, null, filename), text: null };
