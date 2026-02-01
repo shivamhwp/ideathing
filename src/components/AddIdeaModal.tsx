@@ -33,6 +33,7 @@ import { defaultIdeaDraft, type IdeaDraft, ideaDraftAtom } from "@/store/atoms";
 interface AddIdeaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId?: string;
 }
 
 const parseDateValue = (value: string) => {
@@ -46,7 +47,7 @@ const formatDateValue = (value: string) => {
   return parsed ? format(parsed, "PPP") : "Pick a date";
 };
 
-export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
+export function AddIdeaModal({ open, onOpenChange, organizationId }: AddIdeaModalProps) {
   const [draft, setDraft] = useAtom(ideaDraftAtom);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const {
@@ -126,6 +127,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         label: draft.label || undefined,
         adReadTracker: draft.adReadTracker || undefined,
         unsponsored: draft.unsponsored,
+        organizationId,
       });
 
       toast.success("Idea added successfully");

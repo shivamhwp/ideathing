@@ -1,3 +1,4 @@
+import { useOrganization } from "@clerk/tanstack-react-start";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { useQuery } from "convex/react";
@@ -15,7 +16,9 @@ export const Route = createFileRoute("/recorded")({
 });
 
 function RecordedIdeasPage() {
-  const recorded = useQuery(api.ideas.listRecorded);
+  const { organization } = useOrganization();
+  const organizationId = organization?.id;
+  const recorded = useQuery(api.ideas.listRecorded, { organizationId });
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
   const setDraft = useSetAtom(ideaDraftAtom);
 
@@ -64,6 +67,7 @@ function RecordedIdeasPage() {
 									setDraft(createIdeaDraftFromIdea(idea));
 									setEditingIdea(idea);
 								}}
+								organizationId={organizationId}
 							/>
 						))}
 					</div>
@@ -75,6 +79,7 @@ function RecordedIdeasPage() {
 				idea={editingIdea}
 				open={!!editingIdea}
 				onOpenChange={(open) => !open && setEditingIdea(null)}
+				organizationId={organizationId}
 			/>
 		</div>
 	);

@@ -11,9 +11,9 @@ export const Route = createFileRoute("/")({ component: App });
 
 function App() {
 	return (
-		<div className="min-h-screen bg-background">
-			<div className="px-4 py-6 space-y-4">
-				<div className="flex items-center justify-between">
+		<div className="h-screen flex flex-col bg-background">
+			<div className="px-4 py-6 flex flex-col flex-1 min-h-0 gap-4">
+				<div className="flex items-center justify-between ">
 					<div className="flex items-center gap-2">
 						<span className="text-xl font-black font-mono hover:text-primary transition-colors flex items-center gap-2">
 							ideathing
@@ -25,8 +25,10 @@ function App() {
 								<Link to="/recorded">recorded vids</Link>
 							</Button>
 							<NotionConnect />
-							<ThemeToggle />
-							<ClerkHeader />
+							<div className="flex items-center gap-1">
+								<ThemeToggle />
+								<ClerkHeader />
+							</div>
 						</Authenticated>
 						<Unauthenticated>
 							<Button asChild size="sm" variant="default" className="font-mono">

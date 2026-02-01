@@ -46,6 +46,7 @@ interface EditIdeaModalProps {
 	idea: Idea | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	organizationId?: string;
 }
 
 const parseDateValue = (value: string) => {
@@ -82,6 +83,7 @@ export function EditIdeaModal({
 	idea,
 	open,
 	onOpenChange,
+	organizationId,
 }: EditIdeaModalProps) {
 	const [draft, setDraft] = useAtom(ideaDraftAtom);
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -104,7 +106,7 @@ export function EditIdeaModal({
 	const ideaId = draft.ideaId ?? idea?._id ?? null;
 	const currentIdea = useQuery(
 		api.ideas.get,
-		open && ideaId ? { id: ideaId } : "skip",
+		open && ideaId ? { id: ideaId, organizationId } : "skip",
 	);
 	const ideaSource = currentIdea ?? idea ?? null;
 
@@ -177,6 +179,7 @@ export function EditIdeaModal({
 				label: draft.label || undefined,
 				adReadTracker: draft.adReadTracker || undefined,
 				unsponsored: draft.unsponsored,
+				organizationId,
 			});
 
 			toast.success("Idea updated successfully");

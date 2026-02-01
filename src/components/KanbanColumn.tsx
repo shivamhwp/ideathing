@@ -12,6 +12,8 @@ interface KanbanColumnProps {
 	items: Idea[];
 	onAddClick?: () => void;
 	onItemClick?: (idea: Idea) => void;
+	isSignedIn?: boolean;
+	organizationId?: string;
 }
 
 export function KanbanColumn({
@@ -21,6 +23,8 @@ export function KanbanColumn({
 	items,
 	onAddClick,
 	onItemClick,
+	isSignedIn = true,
+	organizationId,
 }: KanbanColumnProps) {
 	const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -28,7 +32,7 @@ export function KanbanColumn({
 		<div
 			ref={setNodeRef}
 			className={cn(
-				"flex flex-col min-h-[500px] rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
+				"flex flex-col h-full overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
 				isOver && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
 			)}
 		>
@@ -46,7 +50,7 @@ export function KanbanColumn({
 						({items.length})
 					</span>
 				</div>
-				{onAddClick && (
+				{onAddClick && isSignedIn && (
 					<Button onClick={onAddClick} variant="secondary">
 						<PlusIcon className="w-4 h-4" weight="bold" />
 					</Button>
@@ -66,14 +70,17 @@ export function KanbanColumn({
 					</p>
 				</div>
 			) : (
-				<div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-					{items.map((idea) => (
-						<IdeaCard
-							key={idea._id}
-							idea={idea}
-							onClick={() => onItemClick?.(idea)}
-						/>
-					))}
+				<div className="flex-1 overflow-y-auto min-h-0">
+					<div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+						{items.map((idea) => (
+							<IdeaCard
+								key={idea._id}
+								idea={idea}
+								onClick={() => onItemClick?.(idea)}
+								organizationId={organizationId}
+							/>
+						))}
+					</div>
 				</div>
 			)}
 		</div>

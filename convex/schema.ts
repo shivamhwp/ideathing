@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export default defineSchema({
   ideas: defineTable({
     userId: v.string(),
+    organizationId: v.optional(v.string()),
     title: v.string(),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
@@ -43,6 +44,8 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_column", ["userId", "column"])
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_column", ["organizationId", "column"])
     .index("by_notion_page", ["notionPageId"]),
 
   notionConnections: defineTable({

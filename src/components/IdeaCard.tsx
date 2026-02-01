@@ -14,6 +14,7 @@ import type { Idea } from "./KanbanBoard";
 interface IdeaCardProps {
   idea: Idea;
   onClick?: () => void;
+  organizationId?: string;
 }
 
 function ThumbnailImage({ thumbnail, alt }: { thumbnail: string; alt: string }) {
@@ -49,7 +50,7 @@ const getDisplayStatus = (idea: Idea): DisplayStatus => {
   return idea.column === "ideas" ? "idea" : "To Stream";
 };
 
-export function IdeaCard({ idea, onClick }: IdeaCardProps) {
+export function IdeaCard({ idea, onClick, organizationId }: IdeaCardProps) {
   const deleteIdea = useAction(api.ideas.remove);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -74,7 +75,7 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
 
   const handleConfirmDelete = async () => {
     try {
-      await deleteIdea({ id: idea._id });
+      await deleteIdea({ id: idea._id, organizationId });
       toast.success("Idea deleted");
     } catch (error) {
       void error;

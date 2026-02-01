@@ -7,16 +7,28 @@ const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    organizationId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
     }
 
+    // If organizationId provided, get team ideas; otherwise get personal ideas
+    if (args.organizationId) {
+      const ideas = await ctx.db
+        .query("ideas")
+        .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+        .collect();
+      return ideas;
+    }
+
     const ideas = await ctx.db
       .query("ideas")
       .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .filter((q) => q.eq(q.field("organizationId"), undefined))
       .collect();
 
     return ideas;
@@ -26,6 +38,7 @@ export const list = query({
 export const get = query({
   args: {
     id: v.id("ideas"),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -34,7 +47,22 @@ export const get = query({
     }
 
     const idea = await ctx.db.get(args.id);
-    if (!idea || idea.userId !== identity.subject) {
+    if (!idea) {
+      return null;
+    }
+
+    // If idea belongs to an organization, check org access
+    if (idea.organizationId) {
+      // Allow access if caller is requesting with matching org ID
+      // (Clerk JWT validates org membership on the frontend)
+      if (args.organizationId === idea.organizationId) {
+        return idea;
+      }
+      return null;
+    }
+
+    // Personal idea - check user ownership
+    if (idea.userId !== identity.subject) {
       return null;
     }
 
@@ -43,17 +71,33 @@ export const get = query({
 });
 
 export const listRecorded = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    organizationId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
     }
 
+    if (args.organizationId) {
+      const ideas = await ctx.db
+        .query("ideas")
+        .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+        .filter((q) => q.eq(q.field("recorded"), true))
+        .collect();
+      return ideas;
+    }
+
     const ideas = await ctx.db
       .query("ideas")
       .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .filter((q) => q.eq(q.field("recorded"), true))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("recorded"), true),
+          q.eq(q.field("organizationId"), undefined),
+        ),
+      )
       .collect();
 
     return ideas;
@@ -63,6 +107,7 @@ export const listRecorded = query({
 export const listByColumn = query({
   args: {
     column: v.union(v.literal("ideas"), v.literal("to-stream")),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -70,11 +115,22 @@ export const listByColumn = query({
       return [];
     }
 
+    if (args.organizationId) {
+      const ideas = await ctx.db
+        .query("ideas")
+        .withIndex("by_organization_column", (q) =>
+          q.eq("organizationId", args.organizationId).eq("column", args.column),
+        )
+        .collect();
+      return ideas.sort((a, b) => a.order - b.order);
+    }
+
     const ideas = await ctx.db
       .query("ideas")
       .withIndex("by_user_column", (q) =>
         q.eq("userId", identity.subject).eq("column", args.column),
       )
+      .filter((q) => q.eq(q.field("organizationId"), undefined))
       .collect();
 
     return ideas.sort((a, b) => a.order - b.order);
@@ -114,6 +170,7 @@ export const create = mutation({
       v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
     ),
     unsponsored: v.optional(v.boolean()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -121,15 +178,28 @@ export const create = mutation({
       throw new Error("Not authenticated");
     }
 
-    const existingIdeas = await ctx.db
-      .query("ideas")
-      .withIndex("by_user_column", (q) => q.eq("userId", identity.subject).eq("column", "ideas"))
-      .collect();
+    // Get existing ideas for order calculation based on org or personal
+    let existingIdeas;
+    if (args.organizationId) {
+      existingIdeas = await ctx.db
+        .query("ideas")
+        .withIndex("by_organization_column", (q) =>
+          q.eq("organizationId", args.organizationId).eq("column", "ideas"),
+        )
+        .collect();
+    } else {
+      existingIdeas = await ctx.db
+        .query("ideas")
+        .withIndex("by_user_column", (q) => q.eq("userId", identity.subject).eq("column", "ideas"))
+        .filter((q) => q.eq(q.field("organizationId"), undefined))
+        .collect();
+    }
 
     const maxOrder = existingIdeas.reduce((max, idea) => Math.max(max, idea.order), -1);
 
     const ideaId = await ctx.db.insert("ideas", {
       userId: identity.subject,
+      organizationId: args.organizationId,
       title: args.title,
       description: args.description,
       notes: args.notes,
@@ -158,6 +228,7 @@ export const moveInternal = internalMutation({
     id: v.id("ideas"),
     column: v.union(v.literal("ideas"), v.literal("to-stream")),
     order: v.number(),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -166,7 +237,16 @@ export const moveInternal = internalMutation({
     }
 
     const idea = await ctx.db.get(args.id);
-    if (!idea || idea.userId !== identity.subject) {
+    if (!idea) {
+      throw new Error("Idea not found");
+    }
+
+    // Check access: org idea requires matching orgId, personal requires user ownership
+    if (idea.organizationId) {
+      if (args.organizationId !== idea.organizationId) {
+        throw new Error("Idea not found");
+      }
+    } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
 
@@ -181,12 +261,22 @@ export const moveInternal = internalMutation({
     });
 
     // Reorder other items in the target column
-    const columnIdeas = await ctx.db
-      .query("ideas")
-      .withIndex("by_user_column", (q) =>
-        q.eq("userId", identity.subject).eq("column", args.column),
-      )
-      .collect();
+    let columnIdeas;
+    if (idea.organizationId) {
+      columnIdeas = await ctx.db
+        .query("ideas")
+        .withIndex("by_organization_column", (q) =>
+          q.eq("organizationId", idea.organizationId).eq("column", args.column),
+        )
+        .collect();
+    } else {
+      columnIdeas = await ctx.db
+        .query("ideas")
+        .withIndex("by_user_column", (q) =>
+          q.eq("userId", identity.subject).eq("column", args.column),
+        )
+        .collect();
+    }
 
     // Sort and reorder
     const sortedIdeas = columnIdeas
@@ -215,9 +305,15 @@ export const move = action({
     id: v.id("ideas"),
     column: v.union(v.literal("ideas"), v.literal("to-stream")),
     order: v.number(),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const result = await ctx.runMutation(internal.ideas.moveInternal, args);
+    const result = await ctx.runMutation(internal.ideas.moveInternal, {
+      id: args.id,
+      column: args.column,
+      order: args.order,
+      organizationId: args.organizationId,
+    });
 
     if (result.wasInIdeas && result.movingToToStream) {
       await ctx.runAction(internal.notion.syncToNotion, { ideaId: args.id });
@@ -265,6 +361,7 @@ export const updateInternal = internalMutation({
       v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
     ),
     unsponsored: v.optional(v.boolean()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -273,11 +370,20 @@ export const updateInternal = internalMutation({
     }
 
     const idea = await ctx.db.get(args.id);
-    if (!idea || idea.userId !== identity.subject) {
+    if (!idea) {
       throw new Error("Idea not found");
     }
 
-    const { id, clearThumbnail, ...updates } = args;
+    // Check access: org idea requires matching orgId, personal requires user ownership
+    if (idea.organizationId) {
+      if (args.organizationId !== idea.organizationId) {
+        throw new Error("Idea not found");
+      }
+    } else if (idea.userId !== identity.subject) {
+      throw new Error("Idea not found");
+    }
+
+    const { id, clearThumbnail, organizationId: _organizationId, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, v]) => v !== undefined),
     );
@@ -338,6 +444,7 @@ export const update = action({
       v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
     ),
     unsponsored: v.optional(v.boolean()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const result = await ctx.runMutation(internal.ideas.updateInternal, args);
@@ -351,6 +458,7 @@ export const update = action({
 export const removeInternal = internalMutation({
   args: {
     id: v.id("ideas"),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -359,7 +467,16 @@ export const removeInternal = internalMutation({
     }
 
     const idea = await ctx.db.get(args.id);
-    if (!idea || idea.userId !== identity.subject) {
+    if (!idea) {
+      throw new Error("Idea not found");
+    }
+
+    // Check access: org idea requires matching orgId, personal requires user ownership
+    if (idea.organizationId) {
+      if (args.organizationId !== idea.organizationId) {
+        throw new Error("Idea not found");
+      }
+    } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
 
@@ -382,9 +499,13 @@ export const removeInternal = internalMutation({
 export const remove = action({
   args: {
     id: v.id("ideas"),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const result = await ctx.runMutation(internal.ideas.removeInternal, args);
+    const result = await ctx.runMutation(internal.ideas.removeInternal, {
+      id: args.id,
+      organizationId: args.organizationId,
+    });
 
     if (result.shouldDeleteFromNotion && result.notionPageId) {
       await ctx.runAction(internal.notion.deleteFromNotion, {

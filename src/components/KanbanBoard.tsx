@@ -1,3 +1,4 @@
+import { useOrganization, useUser } from "@clerk/tanstack-react-start";
 import {
 	closestCenter,
 	DndContext,
@@ -14,7 +15,7 @@ import {
 	SortableContext,
 	sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Plus, SpinnerGap } from "@phosphor-icons/react";
+import { SpinnerIcon } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useAction, useQuery } from "convex/react";
@@ -29,7 +30,6 @@ import {
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
-import { Button } from "./ui/button";
 
 export type Idea = {
 	_id: Id<"ideas">;
@@ -54,7 +54,10 @@ export type Idea = {
 };
 
 export function KanbanBoard() {
-	const ideas = useQuery(api.ideas.list);
+	const { isSignedIn } = useUser();
+	const { organization } = useOrganization();
+	const organizationId = organization?.id;
+	const ideas = useQuery(api.ideas.list, { organizationId });
 	const moveIdea = useAction(api.ideas.move);
 	const setDraft = useSetAtom(ideaDraftAtom);
 	const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
@@ -77,7 +80,7 @@ export function KanbanBoard() {
 	if (ideas === undefined) {
 		return (
 			<div className="flex items-center justify-center h-[50vh]">
-				<SpinnerGap className="w-6 h-6 text-muted-foreground animate-spin" />
+				<SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
 			</div>
 		);
 	}
@@ -137,6 +140,7 @@ export function KanbanBoard() {
 				id: activeIdea._id,
 				column: newColumn,
 				order: newOrder,
+				organizationId,
 			});
 		}
 	}
@@ -146,21 +150,7 @@ export function KanbanBoard() {
 	}
 
 	return (
-		<div className="space-y-4">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<h2 className="text-base font-medium text-foreground">
-					All Ideas
-					<span className="ml-2 text-sm font-normal text-muted-foreground">
-						{ideasData.length}
-					</span>
-				</h2>
-				<Button size="sm" onClick={handleAddIdea}>
-					<Plus className="w-4 h-4 mr-1.5" weight="bold" />
-					Add Idea
-				</Button>
-			</div>
-
+		<div className="flex flex-col flex-1 min-h-0 gap-4">
 			{/* Kanban Columns */}
 			<DndContext
 				sensors={sensors}
@@ -169,7 +159,7 @@ export function KanbanBoard() {
 				onDragEnd={handleDragEnd}
 				onDragCancel={handleDragCancel}
 			>
-				<div className="grid grid-cols-2 gap-4 w-full h-full">
+				<div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
 					<SortableContext
 						items={ideasColumn.map((i) => i._id)}
 						strategy={rectSortingStrategy}
@@ -181,6 +171,8 @@ export function KanbanBoard() {
 							items={ideasColumn}
 							onAddClick={handleAddIdea}
 							onItemClick={handleEditIdea}
+							isSignedIn={isSignedIn}
+							organizationId={organizationId}
 						/>
 					</SortableContext>
 
@@ -194,6 +186,7 @@ export function KanbanBoard() {
 							color="vidit"
 							items={toStreamColumn}
 							onItemClick={handleEditIdea}
+							organizationId={organizationId}
 						/>
 					</SortableContext>
 				</div>
@@ -224,12 +217,17 @@ export function KanbanBoard() {
 				</DragOverlay>
 			</DndContext>
 
-			<AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
+			<AddIdeaModal
+				open={showAddModal}
+				onOpenChange={setShowAddModal}
+				organizationId={organizationId}
+			/>
 			<EditIdeaModal
 				key={editingIdea?._id ?? "edit-idea"}
 				idea={editingIdea}
 				open={!!editingIdea}
 				onOpenChange={(open) => !open && setEditingIdea(null)}
+				organizationId={organizationId}
 			/>
 		</div>
 	);
