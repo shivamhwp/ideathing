@@ -34,7 +34,7 @@ function ProfileSettings() {
 	return (
 		<div className="space-y-6">
 			{/* User Info Card */}
-			<div className="rounded-xl border border-border/50 items-center bg-card/50 p-6 justify-between flex">
+			<div className="rounded-xl border border-border/50 bg-card/50 p-6 flex items-center justify-between">
 				<div className="flex items-center gap-4">
 					<UserButton
 						appearance={{

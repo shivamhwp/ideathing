@@ -1,5 +1,6 @@
 import { SignInButton } from "@clerk/tanstack-react-start";
 import { convexQuery } from "@convex-dev/react-query";
+import { GithubLogoIcon } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { Authenticated, Unauthenticated } from "convex/react";
@@ -77,7 +78,10 @@ function App() {
 						</Authenticated>
 						<Unauthenticated>
 							<Button asChild size="sm" variant="default" className="font-mono">
-								<SignInButton mode="modal">sign in with google</SignInButton>
+								<SignInButton mode="modal">
+									<GithubLogoIcon className="w-4 h-4" />
+									sign in with github
+								</SignInButton>
 							</Button>
 						</Unauthenticated>
 					</div>

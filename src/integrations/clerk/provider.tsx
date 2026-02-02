@@ -1,5 +1,5 @@
 import { ClerkProvider } from "@clerk/tanstack-react-start";
-import { shadcn } from "@clerk/themes";
+import { dark, shadcn } from "@clerk/themes";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!PUBLISHABLE_KEY) {
@@ -17,6 +17,12 @@ export default function AppClerkProvider({
 			afterSignOutUrl="/"
 			appearance={{
 				baseTheme: shadcn,
+				elements: {
+					rootBox: "bg-background",
+					avatarBox: "size-10",
+					organizationSwitcherTrigger:
+						"rounded-md border border-border/50 bg-background hover:bg-accent/50 transition-colors text-lg",
+				},
 			}}
 		>
 			{children}
