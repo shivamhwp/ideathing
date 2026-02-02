@@ -1,12 +1,5 @@
 // Re-export all notion module exports
 export {
-  // Integration token management
-  saveIntegrationToken,
-  testConnection,
-  getConnectionStatus,
-} from "./notion/oauth";
-
-export {
   // Queries
   getConnection,
   getConnectionInternal,
@@ -14,6 +7,10 @@ export {
   getIdeaByNotionPageId,
   getIdeaInternal,
   getConnectionByDatabaseId,
+  // OAuth queries
+  generateOAuthUrl,
+  getConnectionStatus,
+  getConnectionById,
 } from "./notion/queries";
 
 export {
@@ -25,10 +22,13 @@ export {
   updateIdeaFromNotion,
   createIdeaFromWebhook,
   archiveIdeaFromNotion,
+  // OAuth mutations
+  saveOAuthConnection,
+  updateConnectionTokens,
 } from "./notion/mutations";
 
 export {
-  // Sync (Actions)
+  // Actions (Sync + API combined)
   syncToNotion,
   syncStatusesFromNotion,
   syncIdeaFromNotionPage,
@@ -37,10 +37,11 @@ export {
   createIdeaFromNotionPage,
   handleNotionPageDeleted,
   syncFromDataSource,
-} from "./notion/sync";
-
-export {
-  // API (Actions)
+  // API Actions
   listDatabases,
   getDataSourceSchema,
-} from "./notion/api";
+  // OAuth actions
+  getValidToken,
+  refreshOAuthToken,
+  exchangeOAuthCode,
+} from "./notion/actions";

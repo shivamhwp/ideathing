@@ -1,6 +1,21 @@
-export const ownerValues = ["Theo", "Phase", "Mir", "flip", "melkey", "gabriel", "ben", "shivam"] as const;
+export const ownerValues = [
+  "Theo",
+  "Phase",
+  "Mir",
+  "flip",
+  "melkey",
+  "gabriel",
+  "ben",
+  "shivam",
+] as const;
 
-export const channelValues = ["C:Main", "C:Rants", "C:Throwaways", "C:Other", "C:Main(SHORT)"] as const;
+export const channelValues = [
+  "C:Main",
+  "C:Rants",
+  "C:Throwaways",
+  "C:Other",
+  "C:Main(SHORT)",
+] as const;
 
 export const labelValues = [
   "Requires Planning",

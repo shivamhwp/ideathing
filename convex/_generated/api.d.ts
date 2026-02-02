@@ -12,14 +12,13 @@ import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as ideas from "../ideas.js";
 import type * as notion from "../notion.js";
-import type * as notion_api from "../notion/api.js";
-import type * as notion_client from "../notion/client.js";
-import type * as notion_index from "../notion/index.js";
+import type * as notion_actions from "../notion/actions.js";
 import type * as notion_mutations from "../notion/mutations.js";
-import type * as notion_oauth from "../notion/oauth.js";
 import type * as notion_queries from "../notion/queries.js";
-import type * as notion_sync from "../notion/sync.js";
-import type * as notion_types from "../notion/types.js";
+import type * as notion_utils_client from "../notion/utils/client.js";
+import type * as notion_utils_types from "../notion/utils/types.js";
+import type * as utils_files from "../utils/files.js";
+import type * as utils_ideas from "../utils/ideas.js";
 import type * as utils_types from "../utils/types.js";
 
 import type {
@@ -33,14 +32,13 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   ideas: typeof ideas;
   notion: typeof notion;
-  "notion/api": typeof notion_api;
-  "notion/client": typeof notion_client;
-  "notion/index": typeof notion_index;
+  "notion/actions": typeof notion_actions;
   "notion/mutations": typeof notion_mutations;
-  "notion/oauth": typeof notion_oauth;
   "notion/queries": typeof notion_queries;
-  "notion/sync": typeof notion_sync;
-  "notion/types": typeof notion_types;
+  "notion/utils/client": typeof notion_utils_client;
+  "notion/utils/types": typeof notion_utils_types;
+  "utils/files": typeof utils_files;
+  "utils/ideas": typeof utils_ideas;
   "utils/types": typeof utils_types;
 }>;
 

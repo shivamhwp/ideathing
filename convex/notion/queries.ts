@@ -21,7 +21,7 @@ export const getConnection = query({
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
       .first();
 
-    if (!connection || !connection.integrationToken) {
+    if (!connection || !connection.accessToken) {
       return null;
     }
 
@@ -46,6 +46,83 @@ export const getConnectionInternal = internalQuery({
       .query("notionConnections")
       .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
       .first();
+  },
+});
+
+// Get connection by ID (internal use)
+export const getConnectionById = internalQuery({
+  args: {
+    connectionId: v.id("notionConnections"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.connectionId);
+  },
+});
+
+// Generate OAuth URL for frontend
+export const generateOAuthUrl = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const clientId = process.env.NOTION_CLIENT_ID;
+    const redirectUri = process.env.NOTION_OAUTH_REDIRECT_URI;
+
+    if (!clientId || !redirectUri) {
+      throw new Error("OAuth not configured");
+    }
+
+    // State includes userId and organizationId for callback
+    const state = `${identity.subject}:${args.organizationId}`;
+
+    const authUrl = new URL("https://api.notion.com/v1/oauth/authorize");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("owner", "user");
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("state", state);
+
+    return authUrl.toString();
+  },
+});
+
+// Get connection status - organizationId passed from frontend
+export const getConnectionStatus = query({
+  args: {
+    organizationId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const orgId = args.organizationId;
+    if (!orgId) {
+      return null;
+    }
+
+    const connection = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+      .first();
+
+    if (!connection) {
+      return null;
+    }
+
+    return {
+      isConnected: true,
+      connectedAt: connection.connectedAt,
+      databaseId: connection.databaseId,
+      databaseName: connection.databaseName,
+      workspaceName: connection.workspaceName,
+    };
   },
 });
 

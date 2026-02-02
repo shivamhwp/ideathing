@@ -85,12 +85,24 @@ export default defineSchema({
     .index("by_organization_column", ["organizationId", "column"])
     .index("by_notion_page", ["notionPageId"]),
 
-  // Notion connection per organization - admin pastes integration token
+  // Notion connection per organization - OAuth based
   notionConnections: defineTable({
     organizationId: v.string(),
-    integrationToken: v.string(),
+    // OAuth tokens
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    tokenType: v.string(), // "bearer"
+    expiresAt: v.optional(v.number()), // estimated expiration timestamp
+    lastRefreshedAt: v.optional(v.number()),
+    // Notion workspace info
+    botId: v.string(),
+    workspaceId: v.string(),
+    workspaceName: v.optional(v.string()),
+    workspaceIcon: v.optional(v.string()),
+    // Connection metadata
     createdBy: v.string(), // userId of admin who set it
     connectedAt: v.number(),
+    // Database settings
     databaseId: v.optional(v.string()),
     databaseName: v.optional(v.string()),
     targetSection: v.optional(v.string()),

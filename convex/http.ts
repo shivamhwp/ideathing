@@ -82,7 +82,7 @@ http.route({
     }
 
     let payload: WebhookPayload;
-
+    console.log(body);
     try {
       payload = JSON.parse(body);
     } catch {

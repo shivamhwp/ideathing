@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 import { mutation, internalMutation } from "../_generated/server";
-import { ownerValues, channelValues, labelValues, statusValues, adReadTrackerValues } from "../utils/types";
+import {
+  ownerValues,
+  channelValues,
+  labelValues,
+  statusValues,
+  adReadTrackerValues,
+} from "../utils/types";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {
@@ -49,7 +55,9 @@ export const saveDatabaseSettings = mutation({
 
     const connection = await ctx.db
       .query("notionConnections")
-      .withIndex("by_organization", (q) => q.eq("organizationId", (identity as unknown as { org_id: string }).org_id))
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", (identity as unknown as { org_id: string }).org_id),
+      )
       .first();
 
     if (!connection) {
@@ -275,5 +283,75 @@ export const archiveIdeaFromNotion = internalMutation({
       notionPageId: undefined,
       syncedAt: undefined,
     });
+  },
+});
+
+// Save OAuth connection to database
+export const saveOAuthConnection = internalMutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    tokenType: v.string(),
+    botId: v.string(),
+    workspaceId: v.string(),
+    workspaceName: v.optional(v.string()),
+    workspaceIcon: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if connection already exists for this org
+    const existing = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .first();
+
+    const now = Date.now();
+    const expiresAt = now + 90 * 24 * 60 * 60 * 1000; // 90 days conservative estimate
+
+    const connectionData = {
+      organizationId: args.organizationId,
+      accessToken: args.accessToken,
+      refreshToken: args.refreshToken,
+      tokenType: args.tokenType,
+      botId: args.botId,
+      workspaceId: args.workspaceId,
+      workspaceName: args.workspaceName,
+      workspaceIcon: args.workspaceIcon,
+      createdBy: args.userId,
+      connectedAt: now,
+      lastRefreshedAt: now,
+      expiresAt: expiresAt,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, connectionData);
+    } else {
+      await ctx.db.insert("notionConnections", connectionData);
+    }
+
+    return { success: true };
+  },
+});
+
+// Update connection tokens after refresh
+export const updateConnectionTokens = internalMutation({
+  args: {
+    connectionId: v.id("notionConnections"),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const expiresAt = now + 90 * 24 * 60 * 60 * 1000; // 90 days
+
+    await ctx.db.patch(args.connectionId, {
+      accessToken: args.accessToken,
+      refreshToken: args.refreshToken,
+      lastRefreshedAt: now,
+      expiresAt: expiresAt,
+    });
+
+    return { success: true };
   },
 });
