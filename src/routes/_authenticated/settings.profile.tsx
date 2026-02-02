@@ -4,7 +4,7 @@ import {
 	useOrganization,
 	useUser,
 } from "@clerk/tanstack-react-start";
-import { SpinnerIcon } from "@phosphor-icons/react";
+import { ShieldCheckIcon, SpinnerIcon, UserIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/settings/profile")({
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/settings/profile")({
 
 function ProfileSettings() {
 	const { user, isLoaded: isUserLoaded } = useUser();
-	const { organization } = useOrganization();
+	const { organization, membership } = useOrganization();
 
 	if (!isUserLoaded) {
 		return (
@@ -30,6 +30,8 @@ function ProfileSettings() {
 			</div>
 		);
 	}
+
+	const isAdmin = membership?.role === "org:admin";
 
 	return (
 		<div className="space-y-6">
@@ -54,9 +56,22 @@ function ProfileSettings() {
 							{user.primaryEmailAddress?.emailAddress}
 						</p>
 						{organization && (
-							<p className="text-xs text-muted-foreground mt-1 ">
-								Organization: {organization.name}
-							</p>
+							<div className="flex items-center gap-2 mt-1">
+								<p className="text-xs text-muted-foreground">
+									Organization: {organization.name}
+								</p>
+								{isAdmin ? (
+									<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary">
+										<ShieldCheckIcon className="w-3 h-3" weight="fill" />
+										Admin
+									</span>
+								) : (
+									<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+										<UserIcon className="w-3 h-3" weight="fill" />
+										Member
+									</span>
+								)}
+							</div>
 						)}
 					</div>
 				</div>

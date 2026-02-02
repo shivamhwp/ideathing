@@ -90,7 +90,6 @@ http.route({
     }
 
     if (payload.verification_token) {
-      console.log("Notion webhook verification token:", payload.verification_token);
       return new Response("ok", { status: 200 });
     }
 
@@ -101,12 +100,9 @@ http.route({
     const parentType = payload.data?.parent?.type;
     const workspaceId = payload.workspace_id;
 
-    console.log("Webhook received:", { eventType, entityType, entityId, parentType, parentId });
-
     if (eventType?.startsWith("database.") || eventType?.startsWith("data_source.")) {
       const dataSourceId = entityId;
       if (dataSourceId) {
-        console.log("Data source event:", { eventType, dataSourceId });
         await ctx.scheduler.runAfter(0, internal.notion.syncFromDataSource, {
           dataSourceId,
           workspaceId,
@@ -141,7 +137,7 @@ http.route({
           await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
             notionPageId: pageId,
             ideaId: idea._id,
-            userId: idea.userId,
+            organizationId: idea.organizationId,
           });
         } else if (parentId && parentType === "database") {
           await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
@@ -153,14 +149,12 @@ http.route({
 
       case "page.created":
         if (idea) {
-          console.log("page.created: Syncing existing linked page", { pageId });
           await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
             notionPageId: pageId,
             ideaId: idea._id,
-            userId: idea.userId,
+            organizationId: idea.organizationId,
           });
         } else if (parentId && parentType === "database") {
-          console.log("page.created: Creating new idea from Notion page", { pageId, parentId });
           await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
             notionPageId: pageId,
             databaseId: parentId,
@@ -170,7 +164,6 @@ http.route({
 
       case "page.deleted":
         if (idea) {
-          console.log("page.deleted: Marking idea as archived", { pageId, ideaId: idea._id });
           await ctx.scheduler.runAfter(0, internal.notion.handleNotionPageDeleted, {
             ideaId: idea._id,
             notionPageId: pageId,
@@ -180,11 +173,10 @@ http.route({
 
       case "page.undeleted":
         if (idea) {
-          console.log("page.undeleted: Syncing restored page", { pageId });
           await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
             notionPageId: pageId,
             ideaId: idea._id,
-            userId: idea.userId,
+            organizationId: idea.organizationId,
           });
         } else if (parentId && parentType === "database") {
           await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
@@ -199,7 +191,6 @@ http.route({
         break;
 
       default:
-        console.log("Unhandled webhook event type:", eventType, { pageId });
     }
 
     return new Response("ok", { status: 200 });

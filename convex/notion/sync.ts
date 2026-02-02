@@ -558,43 +558,28 @@ const omitUndefinedUpdates = <T extends Record<string, unknown>>(updates: T) => 
 export const syncToNotion = internalAction({
   args: { ideaId: v.id("ideas") },
   handler: async (ctx, args) => {
-    console.log("syncToNotion: Starting sync for idea", args.ideaId);
-
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
     if (!idea) {
-      console.log("syncToNotion: Idea not found");
       return;
     }
 
-    console.log("syncToNotion: Idea found", {
-      title: idea.title,
-      column: idea.column,
-      status: idea.status,
-    });
+    if (!idea.organizationId) {
+      return;
+    }
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: idea.userId,
+      organizationId: idea.organizationId,
     });
     if (!connection) {
-      console.log("syncToNotion: No connection found for user");
       return;
     }
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken || !connection.databaseId) {
-      console.log("syncToNotion: No access token or database ID", {
-        hasToken: !!accessToken,
-        databaseId: connection.databaseId,
-      });
+    if (!connection.integrationToken || !connection.databaseId) {
       return;
     }
 
-    console.log("syncToNotion: Using database", connection.databaseId);
-
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
-
-    console.log("syncToNotion: Found properties", Array.from(propertyNames.keys()));
 
     const titlePropertyName = connection.titlePropertyName || "Name";
     const statusPropertyName = connection.statusPropertyName || "Status";
@@ -666,25 +651,10 @@ export const syncToNotion = internalAction({
     if (!releaseEntry && idea.releaseDate)
       missingProperties.push(`Release Date: ${idea.releaseDate}`);
 
-    console.log("syncToNotion: Creating page with properties", {
-      titleEntry: titleEntry?.name,
-      statusEntry: statusEntry?.name,
-      statusValue,
-      propertyKeys: Object.keys(properties),
-      missingProperties,
+    const data = await notion.pages.create({
+      parent: { type: "data_source_id", data_source_id: connection.databaseId },
+      properties,
     });
-
-    let data;
-    try {
-      data = await notion.pages.create({
-        parent: { type: "data_source_id", data_source_id: connection.databaseId },
-        properties,
-      });
-      console.log("syncToNotion: Page created successfully", data.id);
-    } catch (error) {
-      console.error("syncToNotion: Failed to create page", error);
-      throw error;
-    }
 
     await upsertSyncedContent({ ctx, pageId: data.id, notion, idea, missingProperties });
 
@@ -701,18 +671,20 @@ export const syncStatusesFromNotion = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const orgId = (identity as { org_id?: string }).org_id;
+    if (!orgId) return { updated: 0 };
+
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: identity.subject,
+      organizationId: orgId,
     });
     if (!connection) return { updated: 0 };
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken || !connection.databaseId) return { updated: 0 };
+    if (!connection.integrationToken || !connection.databaseId) return { updated: 0 };
 
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
     const ideas = await ctx.runQuery(internal.notion.listIdeasWithNotion, {
-      userId: identity.subject,
+      organizationId: orgId,
     });
 
     let updated = 0;
@@ -756,11 +728,9 @@ export const syncIdeaFromNotionPage = internalAction({
   args: {
     notionPageId: v.string(),
     ideaId: v.optional(v.id("ideas")),
-    userId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    console.log("syncIdeaFromNotionPage: Starting sync for page", args.notionPageId);
-
     let idea;
     if (args.ideaId) {
       idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
@@ -771,35 +741,27 @@ export const syncIdeaFromNotionPage = internalAction({
     }
 
     if (!idea) {
-      console.log("syncIdeaFromNotionPage: No idea found for notionPageId", args.notionPageId);
       return;
     }
 
-    console.log("syncIdeaFromNotionPage: Found idea", {
-      ideaId: idea._id,
-      storedNotionPageId: idea.notionPageId,
-      currentStatus: idea.status,
+    const organizationId = args.organizationId ?? idea.organizationId;
+    if (!organizationId) {
+      return;
+    }
+
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      organizationId,
     });
 
-    const userId = args.userId ?? idea.userId;
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, { userId });
-
-    const accessToken = connection?.accessToken ?? connection?.integrationToken;
-    if (!accessToken || !connection?.databaseId) {
-      console.log("syncIdeaFromNotionPage: No connection or database for user", idea.userId);
+    if (!connection?.integrationToken || !connection?.databaseId) {
       return;
     }
 
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     let data: GetPageResponse;
     try {
       data = await notion.pages.retrieve({ page_id: args.notionPageId });
-    } catch (error) {
-      console.log(
-        "syncIdeaFromNotionPage: Failed to retrieve Notion page",
-        args.notionPageId,
-        error,
-      );
+    } catch {
       return;
     }
 
@@ -808,11 +770,8 @@ export const syncIdeaFromNotionPage = internalAction({
     const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
     const payload = omitUndefinedUpdates(updates);
     if (Object.keys(payload).length === 0) {
-      console.log("syncIdeaFromNotionPage: No updates to apply for page", args.notionPageId);
       return;
     }
-
-    console.log("syncIdeaFromNotionPage: Applying updates", payload);
     await ctx.runMutation(internal.notion.updateIdeaFromNotion, {
       ideaId: idea._id,
       ...payload,
@@ -823,24 +782,23 @@ export const syncIdeaFromNotionPage = internalAction({
 export const deleteFromNotion = internalAction({
   args: {
     ideaId: v.id("ideas"),
-    userId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
     notionPageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
 
-    const userId = idea?.userId ?? args.userId;
+    const organizationId = idea?.organizationId ?? args.organizationId;
     const notionPageId = idea?.notionPageId ?? args.notionPageId;
 
-    if (!userId || !notionPageId) return;
+    if (!organizationId || !notionPageId) return;
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, { userId });
-    if (!connection) return;
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      organizationId,
+    });
+    if (!connection?.integrationToken) return;
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken) return;
-
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     try {
       await notion.pages.update({ page_id: notionPageId, archived: true });
     } catch {
@@ -859,14 +817,11 @@ export const createIdeaFromNotionPage = internalAction({
     databaseId: v.string(),
   },
   handler: async (ctx, args) => {
-    console.log("createIdeaFromNotionPage: Starting for page", args.notionPageId);
-
     const connection = await ctx.runQuery(internal.notion.getConnectionByDatabaseId, {
       databaseId: args.databaseId,
     });
 
     if (!connection) {
-      console.log("createIdeaFromNotionPage: No connection found for database", args.databaseId);
       return;
     }
 
@@ -875,27 +830,23 @@ export const createIdeaFromNotionPage = internalAction({
     });
 
     if (existingIdea) {
-      console.log("createIdeaFromNotionPage: Idea already exists, syncing instead");
       await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
         notionPageId: args.notionPageId,
         ideaId: existingIdea._id,
-        userId: existingIdea.userId,
+        organizationId: existingIdea.organizationId,
       });
       return;
     }
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken) {
-      console.log("createIdeaFromNotionPage: No access token");
+    if (!connection.integrationToken) {
       return;
     }
 
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     let data: GetPageResponse;
     try {
       data = await notion.pages.retrieve({ page_id: args.notionPageId });
-    } catch (error) {
-      console.log("createIdeaFromNotionPage: Failed to retrieve page", error);
+    } catch {
       return;
     }
 
@@ -905,10 +856,9 @@ export const createIdeaFromNotionPage = internalAction({
     const title = updates.title || "Untitled";
     const column = updates.column || "Concept";
 
-    console.log("createIdeaFromNotionPage: Creating idea", { title, column });
-
     await ctx.runMutation(internal.notion.createIdeaFromWebhook, {
-      userId: connection.userId,
+      organizationId: connection.organizationId,
+      userId: connection.createdBy,
       notionPageId: args.notionPageId,
       title,
       description: updates.description,
@@ -934,41 +884,38 @@ export const handleNotionPageDeleted = internalAction({
     notionPageId: v.string(),
   },
   handler: async (ctx, args) => {
-    console.log("handleNotionPageDeleted: Processing", { ideaId: args.ideaId });
-
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
     if (!idea) {
-      console.log("handleNotionPageDeleted: Idea not found");
       return;
     }
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: idea.userId,
-    });
-
-    const accessToken = connection?.accessToken ?? connection?.integrationToken;
-    if (!accessToken) {
-      console.log("handleNotionPageDeleted: No access token, marking as archived");
+    if (!idea.organizationId) {
       await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
       return;
     }
 
-    const notion = createNotionClient(accessToken);
+    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+      organizationId: idea.organizationId,
+    });
+
+    if (!connection?.integrationToken) {
+      await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
+      return;
+    }
+
+    const notion = createNotionClient(connection.integrationToken);
     try {
       const page = await notion.pages.retrieve({ page_id: args.notionPageId });
       if ("archived" in page && page.archived === true) {
-        console.log("handleNotionPageDeleted: Page is archived in Notion, archiving idea");
         await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
       } else {
-        console.log("handleNotionPageDeleted: Page exists and not archived, syncing instead");
         await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
           notionPageId: args.notionPageId,
           ideaId: args.ideaId,
-          userId: idea.userId,
+          organizationId: idea.organizationId,
         });
       }
     } catch {
-      console.log("handleNotionPageDeleted: Could not retrieve page, marking as archived");
       await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
     }
   },
@@ -981,27 +928,19 @@ export const syncFromDataSource = internalAction({
     eventType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    console.log("syncFromDataSource: Starting", {
-      dataSourceId: args.dataSourceId,
-      eventType: args.eventType,
-    });
-
     const connection = await ctx.runQuery(internal.notion.getConnectionByDatabaseId, {
       databaseId: args.dataSourceId,
     });
 
     if (!connection) {
-      console.log("syncFromDataSource: No connection found for data source", args.dataSourceId);
       return;
     }
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken) {
-      console.log("syncFromDataSource: No access token");
+    if (!connection.integrationToken) {
       return;
     }
 
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     const propertyNames = await fetchDataSourceProperties(notion, args.dataSourceId);
 
     let cursor: string | undefined;
@@ -1041,7 +980,8 @@ export const syncFromDataSource = internalAction({
           const column = updates.column || "Concept";
 
           await ctx.runMutation(internal.notion.createIdeaFromWebhook, {
-            userId: connection.userId,
+            organizationId: connection.organizationId,
+            userId: connection.createdBy,
             notionPageId: pageId,
             title,
             description: updates.description,
@@ -1064,8 +1004,6 @@ export const syncFromDataSource = internalAction({
       hasMore = response.has_more;
       cursor = response.next_cursor ?? undefined;
     }
-
-    console.log("syncFromDataSource: Completed");
   },
 });
 
@@ -1077,17 +1015,14 @@ export const updateInNotion = internalAction({
   handler: async (ctx, args) => {
     const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
 
-    if (!idea || !idea.notionPageId) return;
+    if (!idea || !idea.notionPageId || !idea.organizationId) return;
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: idea.userId,
+      organizationId: idea.organizationId,
     });
-    if (!connection) return;
+    if (!connection?.integrationToken || !connection.databaseId) return;
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken || !connection.databaseId) return;
-
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
 
     const titlePropertyName = connection.titlePropertyName || "Name";

@@ -1,5 +1,4 @@
 import { useOrganization, useUser } from "@clerk/tanstack-react-start";
-import { convexQuery } from "@convex-dev/react-query";
 import {
   closestCenter,
   DndContext,
@@ -17,7 +16,6 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { SpinnerIcon } from "@phosphor-icons/react";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
@@ -74,8 +72,8 @@ export function KanbanBoard() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const ideas = useQuery(api.ideas.list, { organizationId });
-  const notionConnection = useSuspenseQuery(convexQuery(api.notion.getConnection, {}));
-  const isNotionConnected = !!notionConnection?.data?.databaseId;
+  const notionConnection = useQuery(api.notion.getConnection, { organizationId });
+  const isNotionConnected = !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.move);
 
   // Show toast notifications when ideas are synced from Notion

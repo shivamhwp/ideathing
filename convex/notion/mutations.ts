@@ -1,49 +1,6 @@
 import { v } from "convex/values";
 import { mutation, internalMutation } from "../_generated/server";
-
-const ownerValues = ["Theo", "Phase", "Mir", "flip", "melkey", "gabriel", "ben", "shivam"] as const;
-
-const channelValues = ["C:Main", "C:Rants", "C:Throwaways", "C:Other", "C:Main(SHORT)"] as const;
-
-const labelValues = [
-  "Requires Planning",
-  "Priority",
-  "Mid Priority",
-  "Strict deadline",
-  "Sponsored",
-  "High Effort",
-  "Worth it?",
-  "Evergreen",
-  "Database Week",
-] as const;
-
-const statusValues = [
-  "To Record(Off stream)",
-  "To Stream",
-  "Recorded",
-  "Editing",
-  "Done Editing",
-  "NEEDS THUMBNAIL",
-  "Ready To Publish",
-  "Scheduled",
-  "Published",
-  "Concept",
-  "Commited",
-  "dead",
-  "Shorts",
-  "2nd & 3rd Channel",
-  "Needs sponsor spot",
-  "Theo's Problem",
-  "archived",
-] as const;
-
-const adReadTrackerValues = ["planned", "in da edit", "done"] as const;
-
-type Owner = (typeof ownerValues)[number];
-type Channel = (typeof channelValues)[number];
-type Label = (typeof labelValues)[number];
-type Status = (typeof statusValues)[number];
-type AdReadTracker = (typeof adReadTrackerValues)[number];
+import { ownerValues, channelValues, labelValues, statusValues, adReadTrackerValues } from "../utils/types";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {
@@ -60,13 +17,11 @@ const normalizeLabel = createLookup(labelValues);
 const normalizeStatus = createLookup(statusValues);
 const normalizeAdReadTracker = createLookup(adReadTrackerValues);
 
-// Legacy validators (kept for compatibility)
-const isValidOwner = (value?: string): value is Owner => !!normalizeOwner(value);
-const isValidChannel = (value?: string): value is Channel => !!normalizeChannel(value);
-const isValidLabel = (value?: string): value is Label => !!normalizeLabel(value);
-const isValidStatus = (value?: string): value is Status => !!normalizeStatus(value);
-const isValidAdReadTracker = (value?: string): value is AdReadTracker =>
-  !!normalizeAdReadTracker(value);
+const isOrgAdmin = (identity: { org_role?: string } | null): boolean => {
+  if (!identity) return false;
+  const role = identity.org_role;
+  return role === "org:admin" || role === "admin";
+};
 
 export const saveDatabaseSettings = mutation({
   args: {
@@ -84,9 +39,17 @@ export const saveDatabaseSettings = mutation({
       throw new Error("Not authenticated");
     }
 
+    if (!identity.org_id) {
+      throw new Error("No organization context");
+    }
+
+    if (!isOrgAdmin(identity as { org_role?: string })) {
+      throw new Error("Only organization admins can configure Notion");
+    }
+
     const connection = await ctx.db
       .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_organization", (q) => q.eq("organizationId", (identity as unknown as { org_id: string }).org_id))
       .first();
 
     if (!connection) {
@@ -113,22 +76,22 @@ export const disconnect = mutation({
       throw new Error("Not authenticated");
     }
 
+    const orgId = (identity as { org_id?: string }).org_id;
+    if (!orgId) {
+      throw new Error("No organization context");
+    }
+
+    if (!isOrgAdmin(identity as { org_role?: string })) {
+      throw new Error("Only organization admins can disconnect Notion");
+    }
+
     const connection = await ctx.db
       .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
       .first();
 
     if (connection) {
       await ctx.db.delete(connection._id);
-    }
-
-    const states = await ctx.db
-      .query("notionOAuthStates")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .collect();
-
-    for (const state of states) {
-      await ctx.db.delete(state._id);
     }
   },
 });
@@ -235,6 +198,7 @@ export const updateIdeaFromNotion = internalMutation({
 
 export const createIdeaFromWebhook = internalMutation({
   args: {
+    organizationId: v.string(),
     userId: v.string(),
     notionPageId: v.string(),
     title: v.string(),
@@ -259,18 +223,20 @@ export const createIdeaFromWebhook = internalMutation({
       .first();
 
     if (existingIdea) {
-      console.log("createIdeaFromWebhook: Idea already exists for page", args.notionPageId);
       return existingIdea._id;
     }
 
     const columnIdeas = await ctx.db
       .query("ideas")
-      .withIndex("by_user_column", (q) => q.eq("userId", args.userId).eq("column", args.column))
+      .withIndex("by_organization_column", (q) =>
+        q.eq("organizationId", args.organizationId).eq("column", args.column),
+      )
       .collect();
     const maxOrder = columnIdeas.reduce((max, idea) => Math.max(max, idea.order), -1);
 
     const ideaId = await ctx.db.insert("ideas", {
       userId: args.userId,
+      organizationId: args.organizationId,
       title: args.title,
       description: args.description,
       notes: args.notes,
@@ -290,7 +256,6 @@ export const createIdeaFromWebhook = internalMutation({
       syncedAt: Date.now(),
     });
 
-    console.log("createIdeaFromWebhook: Created idea", ideaId);
     return ideaId;
   },
 });

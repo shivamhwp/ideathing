@@ -2,24 +2,26 @@ import { v } from "convex/values";
 import { query, internalQuery } from "../_generated/server";
 
 export const getConnection = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    organizationId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;
     }
 
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .first();
-
-    if (!connection) {
+    const orgId = args.organizationId;
+    if (!orgId) {
       return null;
     }
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken) {
+    const connection = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+      .first();
+
+    if (!connection || !connection.integrationToken) {
       return null;
     }
 
@@ -37,24 +39,24 @@ export const getConnection = query({
 
 export const getConnectionInternal = internalQuery({
   args: {
-    userId: v.string(),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
       .first();
   },
 });
 
 export const listIdeasWithNotion = internalQuery({
   args: {
-    userId: v.string(),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     const ideas = await ctx.db
       .query("ideas")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
       .collect();
 
     return ideas.filter((idea) => Boolean(idea.notionPageId));
@@ -66,7 +68,6 @@ export const getIdeaByNotionPageId = internalQuery({
     notionPageId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Direct lookup - IDs should match exactly as stored
     return await ctx.db
       .query("ideas")
       .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))

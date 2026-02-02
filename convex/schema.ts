@@ -85,15 +85,12 @@ export default defineSchema({
     .index("by_organization_column", ["organizationId", "column"])
     .index("by_notion_page", ["notionPageId"]),
 
+  // Notion connection per organization - admin pastes integration token
   notionConnections: defineTable({
-    userId: v.string(),
-    accessToken: v.optional(v.string()),
-    refreshToken: v.optional(v.string()),
-    integrationToken: v.optional(v.string()),
-    connectedAt: v.optional(v.number()),
-    workspaceId: v.optional(v.string()),
-    workspaceName: v.optional(v.string()),
-    botId: v.optional(v.string()),
+    organizationId: v.string(),
+    integrationToken: v.string(),
+    createdBy: v.string(), // userId of admin who set it
+    connectedAt: v.number(),
     databaseId: v.optional(v.string()),
     databaseName: v.optional(v.string()),
     targetSection: v.optional(v.string()),
@@ -101,13 +98,5 @@ export default defineSchema({
     statusPropertyName: v.optional(v.string()),
     statusPropertyType: v.optional(v.union(v.literal("status"), v.literal("select"))),
     descriptionPropertyName: v.optional(v.string()),
-  }).index("by_user", ["userId"]),
-
-  notionOAuthStates: defineTable({
-    userId: v.string(),
-    state: v.string(),
-    createdAt: v.number(),
-  })
-    .index("by_state", ["state"])
-    .index("by_user", ["userId"]),
+  }).index("by_organization", ["organizationId"]),
 });

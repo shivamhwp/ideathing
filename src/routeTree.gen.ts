@@ -14,7 +14,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRecordedRouteImport } from './routes/_authenticated/recorded'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings.route'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings.profile'
-import { Route as AuthenticatedNotionWebhooksRouteImport } from './routes/_authenticated/notion/webhooks'
+import { Route as AuthenticatedSettingsNotionRouteImport } from './routes/_authenticated/settings.notion'
+import { Route as AuthenticatedNotionWebhookRouteImport } from './routes/_authenticated/notion/webhook'
 import { Route as AuthenticatedNotionCallbackRouteImport } from './routes/_authenticated/notion/callback'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -43,10 +44,16 @@ const AuthenticatedSettingsProfileRoute =
     path: '/profile',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedNotionWebhooksRoute =
-  AuthenticatedNotionWebhooksRouteImport.update({
-    id: '/notion/webhooks',
-    path: '/notion/webhooks',
+const AuthenticatedSettingsNotionRoute =
+  AuthenticatedSettingsNotionRouteImport.update({
+    id: '/notion',
+    path: '/notion',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedNotionWebhookRoute =
+  AuthenticatedNotionWebhookRouteImport.update({
+    id: '/notion/webhook',
+    path: '/notion/webhook',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedNotionCallbackRoute =
@@ -61,7 +68,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/recorded': typeof AuthenticatedRecordedRoute
   '/notion/callback': typeof AuthenticatedNotionCallbackRoute
-  '/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
+  '/notion/webhook': typeof AuthenticatedNotionWebhookRoute
+  '/settings/notion': typeof AuthenticatedSettingsNotionRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
 }
 export interface FileRoutesByTo {
@@ -69,7 +77,8 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/recorded': typeof AuthenticatedRecordedRoute
   '/notion/callback': typeof AuthenticatedNotionCallbackRoute
-  '/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
+  '/notion/webhook': typeof AuthenticatedNotionWebhookRoute
+  '/settings/notion': typeof AuthenticatedSettingsNotionRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
 }
 export interface FileRoutesById {
@@ -79,7 +88,8 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/_authenticated/recorded': typeof AuthenticatedRecordedRoute
   '/_authenticated/notion/callback': typeof AuthenticatedNotionCallbackRoute
-  '/_authenticated/notion/webhooks': typeof AuthenticatedNotionWebhooksRoute
+  '/_authenticated/notion/webhook': typeof AuthenticatedNotionWebhookRoute
+  '/_authenticated/settings/notion': typeof AuthenticatedSettingsNotionRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
 }
 export interface FileRouteTypes {
@@ -89,7 +99,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/recorded'
     | '/notion/callback'
-    | '/notion/webhooks'
+    | '/notion/webhook'
+    | '/settings/notion'
     | '/settings/profile'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -97,7 +108,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/recorded'
     | '/notion/callback'
-    | '/notion/webhooks'
+    | '/notion/webhook'
+    | '/settings/notion'
     | '/settings/profile'
   id:
     | '__root__'
@@ -106,7 +118,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/recorded'
     | '/_authenticated/notion/callback'
-    | '/_authenticated/notion/webhooks'
+    | '/_authenticated/notion/webhook'
+    | '/_authenticated/settings/notion'
     | '/_authenticated/settings/profile'
   fileRoutesById: FileRoutesById
 }
@@ -152,11 +165,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
-    '/_authenticated/notion/webhooks': {
-      id: '/_authenticated/notion/webhooks'
-      path: '/notion/webhooks'
-      fullPath: '/notion/webhooks'
-      preLoaderRoute: typeof AuthenticatedNotionWebhooksRouteImport
+    '/_authenticated/settings/notion': {
+      id: '/_authenticated/settings/notion'
+      path: '/notion'
+      fullPath: '/settings/notion'
+      preLoaderRoute: typeof AuthenticatedSettingsNotionRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/notion/webhook': {
+      id: '/_authenticated/notion/webhook'
+      path: '/notion/webhook'
+      fullPath: '/notion/webhook'
+      preLoaderRoute: typeof AuthenticatedNotionWebhookRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/notion/callback': {
@@ -170,11 +190,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedSettingsRouteRouteChildren {
+  AuthenticatedSettingsNotionRoute: typeof AuthenticatedSettingsNotionRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
 }
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
+    AuthenticatedSettingsNotionRoute: AuthenticatedSettingsNotionRoute,
     AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
   }
 
@@ -187,14 +209,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedRecordedRoute: typeof AuthenticatedRecordedRoute
   AuthenticatedNotionCallbackRoute: typeof AuthenticatedNotionCallbackRoute
-  AuthenticatedNotionWebhooksRoute: typeof AuthenticatedNotionWebhooksRoute
+  AuthenticatedNotionWebhookRoute: typeof AuthenticatedNotionWebhookRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedRecordedRoute: AuthenticatedRecordedRoute,
   AuthenticatedNotionCallbackRoute: AuthenticatedNotionCallbackRoute,
-  AuthenticatedNotionWebhooksRoute: AuthenticatedNotionWebhooksRoute,
+  AuthenticatedNotionWebhookRoute: AuthenticatedNotionWebhookRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

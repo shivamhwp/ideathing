@@ -1,8 +1,6 @@
-import {
-	NotionLogoIcon,
-	SpinnerGapIcon,
-	SpinnerIcon,
-} from "@phosphor-icons/react";
+import { useOrganization } from "@clerk/tanstack-react-start";
+import { NotionLogoIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useState } from "react";
@@ -33,88 +31,109 @@ type DatabaseOption = {
 };
 
 export function NotionConnect() {
-	const connection = useQuery(api.notion.getConnection);
+	const { organization, membership } = useOrganization();
+	const organizationId = organization?.id;
+	const isAdmin = membership?.role === "org:admin";
 
-	if (connection === undefined) {
+	const connection = useQuery(
+		api.notion.getConnection,
+		organizationId ? { organizationId } : "skip",
+	);
+	const connectionStatus = useQuery(
+		api.notion.getConnectionStatus,
+		organizationId ? { organizationId } : "skip",
+	);
+
+	if (connection === undefined || connectionStatus === undefined) {
 		return null;
 	}
 
-	return <NotionConnectDropdown connection={connection} />;
+	// Not connected - show button to go to settings
+	if (!connectionStatus?.isConnected) {
+		return <NotionConnectButton />;
+	}
+
+	return (
+		<NotionConnectDropdown
+			connection={connection}
+			isAdmin={isAdmin}
+			organizationId={organizationId}
+		/>
+	);
+}
+
+function NotionConnectButton() {
+	const navigate = useNavigate();
+
+	return (
+		<Button
+			variant="outline"
+			size="icon"
+			onClick={() => navigate({ to: "/settings/notion" })}
+			className="h-9 w-9 rounded-lg border-dashed border-border hover:bg-muted/50"
+		>
+			<NotionLogoIcon
+				className="w-4 h-4 text-muted-foreground hover:text-foreground"
+				weight="fill"
+			/>
+		</Button>
+	);
 }
 
 function NotionConnectDropdown({
 	connection,
+	isAdmin,
+	organizationId,
 }: {
 	connection: NotionConnection | null;
+	isAdmin?: boolean;
+	organizationId?: string;
 }) {
+	const navigate = useNavigate();
 	const [open, setOpen] = useState(false);
 	const [databases, setDatabases] = useState<DatabaseOption[]>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isLoadingDatabases, setIsLoadingDatabases] = useState(false);
 
-	const createOAuthState = useMutation(api.notion.createOAuthState);
 	const saveDatabaseSettings = useMutation(api.notion.saveDatabaseSettings);
-	const disconnect = useMutation(api.notion.disconnect);
 	const listDatabases = useAction(api.notion.listDatabases);
 	const getDataSourceSchema = useAction(api.notion.getDataSourceSchema);
 
-	const isConnected = !!connection;
 	const hasDatabase = !!connection?.databaseId;
 
 	const loadDatabases = async () => {
 		setIsLoadingDatabases(true);
 		try {
-			const result = await listDatabases();
+			if (!organizationId) {
+				toast.error("No organization context");
+				return;
+			}
+			const result = await listDatabases({ organizationId });
 			setDatabases(result.databases as DatabaseOption[]);
-		} catch (err) {
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to load databases",
+			);
 		} finally {
 			setIsLoadingDatabases(false);
 		}
 	};
 
 	const handleOpenChange = (nextOpen: boolean) => {
-		if (nextOpen && isConnected) {
+		if (nextOpen && isAdmin) {
 			void loadDatabases();
 		}
 		setOpen(nextOpen);
 	};
 
-	const handleStartOAuth = async () => {
-		setIsSubmitting(true);
-		try {
-			const clientId = import.meta.env.VITE_NOTION_CLIENT_ID;
-			const redirectUri =
-				import.meta.env.VITE_NOTION_OAUTH_REDIRECT_URI ??
-				`${window.location.origin}/notion/callback`;
-
-			if (!clientId) {
-				toast.error("Missing VITE_NOTION_CLIENT_ID env var.");
-				return;
-			}
-
-			const { state } = await createOAuthState();
-			const url = new URL("https://api.notion.com/v1/oauth/authorize");
-			url.searchParams.set("client_id", clientId);
-			url.searchParams.set("redirect_uri", redirectUri);
-			url.searchParams.set("response_type", "code");
-			url.searchParams.set("owner", "user");
-			url.searchParams.set("state", state);
-
-			window.location.href = url.toString();
-		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Failed to start OAuth.",
-			);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
 	const handleSelectDatabase = async (db: DatabaseOption) => {
+		if (!isAdmin || !organizationId) return;
+
 		setIsSubmitting(true);
 
 		try {
 			const schema = await getDataSourceSchema({
+				organizationId,
 				dataSourceId: db.id,
 			});
 			await saveDatabaseSettings({
@@ -135,32 +154,6 @@ function NotionConnectDropdown({
 			setIsSubmitting(false);
 		}
 	};
-
-	const handleDisconnect = async () => {
-		await disconnect();
-		setOpen(false);
-	};
-
-	if (!isConnected) {
-		return (
-			<Button
-				variant="outline"
-				size="icon"
-				onClick={handleStartOAuth}
-				disabled={isSubmitting}
-				className="h-9 w-9 rounded-lg border-dashed border-border hover:bg-muted/50"
-			>
-				{isSubmitting ? (
-					<SpinnerGapIcon className="w-4 h-4 animate-spin" />
-				) : (
-					<NotionLogoIcon
-						className="w-4 h-4 text-muted-foreground hover:text-foreground"
-						weight="fill"
-					/>
-				)}
-			</Button>
-		);
-	}
 
 	const triggerButton = (
 		<Button variant="secondary" size="icon" className="cursor-pointer">
@@ -187,7 +180,7 @@ function NotionConnectDropdown({
 				<DropdownMenuItem
 					key={db.id}
 					onClick={() => handleSelectDatabase(db)}
-					disabled={isSubmitting}
+					disabled={isSubmitting || !isAdmin}
 					className={`cursor-pointer hover:bg-muted/50 focus:bg-muted/50 ${connection?.databaseId === db.id ? "bg-primary/25" : ""}`}
 				>
 					{db.name}
@@ -200,13 +193,22 @@ function NotionConnectDropdown({
 		<DropdownMenu open={open} onOpenChange={handleOpenChange}>
 			<DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-56">
-				{databaseList}
+				{isAdmin ? (
+					databaseList
+				) : (
+					<div className="px-2 py-1.5 text-xs text-muted-foreground">
+						{connection?.databaseName || "Connected to Notion"}
+					</div>
+				)}
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
-					onClick={handleDisconnect}
-					className="text-destructive w-full cursor-pointer hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive"
+					onClick={() => {
+						setOpen(false);
+						navigate({ to: "/settings/notion" });
+					}}
+					className="cursor-pointer"
 				>
-					Disconnect
+					Settings
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

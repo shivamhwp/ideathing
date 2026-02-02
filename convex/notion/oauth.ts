@@ -1,45 +1,12 @@
 import { v } from "convex/values";
-import { action, mutation, internalMutation, internalQuery } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { mutation, query, action } from "../_generated/server";
 import { createNotionClient } from "./client";
 
-const encodeBasicAuth = (clientId: string, clientSecret: string) => {
-  const bytes = new TextEncoder().encode(`${clientId}:${clientSecret}`);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const getString = (value: unknown) => (typeof value === "string" ? value : undefined);
-
-export const createOAuthState = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const state = crypto.randomUUID();
-    await ctx.db.insert("notionOAuthStates", {
-      userId: identity.subject,
-      state,
-      createdAt: Date.now(),
-    });
-
-    return { state };
-  },
-});
-
-export const exchangeOAuthCode = action({
+// Save integration token - organizationId passed from frontend (Clerk provides it)
+export const saveIntegrationToken = mutation({
   args: {
-    code: v.string(),
-    state: v.string(),
+    organizationId: v.string(),
+    integrationToken: v.string(),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -47,169 +14,84 @@ export const exchangeOAuthCode = action({
       throw new Error("Not authenticated");
     }
 
-    const stateRecord = await ctx.runQuery(internal.notion.getOAuthStateByState, {
-      state: args.state,
-    });
+    // Check if connection already exists for this org
+    const existing = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .first();
 
-    if (!stateRecord || stateRecord.userId !== identity.subject) {
-      console.error("Invalid or expired OAuth state.", {
-        stateRecord,
-        identity,
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        integrationToken: args.integrationToken,
+        createdBy: identity.subject,
+        connectedAt: Date.now(),
       });
-      throw new Error("Invalid or expired OAuth state.");
+    } else {
+      await ctx.db.insert("notionConnections", {
+        organizationId: args.organizationId,
+        integrationToken: args.integrationToken,
+        createdBy: identity.subject,
+        connectedAt: Date.now(),
+      });
     }
-
-    await ctx.runMutation(internal.notion.deleteOAuthState, {
-      id: stateRecord._id,
-    });
-
-    const clientId = process.env.NOTION_CLIENT_ID;
-    const clientSecret = process.env.NOTION_CLIENT_SECRET;
-    const redirectUri = process.env.NOTION_OAUTH_REDIRECT_URI;
-
-    if (!clientId || !clientSecret || !redirectUri) {
-      throw new Error("Missing Notion OAuth environment variables.");
-    }
-
-    const basicAuth = encodeBasicAuth(clientId, clientSecret);
-    const response = await fetch("https://api.notion.com/v1/oauth/token", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${basicAuth}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        grant_type: "authorization_code",
-        code: args.code,
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    const data: unknown = await response.json();
-    if (!response.ok) {
-      const message =
-        isRecord(data) && typeof data.message === "string"
-          ? data.message
-          : "Failed to exchange Notion OAuth code.";
-      throw new Error(message);
-    }
-
-    const accessToken = isRecord(data) ? getString(data.access_token) : undefined;
-    if (!accessToken) {
-      throw new Error("Missing Notion access token.");
-    }
-
-    await ctx.runMutation(internal.notion.upsertConnectionFromOAuth, {
-      userId: identity.subject,
-      accessToken,
-      refreshToken: isRecord(data) ? getString(data.refresh_token) : undefined,
-      botId: isRecord(data) ? getString(data.bot_id) : undefined,
-      workspaceId: isRecord(data) ? getString(data.workspace_id) : undefined,
-      workspaceName: isRecord(data) ? getString(data.workspace_name) : undefined,
-    });
 
     return { success: true };
   },
 });
 
-export const getOAuthStateByState = internalQuery({
+// Test connection by calling Notion API
+export const testConnection = action({
   args: {
-    state: v.string(),
+    integrationToken: v.string(),
   },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("notionOAuthStates")
-      .withIndex("by_state", (q) => q.eq("state", args.state))
-      .first();
-  },
-});
-
-export const deleteOAuthState = internalMutation({
-  args: {
-    id: v.id("notionOAuthStates"),
-  },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db.get(args.id);
-    if (existing) {
-      await ctx.db.delete(args.id);
+  handler: async (_ctx, args) => {
+    try {
+      const notion = createNotionClient(args.integrationToken);
+      const user = await notion.users.me({});
+      return {
+        success: true,
+        workspaceName: user.name ?? "Connected",
+        botId: user.id,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to connect",
+      };
     }
   },
 });
 
-export const upsertConnectionFromOAuth = internalMutation({
+// Get connection status - organizationId passed from frontend
+export const getConnectionStatus = query({
   args: {
-    userId: v.string(),
-    accessToken: v.string(),
-    refreshToken: v.optional(v.string()),
-    botId: v.optional(v.string()),
-    workspaceId: v.optional(v.string()),
-    workspaceName: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .first();
-
-    const payload = {
-      userId: args.userId,
-      accessToken: args.accessToken,
-      refreshToken: args.refreshToken,
-      botId: args.botId,
-      connectedAt: Date.now(),
-      workspaceId: args.workspaceId,
-      workspaceName: args.workspaceName,
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, payload);
-    } else {
-      await ctx.db.insert("notionConnections", payload);
-    }
-  },
-});
-
-export const fetchAndStoreBotId = action({
-  args: {},
-  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      return null;
     }
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: identity.subject,
-    });
+    const orgId = args.organizationId;
+    if (!orgId) {
+      return null;
+    }
+
+    const connection = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+      .first();
 
     if (!connection) {
-      throw new Error("Notion is not connected.");
+      return null;
     }
 
-    const accessToken = connection.accessToken ?? connection.integrationToken;
-    if (!accessToken) {
-      throw new Error("No Notion access token found.");
-    }
-
-    const notion = createNotionClient(accessToken);
-    const botUser = await notion.users.me({});
-
-    await ctx.runMutation(internal.notion.updateBotId, {
-      connectionId: connection._id,
-      botId: botUser.id,
-    });
-
-    return { botId: botUser.id };
-  },
-});
-
-export const updateBotId = internalMutation({
-  args: {
-    connectionId: v.id("notionConnections"),
-    botId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.connectionId, {
-      botId: args.botId,
-    });
+    return {
+      isConnected: true,
+      connectedAt: connection.connectedAt,
+      databaseId: connection.databaseId,
+      databaseName: connection.databaseName,
+    };
   },
 });

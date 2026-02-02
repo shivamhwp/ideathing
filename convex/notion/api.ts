@@ -17,23 +17,29 @@ const getTitleText = (value: unknown) => {
 };
 
 export const listDatabases = action({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
     }
 
+    const orgId = args.organizationId;
+    if (!orgId) {
+      throw new Error("No organization context");
+    }
+
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: identity.subject,
+      organizationId: orgId,
     });
 
-    const accessToken = connection?.accessToken ?? connection?.integrationToken;
-    if (!accessToken) {
+    if (!connection?.integrationToken) {
       throw new Error("Notion is not connected.");
     }
 
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     let searchData = await notion.search({
       filter: {
         property: "object",
@@ -121,6 +127,7 @@ export const listDatabases = action({
 
 export const getDataSourceSchema = action({
   args: {
+    organizationId: v.string(),
     dataSourceId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -129,16 +136,20 @@ export const getDataSourceSchema = action({
       throw new Error("Not authenticated");
     }
 
+    const orgId = args.organizationId;
+    if (!orgId) {
+      throw new Error("No organization context");
+    }
+
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
-      userId: identity.subject,
+      organizationId: orgId,
     });
 
-    const accessToken = connection?.accessToken ?? connection?.integrationToken;
-    if (!accessToken) {
+    if (!connection?.integrationToken) {
       throw new Error("Notion is not connected.");
     }
 
-    const notion = createNotionClient(accessToken);
+    const notion = createNotionClient(connection.integrationToken);
     const data = await notion.dataSources.retrieve({
       data_source_id: args.dataSourceId,
     });

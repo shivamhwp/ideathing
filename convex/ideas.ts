@@ -517,15 +517,15 @@ export const remove = mutation({
 
     const shouldDeleteFromNotion = idea.column === "To Stream" && !!idea.notionPageId;
     const notionPageId = idea.notionPageId ?? null;
-    const userId = idea.userId;
+    const organizationId = idea.organizationId;
 
     await ctx.db.delete(args.id);
 
     // Schedule Notion deletion in background if needed
-    if (shouldDeleteFromNotion && notionPageId) {
+    if (shouldDeleteFromNotion && notionPageId && organizationId) {
       await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
         ideaId: args.id,
-        userId,
+        organizationId,
         notionPageId,
       });
     }

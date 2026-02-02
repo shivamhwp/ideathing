@@ -1,8 +1,5 @@
 import { SignInButton } from "@clerk/tanstack-react-start";
-import { convexQuery } from "@convex-dev/react-query";
-import { GithubLogoIcon } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { api } from "convex/_generated/api";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { useAtom } from "jotai";
 import { KanbanBoard } from "@/components/KanbanBoard";
@@ -20,18 +17,13 @@ import { streamModeAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/")({
 	component: App,
-	loader: async (opts) => {
-		await opts.context.queryClient.ensureQueryData(
-			convexQuery(api.notion.getConnection, {}),
-		);
-	},
 });
 
 function App() {
 	const [streamMode, setStreamMode] = useAtom(streamModeAtom);
 	return (
 		<div className="h-screen flex flex-col bg-background">
-			<div className="px-4 py-6 flex flex-col flex-1 min-h-0 gap-4">
+			<div className="px-4 py-4 flex flex-col flex-1 min-h-0 gap-4">
 				<div className="flex items-center justify-between ">
 					<div className="flex items-center justify-center gap-4">
 						<Link
@@ -78,10 +70,7 @@ function App() {
 						</Authenticated>
 						<Unauthenticated>
 							<Button asChild size="sm" variant="default" className="font-mono">
-								<SignInButton mode="modal">
-									<GithubLogoIcon className="w-4 h-4" />
-									sign in with github
-								</SignInButton>
+								<SignInButton mode="modal">sign in with github</SignInButton>
 							</Button>
 						</Unauthenticated>
 					</div>

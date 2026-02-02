@@ -1,13 +1,9 @@
-// Re-export all notion module exports for backwards compatibility
+// Re-export all notion module exports
 export {
-  // OAuth
-  createOAuthState,
-  exchangeOAuthCode,
-  getOAuthStateByState,
-  deleteOAuthState,
-  upsertConnectionFromOAuth,
-  fetchAndStoreBotId,
-  updateBotId,
+  // Integration token management
+  saveIntegrationToken,
+  testConnection,
+  getConnectionStatus,
 } from "./notion/oauth";
 
 export {

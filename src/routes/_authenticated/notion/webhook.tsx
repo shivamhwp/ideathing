@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/_authenticated/notion/webhooks")({
+export const Route = createFileRoute("/_authenticated/notion/webhook")({
   component: NotionWebhooksPage,
 });
 
