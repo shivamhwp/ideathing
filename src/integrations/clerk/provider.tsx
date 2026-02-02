@@ -18,7 +18,6 @@ export default function AppClerkProvider({
 			appearance={{
 				baseTheme: shadcn,
 				elements: {
-					rootBox: "bg-background",
 					avatarBox: "size-10",
 				},
 			}}
