@@ -17,9 +17,6 @@ export default function AppClerkProvider({
 			afterSignOutUrl="/"
 			appearance={{
 				baseTheme: shadcn,
-				elements: {
-					avatarBox: "size-10",
-				},
 			}}
 		>
 			{children}
