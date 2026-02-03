@@ -50,7 +50,7 @@ export function KanbanColumn({
       )}
     >
       {/* Column Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 min-h-9">
         <div className="flex items-center gap-2">
           <span
             className={cn(
@@ -70,11 +70,15 @@ export function KanbanColumn({
           <span className="text-xs text-muted-foreground">({items.length})</span>
           {isDisabled && <LockIcon className="w-3.5 h-3.5 text-muted-foreground" weight="fill" />}
         </div>
-        {onAddClick && isSignedIn && (
-          <Button onClick={onAddClick} variant="secondary">
-            <PlusIcon className="w-4 h-4" weight="bold" />
-          </Button>
-        )}
+        <div className="flex items-center justify-end">
+          {onAddClick && isSignedIn ? (
+            <Button onClick={onAddClick} variant="secondary" size="icon" aria-label="Add idea">
+              <PlusIcon className="w-4 h-4" weight="bold" />
+            </Button>
+          ) : (
+            <div className="h-9 w-9" aria-hidden="true" />
+          )}
+        </div>
       </div>
 
       {/* Disabled message for to-stream column */}

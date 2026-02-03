@@ -1,8 +1,16 @@
 import { useUser } from "@clerk/tanstack-react-start";
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SpinnerIcon } from "@phosphor-icons/react";
+import { getClerkAuth } from "../lib/server/auth";
 
 export const Route = createFileRoute("/_authenticated")({
+  loader: async () => {
+    const { isSignedIn } = await getClerkAuth();
+    if (!isSignedIn) {
+      throw redirect({ to: "/" });
+    }
+    return null;
+  },
   component: AuthenticatedLayout,
 });
 
@@ -17,11 +25,7 @@ function AuthenticatedLayout() {
     );
   }
 
-  if (!isSignedIn) {
-    // Redirect to home if not signed in
-    window.location.href = "/";
-    return null;
-  }
+  if (!isSignedIn) return null;
 
   return <Outlet />;
 }

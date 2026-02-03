@@ -1,4 +1,4 @@
-import { useOrganization, useUser } from "@clerk/tanstack-react-start";
+import { useUser } from "@clerk/tanstack-react-start";
 import {
   closestCenter,
   DndContext,
@@ -16,14 +16,15 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { SpinnerIcon } from "@phosphor-icons/react";
+import { convexQuery } from "@convex-dev/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
-import type { Id } from "convex/_generated/dataModel";
-import { useMutation, useQuery } from "convex/react";
+import type { Doc, Id } from "convex/_generated/dataModel";
+import { useMutation } from "convex/react";
 import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
-import type { ChannelType, LabelType, OwnerType, StatusType } from "@/store/atoms";
 import {
   createIdeaDraftFromIdea,
   defaultIdeaDraft,
@@ -36,33 +37,10 @@ import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
 
-export type Idea = {
-  _id: Id<"ideas">;
-  title: string;
-  description?: string;
-  notes?: string;
-  thumbnail?: string | null;
-  thumbnailReady?: boolean;
-  resources?: string[];
-  vodRecordingDate?: string;
-  releaseDate?: string;
-  owner?: Exclude<OwnerType, "">;
-  channel?: Exclude<ChannelType, "">;
-  potential?: number;
-  label?: Exclude<LabelType, "">;
-  status?: Exclude<StatusType, "">;
-  adReadTracker?: "planned" | "in da edit" | "done";
-  unsponsored?: boolean;
-  column: "Concept" | "To Stream";
-  order: number;
-  notionPageId?: string;
-  syncedAt?: number;
-};
+export type Idea = Doc<"ideas">;
 
-export function KanbanBoard() {
+export function KanbanBoard({ organizationId }: { organizationId?: string }) {
   const { isSignedIn } = useUser();
-  const { organization } = useOrganization();
-  const organizationId = organization?.id;
 
   const setNewDraft = useSetAtom(newIdeaDraftAtom);
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
@@ -71,8 +49,12 @@ export function KanbanBoard() {
   const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const ideas = useQuery(api.ideas.list, { organizationId });
-  const notionConnection = useQuery(api.notion.getConnection, { organizationId });
+  const { data: ideas, isLoading: isIdeasLoading } = useQuery(
+    convexQuery(api.ideas.list, {}),
+  );
+  const { data: notionConnection } = useQuery(
+    convexQuery(api.notion.getConnection, { organizationId }),
+  );
   const isNotionConnected = !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.move);
 
@@ -90,7 +72,7 @@ export function KanbanBoard() {
     }),
   );
 
-  if (ideas === undefined) {
+  if (isIdeasLoading || ideas === undefined) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
         <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
@@ -99,13 +81,12 @@ export function KanbanBoard() {
   }
 
   const ideasData = ideas ?? [];
-  // Concept column: status is "Concept" or empty/undefined (default)
-  const conceptColumn = ideasData
-    .filter((idea) => !idea.status || idea.status === "Concept")
+  const visibleIdeas = ideasData.filter((idea) => idea.status !== "Recorded");
+  const conceptColumn = visibleIdeas
+    .filter((idea) => idea.column === "Concept")
     .sort((a, b) => a.order - b.order);
-  // To Stream column: status is "To Stream"
-  const toStreamColumn = ideasData
-    .filter((idea) => idea.status === "To Stream")
+  const toStreamColumn = visibleIdeas
+    .filter((idea) => idea.column === "To Stream")
     .sort((a, b) => a.order - b.order);
 
   const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
@@ -152,7 +133,7 @@ export function KanbanBoard() {
     } else {
       const overIdea = ideasData.find((idea) => idea._id === over.id);
       if (overIdea) {
-        newColumn = overIdea.status === "To Stream" ? "To Stream" : "Concept";
+        newColumn = overIdea.column === "To Stream" ? "To Stream" : "Concept";
         newOrder = overIdea.order;
       }
     }
@@ -166,7 +147,7 @@ export function KanbanBoard() {
       return;
     }
 
-    const activeColumn = activeIdea.status === "To Stream" ? "To Stream" : "Concept";
+    const activeColumn = activeIdea.column === "To Stream" ? "To Stream" : "Concept";
     if (activeColumn !== newColumn || activeIdea.order !== newOrder) {
       await moveIdea({
         id: activeIdea._id,

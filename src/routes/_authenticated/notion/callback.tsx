@@ -40,7 +40,7 @@ function NotionCallback() {
 
 		const code = params.code;
 		const state = params.state;
-		const error = params.error;
+	const error = params.error;
 
 		const setStatusAndRedirect = (
 			status: "success" | "error",
@@ -65,19 +65,8 @@ function NotionCallback() {
 			return;
 		}
 
-		// Parse state (format: "userId:organizationId")
-		const [userId, organizationId] = state.split(":");
-		if (!userId || !organizationId) {
-			setStatusAndRedirect("error", "invalid_state");
-			return;
-		}
-
 		// Exchange code for tokens
-		exchangeOAuthCodeMutation({
-			code,
-			userId,
-			organizationId,
-		})
+		exchangeOAuthCodeMutation({ code, state })
 			.then(() => setStatusAndRedirect("success"))
 			.catch((err) => {
 				console.error("OAuth exchange error:", err);

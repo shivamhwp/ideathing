@@ -7,6 +7,7 @@ import {
   statusValues,
   adReadTrackerValues,
 } from "../utils/types";
+import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {
@@ -23,12 +24,6 @@ const normalizeLabel = createLookup(labelValues);
 const normalizeStatus = createLookup(statusValues);
 const normalizeAdReadTracker = createLookup(adReadTrackerValues);
 
-const isOrgAdmin = (identity: { org_role?: string } | null): boolean => {
-  if (!identity) return false;
-  const role = identity.org_role;
-  return role === "org:admin" || role === "admin";
-};
-
 export const saveDatabaseSettings = mutation({
   args: {
     databaseId: v.string(),
@@ -41,23 +36,15 @@ export const saveDatabaseSettings = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    if (!identity.org_id) {
+    const orgId = getIdentityOrgId(identity);
+    if (!orgId) {
       throw new Error("No organization context");
     }
-
-    if (!isOrgAdmin(identity as { org_role?: string })) {
-      throw new Error("Only organization admins can configure Notion");
-    }
+    assertOrgAdmin(identity, "Only organization admins can configure Notion");
 
     const connection = await ctx.db
       .query("notionConnections")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", (identity as unknown as { org_id: string }).org_id),
-      )
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
       .first();
 
     if (!connection) {
@@ -80,18 +67,12 @@ export const disconnect = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const orgId = (identity as { org_id?: string }).org_id;
+    const orgId = getIdentityOrgId(identity);
     if (!orgId) {
       throw new Error("No organization context");
     }
 
-    if (!isOrgAdmin(identity as { org_role?: string })) {
-      throw new Error("Only organization admins can disconnect Notion");
-    }
+    assertOrgAdmin(identity, "Only organization admins can disconnect Notion");
 
     const connection = await ctx.db
       .query("notionConnections")
@@ -114,6 +95,34 @@ export const updateIdeaSynced = internalMutation({
       notionPageId: args.notionPageId,
       syncedAt: Date.now(),
     });
+  },
+});
+
+export const createOAuthState = internalMutation({
+  args: {
+    state: v.string(),
+    userId: v.string(),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("notionOauthStates", {
+      state: args.state,
+      userId: args.userId,
+      organizationId: args.organizationId,
+      createdAt: args.createdAt,
+      expiresAt: args.expiresAt,
+    });
+  },
+});
+
+export const deleteOAuthState = internalMutation({
+  args: {
+    stateId: v.id("notionOauthStates"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.stateId);
   },
 });
 

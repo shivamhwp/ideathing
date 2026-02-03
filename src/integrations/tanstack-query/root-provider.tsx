@@ -10,7 +10,7 @@ if (!CONVEX_URL) {
 const convex = new ConvexReactClient(CONVEX_URL);
 const convexQueryClient = new ConvexQueryClient(convex);
 
-export { convex };
+export { convex, convexQueryClient };
 
 let isConnected = false;
 
@@ -31,6 +31,8 @@ export function getContext() {
 
   return {
     queryClient,
+    convexQueryClient,
+    convex,
   };
 }
 
