@@ -44,7 +44,7 @@ const formatDateValue = (value: string) => {
 
 function ThumbnailImage({ thumbnail }: { thumbnail: string }) {
   const storageUrl = useQuery(
-    api.files.getUrl,
+    api.utils.files.getUrl,
     isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
   );
   const imageUrl = isConvexStorageId(thumbnail) ? storageUrl : thumbnail;
@@ -157,9 +157,7 @@ export function IdeaPreview({
         )}
       </div>
 
-      {/* Content */}
       <div className="p-4 space-y-4">
-        {/* Title & Description */}
         <div className="space-y-1">
           <h2 className="text-lg font-semibold leading-tight">{title || "Untitled idea"}</h2>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
@@ -244,7 +242,6 @@ export function IdeaPreview({
           </Tag>
         </div>
 
-        {/* Notes */}
         {notes && (
           <div className="pt-2 border-t border-border/40">
             <div className="flex items-center gap-1.5 mb-2">

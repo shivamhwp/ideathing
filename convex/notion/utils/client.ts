@@ -1,7 +1,7 @@
 import { Client } from "@notionhq/client";
 import type { ActionCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-import { NOTION_VERSION } from "./types";
+import { NOTION_VERSION } from "../../utils/types";
 
 export const createNotionClient = (auth: string) =>
   new Client({
@@ -16,7 +16,7 @@ export const withTokenRefresh = async <T>(
   operation: (client: Client) => Promise<T>,
 ): Promise<T> => {
   // Get valid token (with proactive refresh if needed)
-  const token = await ctx.runAction(internal.notion.getValidToken, {
+  const token = await ctx.runAction(internal.notion.actions.getValidToken, {
     organizationId,
   });
 
@@ -29,7 +29,7 @@ export const withTokenRefresh = async <T>(
     if (error?.status === 401 || error?.code === "unauthorized") {
       // Attempt token refresh
       try {
-        const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+        const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
           organizationId,
         });
 
@@ -37,12 +37,12 @@ export const withTokenRefresh = async <T>(
           throw error;
         }
 
-        await ctx.runAction(internal.notion.refreshOAuthToken, {
+        await ctx.runAction(internal.notion.actions.refreshOAuthToken, {
           connectionId: connection._id,
         });
 
         // Retry with refreshed token
-        const newToken = await ctx.runAction(internal.notion.getValidToken, {
+        const newToken = await ctx.runAction(internal.notion.actions.getValidToken, {
           organizationId,
         });
 

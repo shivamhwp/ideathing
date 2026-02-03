@@ -1,6 +1,6 @@
 import { useUser } from "@clerk/tanstack-react-start";
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SpinnerIcon } from "@phosphor-icons/react";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { getClerkAuth } from "../lib/server/auth";
 
 export const Route = createFileRoute("/_authenticated")({

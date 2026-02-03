@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import type { Client } from "@notionhq/client";
 import { APIResponseError } from "@notionhq/client";
 import { isFullDataSource } from "@notionhq/client";
@@ -14,9 +14,9 @@ import type {
 import type { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { Doc, Id } from "../_generated/dataModel";
 import { createNotionClient } from "./utils/client";
-import { NOTION_PROPERTY_NAMES } from "./utils/types";
-import { assertOrgAccess, assertOrgAdmin} from "../utils/auth";
+import { assertOrgAccess, assertOrgAdmin } from "../utils/auth";
 import { generateOAuthState } from "./utils/oauth";
+import { NOTION_PROPERTY_NAMES } from "../utils/types";
 
 const BATCH_SIZE = 10;
 
@@ -248,9 +248,7 @@ const isStorageId = (value: string | null | undefined) =>
 const resolveThumbnailUrl = async (ctx: ActionCtx, thumbnail: string | null | undefined) => {
   if (!thumbnail) return null;
   if (isStorageId(thumbnail)) {
-    const url = await ctx.runQuery(api.utils.files.getUrl, {
-      storageId: thumbnail as Id<"_storage">,
-    });
+    const url = await ctx.storage.getUrl(thumbnail as Id<"_storage">);
     return url ?? null;
   }
   if (thumbnail.startsWith("http://") || thumbnail.startsWith("https://")) return thumbnail;
@@ -570,7 +568,7 @@ export const listDatabases = action({
     }
     assertOrgAdmin(identity, "Only organization admins can list Notion databases");
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: orgId,
     });
 
@@ -578,7 +576,7 @@ export const listDatabases = action({
       throw new Error("Notion is not connected.");
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: orgId,
     });
 
@@ -635,7 +633,7 @@ export const getDataSourceSchema = action({
     }
     assertOrgAdmin(identity, "Only organization admins can read Notion schemas");
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: orgId,
     });
 
@@ -643,7 +641,7 @@ export const getDataSourceSchema = action({
       throw new Error("Notion is not connected.");
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: orgId,
     });
 
@@ -698,7 +696,7 @@ export const generateOAuthUrl = action({
     const now = Date.now();
     const expiresAt = now + 10 * 60 * 1000;
 
-    await ctx.runMutation(internal.notion.createOAuthState, {
+    await ctx.runMutation(internal.notion.mutations.createOAuthState, {
       state,
       userId: identity.subject,
       organizationId: orgId,
@@ -723,7 +721,7 @@ export const refreshOAuthToken = internalAction({
     connectionId: v.id("notionConnections"),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.runQuery(internal.notion.getConnectionById, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionById, {
       connectionId: args.connectionId,
     });
 
@@ -763,7 +761,7 @@ export const refreshOAuthToken = internalAction({
     };
 
     // Update connection with new tokens
-    await ctx.runMutation(internal.notion.updateConnectionTokens, {
+    await ctx.runMutation(internal.notion.mutations.updateConnectionTokens, {
       connectionId: args.connectionId,
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
@@ -779,7 +777,7 @@ export const getValidToken = internalAction({
     organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<string> => {
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: args.organizationId,
     });
 
@@ -794,12 +792,12 @@ export const getValidToken = internalAction({
     if (connection.expiresAt && now + refreshThreshold >= connection.expiresAt) {
       // Proactively refresh token
       try {
-        await ctx.runAction(internal.notion.refreshOAuthToken, {
+        await ctx.runAction(internal.notion.actions.refreshOAuthToken, {
           connectionId: connection._id,
         });
 
         // Re-fetch updated connection
-        const updated = await ctx.runQuery(internal.notion.getConnectionById, {
+        const updated = await ctx.runQuery(internal.notion.queries.getConnectionById, {
           connectionId: connection._id,
         });
 
@@ -834,13 +832,13 @@ export const exchangeOAuthCode = action({
       throw new Error("Missing OAuth configuration");
     }
 
-    const stateRecord = await ctx.runQuery(internal.notion.getOAuthStateByValue, {
+    const stateRecord = await ctx.runQuery(internal.notion.queries.getOAuthStateByValue, {
       state: args.state,
     });
 
     if (!stateRecord || stateRecord.expiresAt < Date.now()) {
       if (stateRecord) {
-        await ctx.runMutation(internal.notion.deleteOAuthState, {
+        await ctx.runMutation(internal.notion.mutations.deleteOAuthState, {
           stateId: stateRecord._id,
         });
       }
@@ -854,7 +852,7 @@ export const exchangeOAuthCode = action({
       throw new Error("OAuth state mismatch");
     }
 
-    await ctx.runMutation(internal.notion.deleteOAuthState, {
+    await ctx.runMutation(internal.notion.mutations.deleteOAuthState, {
       stateId: stateRecord._id,
     });
 
@@ -889,7 +887,7 @@ export const exchangeOAuthCode = action({
     };
 
     // Save OAuth connection
-    await ctx.runMutation(internal.notion.saveOAuthConnection, {
+    await ctx.runMutation(internal.notion.mutations.saveOAuthConnection, {
       userId: stateRecord.userId,
       organizationId: stateRecord.organizationId,
       accessToken: tokenData.access_token,
@@ -910,7 +908,9 @@ export const exchangeOAuthCode = action({
 export const syncToNotion = internalAction({
   args: { ideaId: v.id("ideas") },
   handler: async (ctx, args) => {
-    const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
+    const idea = await ctx.runQuery(internal.notion.queries.getIdeaInternal, {
+      ideaId: args.ideaId,
+    });
     if (!idea) {
       return;
     }
@@ -919,7 +919,7 @@ export const syncToNotion = internalAction({
       return;
     }
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: idea.organizationId,
     });
     if (!connection) {
@@ -930,7 +930,7 @@ export const syncToNotion = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: idea.organizationId,
     });
     const notion = createNotionClient(token);
@@ -1013,7 +1013,7 @@ export const syncToNotion = internalAction({
 
     await upsertSyncedContent({ ctx, pageId: data.id, notion, idea, missingProperties });
 
-    await ctx.runMutation(internal.notion.updateIdeaSynced, {
+    await ctx.runMutation(internal.notion.mutations.updateIdeaSynced, {
       ideaId: args.ideaId,
       notionPageId: data.id,
     });
@@ -1029,19 +1029,19 @@ export const syncStatusesFromNotion = action({
     const orgId = (identity as { org_id?: string }).org_id;
     if (!orgId) return { updated: 0 };
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: orgId,
     });
     if (!connection) return { updated: 0 };
 
     if (!connection.accessToken || !connection.databaseId) return { updated: 0 };
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
     const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
-    const ideas = await ctx.runQuery(internal.notion.listIdeasWithNotion, {
+    const ideas = await ctx.runQuery(internal.notion.queries.listIdeasWithNotion, {
       organizationId: orgId,
     });
 
@@ -1070,7 +1070,7 @@ export const syncStatusesFromNotion = action({
         const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
         const payload = omitUndefinedUpdates(updates);
         if (Object.keys(payload).length === 0) continue;
-        await ctx.runMutation(internal.notion.updateIdeaFromNotion, {
+        await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
           ideaId: idea._id,
           ...payload,
         });
@@ -1091,9 +1091,9 @@ export const syncIdeaFromNotionPage = internalAction({
   handler: async (ctx, args) => {
     let idea;
     if (args.ideaId) {
-      idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
+      idea = await ctx.runQuery(internal.notion.queries.getIdeaInternal, { ideaId: args.ideaId });
     } else {
-      idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+      idea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
         notionPageId: args.notionPageId,
       });
     }
@@ -1107,7 +1107,7 @@ export const syncIdeaFromNotionPage = internalAction({
       return;
     }
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId,
     });
 
@@ -1115,7 +1115,7 @@ export const syncIdeaFromNotionPage = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
@@ -1133,7 +1133,7 @@ export const syncIdeaFromNotionPage = internalAction({
     if (Object.keys(payload).length === 0) {
       return;
     }
-    await ctx.runMutation(internal.notion.updateIdeaFromNotion, {
+    await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
       ideaId: idea._id,
       ...payload,
     });
@@ -1147,19 +1147,21 @@ export const deleteFromNotion = internalAction({
     notionPageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
+    const idea = await ctx.runQuery(internal.notion.queries.getIdeaInternal, {
+      ideaId: args.ideaId,
+    });
 
     const organizationId = idea?.organizationId ?? args.organizationId;
     const notionPageId = idea?.notionPageId ?? args.notionPageId;
 
     if (!organizationId || !notionPageId) return;
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId,
     });
     if (!connection?.accessToken) return;
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
@@ -1170,7 +1172,7 @@ export const deleteFromNotion = internalAction({
     }
 
     if (idea) {
-      await ctx.runMutation(internal.notion.clearIdeaSynced, { ideaId: args.ideaId });
+      await ctx.runMutation(internal.notion.mutations.clearIdeaSynced, { ideaId: args.ideaId });
     }
   },
 });
@@ -1181,7 +1183,7 @@ export const createIdeaFromNotionPage = internalAction({
     databaseId: v.string(),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.runQuery(internal.notion.getConnectionByDatabaseId, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionByDatabaseId, {
       databaseId: args.databaseId,
     });
 
@@ -1189,12 +1191,12 @@ export const createIdeaFromNotionPage = internalAction({
       return;
     }
 
-    const existingIdea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+    const existingIdea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
       notionPageId: args.notionPageId,
     });
 
     if (existingIdea) {
-      await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+      await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
         notionPageId: args.notionPageId,
         ideaId: existingIdea._id,
         organizationId: existingIdea.organizationId,
@@ -1206,7 +1208,7 @@ export const createIdeaFromNotionPage = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
@@ -1223,7 +1225,7 @@ export const createIdeaFromNotionPage = internalAction({
     const title = updates.title || "Untitled";
     const column = updates.column || "Concept";
 
-    await ctx.runMutation(internal.notion.createIdeaFromWebhook, {
+    await ctx.runMutation(internal.notion.mutations.createIdeaFromWebhook, {
       organizationId: connection.organizationId,
       userId: connection.createdBy,
       notionPageId: args.notionPageId,
@@ -1251,42 +1253,52 @@ export const handleNotionPageDeleted = internalAction({
     notionPageId: v.string(),
   },
   handler: async (ctx, args) => {
-    const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
+    const idea = await ctx.runQuery(internal.notion.queries.getIdeaInternal, {
+      ideaId: args.ideaId,
+    });
     if (!idea) {
       return;
     }
 
     if (!idea.organizationId) {
-      await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
+      await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
+        ideaId: args.ideaId,
+      });
       return;
     }
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: idea.organizationId,
     });
 
     if (!connection?.accessToken) {
-      await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
+      await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
+        ideaId: args.ideaId,
+      });
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
     try {
       const page = await notion.pages.retrieve({ page_id: args.notionPageId });
       if ("archived" in page && page.archived === true) {
-        await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
+        await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
+          ideaId: args.ideaId,
+        });
       } else {
-        await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+        await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
           notionPageId: args.notionPageId,
           ideaId: args.ideaId,
           organizationId: idea.organizationId,
         });
       }
     } catch {
-      await ctx.runMutation(internal.notion.archiveIdeaFromNotion, { ideaId: args.ideaId });
+      await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
+        ideaId: args.ideaId,
+      });
     }
   },
 });
@@ -1298,7 +1310,7 @@ export const syncFromDataSource = internalAction({
     eventType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const connection = await ctx.runQuery(internal.notion.getConnectionByDatabaseId, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionByDatabaseId, {
       databaseId: args.dataSourceId,
     });
 
@@ -1310,7 +1322,7 @@ export const syncFromDataSource = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
@@ -1330,7 +1342,7 @@ export const syncFromDataSource = internalAction({
         if (!("properties" in page)) continue;
 
         const pageId = page.id;
-        const existingIdea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+        const existingIdea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
           notionPageId: pageId,
         });
 
@@ -1343,7 +1355,7 @@ export const syncFromDataSource = internalAction({
         if (existingIdea) {
           const payload = omitUndefinedUpdates(updates);
           if (Object.keys(payload).length > 0) {
-            await ctx.runMutation(internal.notion.updateIdeaFromNotion, {
+            await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
               ideaId: existingIdea._id,
               ...payload,
             });
@@ -1352,7 +1364,7 @@ export const syncFromDataSource = internalAction({
           const title = updates.title || "Untitled";
           const column = updates.column || "Concept";
 
-          await ctx.runMutation(internal.notion.createIdeaFromWebhook, {
+          await ctx.runMutation(internal.notion.mutations.createIdeaFromWebhook, {
             organizationId: connection.organizationId,
             userId: connection.createdBy,
             notionPageId: pageId,
@@ -1386,16 +1398,18 @@ export const updateInNotion = internalAction({
     syncContent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const idea = await ctx.runQuery(internal.notion.getIdeaInternal, { ideaId: args.ideaId });
+    const idea = await ctx.runQuery(internal.notion.queries.getIdeaInternal, {
+      ideaId: args.ideaId,
+    });
 
     if (!idea || !idea.notionPageId || !idea.organizationId) return;
 
-    const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
+    const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
       organizationId: idea.organizationId,
     });
     if (!connection?.accessToken || !connection.databaseId) return;
 
-    const token = await ctx.runAction(internal.notion.getValidToken, {
+    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
       organizationId: connection.organizationId,
     });
     const notion = createNotionClient(token);
@@ -1501,7 +1515,7 @@ export const updateInNotion = internalAction({
       });
     }
 
-    await ctx.runMutation(internal.notion.updateIdeaSynced, {
+    await ctx.runMutation(internal.notion.mutations.updateIdeaSynced, {
       ideaId: args.ideaId,
       notionPageId: idea.notionPageId,
     });

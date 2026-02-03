@@ -18,8 +18,8 @@ function ShareImportPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importedCount, setImportedCount] = useState<number | null>(null);
 
-  const getSummary = useAction(api.ideaExports.getSummary);
-  const importIdeas = useAction(api.ideaExports.importIdeas);
+  const getSummary = useAction(api.ideas.actions.getSummary);
+  const importIdeas = useAction(api.ideas.actions.importIdeas);
   const [summary, setSummary] = useState<{
     itemCount: number;
     createdAt: number;
@@ -130,9 +130,7 @@ function ShareImportPage() {
               </span>
             </p>
             {!isAdmin && organization ? (
-              <p className="text-amber-500">
-                Only organization admins can complete this import.
-              </p>
+              <p className="text-amber-500">Only organization admins can complete this import.</p>
             ) : null}
           </div>
         )}

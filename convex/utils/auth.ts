@@ -1,11 +1,11 @@
 import type { UserIdentity } from "convex/server";
 
 export const getIdentityOrgId = (identity: UserIdentity) => {
-  return identity.org_id ;
+  return identity.org_id;
 };
 
-export const getIdentityOrgRole = (identity: UserIdentity)=> {
-  return identity.org_role ;
+export const getIdentityOrgRole = (identity: UserIdentity) => {
+  return identity.org_role;
 };
 
 export function assertOrgAccess(identity: UserIdentity, organizationId?: string) {

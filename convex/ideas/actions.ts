@@ -1,18 +1,17 @@
-'use node'
+"use node";
 import { v } from "convex/values";
 import { createHash, randomBytes } from "node:crypto";
 import type { Doc, Id } from "../_generated/dataModel";
 import { action } from "../_generated/server";
-import { internal } from "../_generated/api";
 import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const internalApiPromise = import("../_generated/api") as Promise<any>;
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
-
 
 type ExportPayload = {
   title: string;
@@ -23,15 +22,7 @@ type ExportPayload = {
   resources?: string[];
   vodRecordingDate?: string;
   releaseDate?: string;
-  owner?:
-    | "Theo"
-    | "Phase"
-    | "Mir"
-    | "flip"
-    | "melkey"
-    | "gabriel"
-    | "ben"
-    | "shivam";
+  owner?: "Theo" | "Phase" | "Mir" | "flip" | "melkey" | "gabriel" | "ben" | "shivam";
   channel?: "C:Main" | "C:Rants" | "C:Throwaways" | "C:Other" | "C:Main(SHORT)";
   potential?: number;
   label?:
@@ -79,10 +70,11 @@ export const getSummary = action({
     }
 
     const tokenHash = hashToken(args.token);
-    const exportRecord = (await ctx.runQuery(
-      internal.ideas.queries.getExportByTokenInternal,
-      { tokenHash },
-    )) as Doc<"ideaExports"> | null;
+    const { internal: internalApi } = await internalApiPromise;
+    const runQuery = ctx.runQuery as any;
+    const exportRecord = (await runQuery(internalApi.ideas.queries.getExportByTokenInternal, {
+      tokenHash,
+    })) as Doc<"ideaExports"> | null;
 
     if (!exportRecord) {
       return null;
@@ -112,12 +104,17 @@ export const getSummary = action({
 export const create = action({
   args: {
     ideaIds: v.array(v.id("ideas")),
+    origin: v.string(),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
     }
+
+    const { internal: internalApi } = await internalApiPromise;
+    const runQuery = ctx.runQuery as any;
+    const runMutation = ctx.runMutation as any;
 
     const orgId = getIdentityOrgId(identity);
     if (!orgId) {
@@ -133,7 +130,7 @@ export const create = action({
       throw new Error("Select at least one idea to share");
     }
 
-    const ideas = (await ctx.runQuery(internal.ideas.queries.getIdeasForExportInternal, {
+    const ideas = (await runQuery(internalApi.ideas.queries.getIdeasForExportInternal, {
       ideaIds: uniqueIdeaIds,
     })) as Doc<"ideas">[];
 
@@ -149,6 +146,7 @@ export const create = action({
 
     const token = randomBytes(32).toString("hex");
     const tokenHash = hashToken(token);
+    const shareUrl = `${args.origin}/share/${token}`;
     const createdAt = Date.now();
     const expiresAt = createdAt + ONE_DAY_MS;
 
@@ -175,8 +173,10 @@ export const create = action({
       },
     }));
 
-    await ctx.runMutation(internal.ideas.mutations.createExportInternal, {
+    await runMutation(internalApi.ideas.mutations.createExportInternal, {
       tokenHash,
+      token,
+      shareUrl,
       sourceOrganizationId: orgId,
       createdBy: identity.subject,
       createdAt,
@@ -185,19 +185,21 @@ export const create = action({
     });
 
     return {
-      token,
+      shareUrl,
       expiresAt,
       itemCount: ideas.length,
     };
   },
 });
 
-
 export const importIdeas = action({
   args: {
     token: v.string(),
   },
-  handler: async (ctx, args): Promise<{
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
     itemCount: number;
     importedIdeaIds: Id<"ideas">[];
   }> => {
@@ -206,6 +208,10 @@ export const importIdeas = action({
       throw new Error("Not authenticated");
     }
 
+    const { internal: internalApi } = await internalApiPromise;
+    const runQuery = ctx.runQuery as any;
+    const runMutation = ctx.runMutation as any;
+
     assertOrgAdmin(identity, "Only organization admins can import ideas");
     const targetOrganizationId = getIdentityOrgId(identity);
     if (!targetOrganizationId) {
@@ -213,12 +219,9 @@ export const importIdeas = action({
     }
 
     const tokenHash = hashToken(args.token);
-    const exportRecord = (await ctx.runQuery(
-      internal.ideas.queries.getExportByTokenInternal,
-      {
-        tokenHash,
-      },
-    )) as Doc<"ideaExports"> | null;
+    const exportRecord = (await runQuery(internalApi.ideas.queries.getExportByTokenInternal, {
+      tokenHash,
+    })) as Doc<"ideaExports"> | null;
 
     if (!exportRecord) {
       throw new Error("Share link not found");
@@ -233,11 +236,11 @@ export const importIdeas = action({
       throw new Error("Share link already used");
     }
 
-    await ctx.runMutation(internal.ideas.mutations.consumeExportInternal, {
+    await runMutation(internalApi.ideas.mutations.consumeExportInternal, {
       exportId: exportRecord._id,
     });
 
-    const items = (await ctx.runQuery(internal.ideas.queries.listExportItemsInternal, {
+    const items = (await runQuery(internalApi.ideas.queries.listExportItemsInternal, {
       exportId: exportRecord._id,
     })) as Doc<"ideaExportItems">[];
 
@@ -274,8 +277,8 @@ export const importIdeas = action({
       });
     }
 
-    const importedIdeaIds = await ctx.runMutation(
-      internal.ideas.mutations.insertImportedIdeasInternal,
+    const importedIdeaIds = await runMutation(
+      internalApi.ideas.mutations.insertImportedIdeasInternal,
       {
         targetOrganizationId,
         userId: identity.subject,

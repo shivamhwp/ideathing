@@ -90,10 +90,11 @@ const literalUnion = <T extends readonly string[]>(values: T) =>
 const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
 
-
 export const createExportInternal = internalMutation({
   args: {
     tokenHash: v.string(),
+    token: v.string(),
+    shareUrl: v.optional(v.string()),
     sourceOrganizationId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
@@ -108,6 +109,8 @@ export const createExportInternal = internalMutation({
   handler: async (ctx, args) => {
     const exportId = await ctx.db.insert("ideaExports", {
       tokenHash: args.tokenHash,
+      token: args.token,
+      shareUrl: args.shareUrl,
       sourceOrganizationId: args.sourceOrganizationId,
       createdBy: args.createdBy,
       createdAt: args.createdAt,
@@ -153,6 +156,36 @@ export const consumeExportInternal = internalMutation({
 
     await ctx.db.patch(args.exportId, {
       uses: record.uses + 1,
+    });
+  },
+});
+
+export const revokeExport = mutation({
+  args: {
+    exportId: v.id("ideaExports"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const record = await ctx.db.get(args.exportId);
+    if (!record) {
+      throw new Error("Share link not found");
+    }
+
+    assertOrgAccess(identity, record.sourceOrganizationId);
+    if (record.createdBy !== identity.subject) {
+      throw new Error("Unauthorized");
+    }
+
+    if (record.revokedAt) {
+      return;
+    }
+
+    await ctx.db.patch(args.exportId, {
+      revokedAt: Date.now(),
     });
   },
 });
@@ -232,14 +265,13 @@ export const insertImportedIdeasInternal = internalMutation({
       importedIdeaIds.push(ideaId);
 
       if (notionConnection?.databaseId && item.payload.column === "To Stream") {
-        await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, { ideaId });
+        await ctx.scheduler.runAfter(0, internal.notion.actions.syncToNotion, { ideaId });
       }
     }
 
     return importedIdeaIds;
   },
 });
-
 
 export const create = mutation({
   args: {
@@ -382,11 +414,13 @@ export const move = mutation({
 
     // Schedule Notion sync in background
     if (wasInConcept && movingToToStream) {
-      await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, { ideaId: args.id });
+      await ctx.scheduler.runAfter(0, internal.notion.actions.syncToNotion, { ideaId: args.id });
     }
 
     if (wasInToStream && movingToConcept && idea.notionPageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, { ideaId: args.id });
+      await ctx.scheduler.runAfter(0, internal.notion.actions.deleteFromNotion, {
+        ideaId: args.id,
+      });
     }
   },
 });
@@ -457,13 +491,15 @@ export const update = mutation({
 
     // If moving from Concept to To Stream, create Notion page
     if (wasInConcept && movingToToStream && !idea.notionPageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.syncToNotion, { ideaId: args.id });
+      await ctx.scheduler.runAfter(0, internal.notion.actions.syncToNotion, { ideaId: args.id });
       return;
     }
 
     // If moving from To Stream to Concept, delete from Notion
     if (wasInToStream && movingToConcept && idea.notionPageId) {
-      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, { ideaId: args.id });
+      await ctx.scheduler.runAfter(0, internal.notion.actions.deleteFromNotion, {
+        ideaId: args.id,
+      });
       return;
     }
 
@@ -475,7 +511,7 @@ export const update = mutation({
         (field) => args[field] !== undefined && args[field] !== idea[field],
       );
 
-      await ctx.scheduler.runAfter(0, internal.notion.updateInNotion, {
+      await ctx.scheduler.runAfter(0, internal.notion.actions.updateInNotion, {
         ideaId: args.id,
         syncContent: contentChanged,
       });
@@ -517,7 +553,7 @@ export const remove = mutation({
 
     // Schedule Notion deletion in background if needed
     if (shouldDeleteFromNotion && notionPageId && organizationId) {
-      await ctx.scheduler.runAfter(0, internal.notion.deleteFromNotion, {
+      await ctx.scheduler.runAfter(0, internal.notion.actions.deleteFromNotion, {
         ideaId: args.id,
         organizationId,
         notionPageId,

@@ -85,6 +85,8 @@ export default defineSchema({
 
   ideaExports: defineTable({
     tokenHash: v.string(),
+    token: v.optional(v.string()),
+    shareUrl: v.optional(v.string()),
     sourceOrganizationId: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),

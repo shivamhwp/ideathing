@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "bun run --bun vite dev --port 3000",
+    "build": "bun run --bun vite build",
+    "preview": "bun run --bun vite preview",
     "test": "vitest run",
     "lint": "oxlint",
     "format": "oxfmt",

@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRecordedRouteImport } from './routes/_authenticated/recorded'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings.route'
 import { Route as AuthenticatedShareTokenRouteImport } from './routes/_authenticated/share.$token'
+import { Route as AuthenticatedSettingsSharedRouteImport } from './routes/_authenticated/settings.shared'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings.profile'
 import { Route as AuthenticatedSettingsNotionRouteImport } from './routes/_authenticated/settings.notion'
 import { Route as AuthenticatedNotionWebhookRouteImport } from './routes/_authenticated/notion/webhook'
@@ -44,6 +45,12 @@ const AuthenticatedShareTokenRoute = AuthenticatedShareTokenRouteImport.update({
   path: '/share/$token',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsSharedRoute =
+  AuthenticatedSettingsSharedRouteImport.update({
+    id: '/shared',
+    path: '/shared',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsProfileRoute =
   AuthenticatedSettingsProfileRouteImport.update({
     id: '/profile',
@@ -77,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/notion/webhook': typeof AuthenticatedNotionWebhookRoute
   '/settings/notion': typeof AuthenticatedSettingsNotionRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/shared': typeof AuthenticatedSettingsSharedRoute
   '/share/$token': typeof AuthenticatedShareTokenRoute
 }
 export interface FileRoutesByTo {
@@ -87,6 +95,7 @@ export interface FileRoutesByTo {
   '/notion/webhook': typeof AuthenticatedNotionWebhookRoute
   '/settings/notion': typeof AuthenticatedSettingsNotionRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/shared': typeof AuthenticatedSettingsSharedRoute
   '/share/$token': typeof AuthenticatedShareTokenRoute
 }
 export interface FileRoutesById {
@@ -99,6 +108,7 @@ export interface FileRoutesById {
   '/_authenticated/notion/webhook': typeof AuthenticatedNotionWebhookRoute
   '/_authenticated/settings/notion': typeof AuthenticatedSettingsNotionRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/_authenticated/settings/shared': typeof AuthenticatedSettingsSharedRoute
   '/_authenticated/share/$token': typeof AuthenticatedShareTokenRoute
 }
 export interface FileRouteTypes {
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/notion/webhook'
     | '/settings/notion'
     | '/settings/profile'
+    | '/settings/shared'
     | '/share/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/notion/webhook'
     | '/settings/notion'
     | '/settings/profile'
+    | '/settings/shared'
     | '/share/$token'
   id:
     | '__root__'
@@ -132,6 +144,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notion/webhook'
     | '/_authenticated/settings/notion'
     | '/_authenticated/settings/profile'
+    | '/_authenticated/settings/shared'
     | '/_authenticated/share/$token'
   fileRoutesById: FileRoutesById
 }
@@ -177,6 +190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShareTokenRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/shared': {
+      id: '/_authenticated/settings/shared'
+      path: '/shared'
+      fullPath: '/settings/shared'
+      preLoaderRoute: typeof AuthenticatedSettingsSharedRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/settings/profile': {
       id: '/_authenticated/settings/profile'
       path: '/profile'
@@ -211,12 +231,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedSettingsRouteRouteChildren {
   AuthenticatedSettingsNotionRoute: typeof AuthenticatedSettingsNotionRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsSharedRoute: typeof AuthenticatedSettingsSharedRoute
 }
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
     AuthenticatedSettingsNotionRoute: AuthenticatedSettingsNotionRoute,
     AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+    AuthenticatedSettingsSharedRoute: AuthenticatedSettingsSharedRoute,
   }
 
 const AuthenticatedSettingsRouteRouteWithChildren =

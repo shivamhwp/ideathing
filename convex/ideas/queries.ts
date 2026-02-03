@@ -1,15 +1,94 @@
-import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
+import { internalQuery, query, type QueryCtx } from "../_generated/server";
 
+type IdeaDoc = Doc<"ideas">;
+type IdeaColumn = IdeaDoc["column"];
+type IdeaStatus = IdeaDoc["status"];
 
+type ListOptions = {
+  status?: IdeaStatus;
+  column?: IdeaColumn;
+  sortByOrder?: boolean;
+};
+
+const applyListOptions = (ideas: IdeaDoc[], options: ListOptions): IdeaDoc[] => {
+  const { status, sortByOrder } = options;
+  let nextIdeas = ideas;
+  if (status) {
+    nextIdeas = nextIdeas.filter((idea) => idea.status === status);
+  }
+  if (sortByOrder) {
+    nextIdeas = [...nextIdeas].sort((a, b) => a.order - b.order);
+  }
+  return nextIdeas;
+};
+
+const listIdeasForOrg = async (
+  ctx: QueryCtx,
+  organizationId: string,
+  options: ListOptions,
+): Promise<IdeaDoc[]> => {
+  const { column } = options;
+  const ideas = column
+    ? await ctx.db
+        .query("ideas")
+        .withIndex("by_organization_column", (q) =>
+          q.eq("organizationId", organizationId).eq("column", column),
+        )
+        .collect()
+    : await ctx.db
+        .query("ideas")
+        .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
+        .collect();
+
+  return applyListOptions(ideas, options);
+};
+
+const listIdeasForUser = async (
+  ctx: QueryCtx,
+  userId: string,
+  options: ListOptions,
+): Promise<IdeaDoc[]> => {
+  const { column } = options;
+  const ideas = column
+    ? await ctx.db
+        .query("ideas")
+        .withIndex("by_user_column", (q) => q.eq("userId", userId).eq("column", column))
+        .filter((q) => q.eq(q.field("organizationId"), undefined))
+        .collect()
+    : await ctx.db
+        .query("ideas")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .filter((q) => q.eq(q.field("organizationId"), undefined))
+        .collect();
+
+  return applyListOptions(ideas, options);
+};
+
+const listIdeasForIdentity = async (
+  ctx: QueryCtx,
+  options: ListOptions = {},
+): Promise<IdeaDoc[]> => {
+  const identity = await ctx.auth.getUserIdentity();
+
+  if (!identity) {
+    throw new Error("User not authenticated");
+  }
+
+  const orgId = identity.org_id;
+  if (orgId) {
+    return listIdeasForOrg(ctx, orgId, options);
+  }
+  return listIdeasForUser(ctx, identity.subject, options);
+};
 
 export const getIdeasForExportInternal = internalQuery({
   args: {
     ideaIds: v.array(v.id("ideas")),
   },
   handler: async (ctx, args) => {
-    const ideas: Doc<"ideas">[] = [];
+    const ideas: IdeaDoc[] = [];
     for (const ideaId of args.ideaIds) {
       const idea = await ctx.db.get(ideaId);
       if (idea) {
@@ -19,9 +98,6 @@ export const getIdeasForExportInternal = internalQuery({
     return ideas;
   },
 });
-
-
-
 
 export const getExportByTokenInternal = internalQuery({
   args: {
@@ -47,8 +123,6 @@ export const listExportItemsInternal = internalQuery({
   },
 });
 
-
-
 export const list = query({
   args: {},
   handler: async (ctx, _args) => {
@@ -58,73 +132,47 @@ export const list = query({
     }
 
     try {
-      const orgId = identity.org_id;
-      if (orgId) {
-        const ideas = await ctx.db
-          .query("ideas")
-          .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-          .collect();
-        return ideas;
-      }
-
-      const ideas = await ctx.db
-        .query("ideas")
-        .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-        .filter((q) => q.eq(q.field("organizationId"), undefined))
-        .collect();
-
-      return ideas;
+      return await listIdeasForIdentity(ctx);
     } catch (error) {
       console.error("ideas.list failed", {
         error,
         subject: identity.subject,
-        organizationId: identity.org_id
+        organizationId: identity.org_id,
       });
       return [];
     }
   },
 });
 
-export const get = query({
-  args: {
-    id: v.id("ideas"),
-  },
-  handler: async (ctx, args) => {
+export const listExportsForUser = query({
+  args: {},
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity?.subject) {
-      return null;
+      return [];
     }
-    try {
-      const idea = await ctx.db.get(args.id);
-      if (!idea) {
-        return null;
-      }
 
-      // If idea belongs to an organization, check org access
-      if (idea.organizationId) {
-        const orgId = identity.org_id;
-        if (!orgId) {
-          return null;
-        }
-        if (orgId !== idea.organizationId) return null;
-        return idea;
-      }
-
-      // Personal idea - check user ownership
-      if (idea.userId !== identity.subject) {
-        return null;
-      }
-
-      return idea;
-    } catch (error) {
-      console.error("ideas.get failed", {
-        error,
-        subject: identity.subject,
-        organizationId: identity.org_id,
-        ideaId: args.id,
-      });
-      return null;
+    const orgId = identity.org_id;
+    if (!orgId) {
+      return [];
     }
+
+    const exports = await ctx.db
+      .query("ideaExports")
+      .withIndex("by_source_org", (q) => q.eq("sourceOrganizationId", orgId))
+      .collect();
+
+    return exports
+      .filter((record) => record.createdBy === identity.subject && !record.revokedAt)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((record) => ({
+        _id: record._id,
+        shareUrl: record.shareUrl,
+        createdAt: record.createdAt,
+        expiresAt: record.expiresAt,
+        uses: record.uses,
+        maxUses: record.maxUses,
+      }));
   },
 });
 
@@ -137,73 +185,12 @@ export const listRecorded = query({
     }
 
     try {
-      const orgId = identity.org_id;
-      if (orgId) {
-        const ideas = await ctx.db
-          .query("ideas")
-          .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-          .filter((q) => q.eq(q.field("status"), "Recorded"))
-          .collect();
-        return ideas;
-      }
-
-      const ideas = await ctx.db
-        .query("ideas")
-        .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-        .filter((q) =>
-          q.and(q.eq(q.field("status"), "Recorded"), q.eq(q.field("organizationId"), undefined)),
-        )
-        .collect();
-
-      return ideas;
+      return await listIdeasForIdentity(ctx, { status: "Recorded" });
     } catch (error) {
       console.error("ideas.listRecorded failed", {
         error,
         subject: identity.subject,
         organizationId: identity.org_id,
-      });
-      return [];
-    }
-  },
-});
-
-export const listByColumn = query({
-  args: {
-    column: v.union(v.literal("Concept"), v.literal("To Stream")),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.subject) {
-      return [];
-    }
-
-    try {
-      const orgId = identity.org_id;
-      if (orgId) {
-        const ideas = await ctx.db
-          .query("ideas")
-          .withIndex("by_organization_column", (q) =>
-            q.eq("organizationId", orgId).eq("column", args.column),
-          )
-          .collect();
-        return ideas.sort((a, b) => a.order - b.order);
-      }
-
-      const ideas = await ctx.db
-        .query("ideas")
-        .withIndex("by_user_column", (q) =>
-          q.eq("userId", identity.subject).eq("column", args.column),
-        )
-        .filter((q) => q.eq(q.field("organizationId"), undefined))
-        .collect();
-
-      return ideas.sort((a, b) => a.order - b.order);
-    } catch (error) {
-      console.error("ideas.listByColumn failed", {
-        error,
-        subject: identity.subject,
-        organizationId: identity.org_id,
-        column: args.column,
       });
       return [];
     }
