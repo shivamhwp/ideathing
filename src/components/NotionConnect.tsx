@@ -174,8 +174,10 @@ function NotionConnectDropdown({
 
 	const databaseList = isLoadingDatabases ? (
 		<div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-			<SpinnerIcon className="w-3 h-3 animate-spin" />
-			<span>Loading databases...</span>
+			<span className="h-6 items-center flex  gap-2 justify-center">
+				<SpinnerIcon className="w-4 h-4 animate-spin" />
+				Loading databases...
+			</span>
 		</div>
 	) : (
 		<div className="flex flex-col gap-1">
