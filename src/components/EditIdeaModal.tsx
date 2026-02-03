@@ -2,25 +2,22 @@ import { useConvexMutation } from "@convex-dev/react-query";
 import {
   CaretDownIcon,
   CheckIcon,
-  MinusIcon,
   PencilSimpleIcon,
-  PlusIcon,
   SpinnerIcon,
-  UploadIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useQuery } from "convex/react";
-import { format, isValid, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { useAtom, useAtomValue } from "jotai";
+import type { ChangeEvent, RefObject } from "react";
 import { memo, useRef } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -34,6 +31,13 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { isConvexStorageId } from "@/lib/storage";
+import { parseDateValue, formatDateValue } from "@/components/idea-form/date-utils";
+import {
+  DescriptionField as IdeaDescriptionField,
+  ResourcesSection as IdeaResourcesSection,
+  ThumbnailField as IdeaThumbnailField,
+  TitleField as IdeaTitleField,
+} from "@/components/idea-form/fields";
 import {
   editIdeaAdReadTrackerAtom,
   editIdeaChannelAtom,
@@ -63,28 +67,6 @@ interface EditIdeaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId?: string;
-}
-
-const parseDateValue = (value: string) => {
-  if (!value) return undefined;
-  const parsed = parseISO(value);
-  return isValid(parsed) ? parsed : undefined;
-};
-
-const formatDateValue = (value: string) => {
-  const parsed = parseDateValue(value);
-  return parsed ? format(parsed, "PPP") : "Pick a date";
-};
-
-function ThumbnailPreview({ thumbnail }: { thumbnail: string }) {
-  const storageUrl = useQuery(
-    api.files.getUrl,
-    isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
-  );
-  const imageUrl = isConvexStorageId(thumbnail) ? storageUrl : thumbnail;
-
-  if (!imageUrl) return null;
-  return <img src={imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />;
 }
 
 // Hook to share update logic across field components
@@ -130,122 +112,49 @@ interface FieldProps {
 const TitleField = memo(function TitleField({ scheduleUpdate }: FieldProps) {
   const [title, setTitle] = useAtom(editIdeaTitleAtom);
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor="edit-title" className="text-sm">
-        Title <span className="text-destructive">*</span>
-      </Label>
-      <Input
-        id="edit-title"
-        type="text"
-        value={title}
-        onChange={(e) => {
-          setTitle(e.target.value);
-          scheduleUpdate({ title: e.target.value });
-        }}
-        placeholder="What's the hook?"
-      />
-    </div>
+    <IdeaTitleField
+      id="edit-title"
+      value={title}
+      onChange={(next) => {
+        setTitle(next);
+        scheduleUpdate({ title: next });
+      }}
+    />
   );
 });
 
 const DescriptionField = memo(function DescriptionField({ scheduleUpdate }: FieldProps) {
   const [description, setDescription] = useAtom(editIdeaDescriptionAtom);
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor="edit-description" className="text-sm">
-        Description
-      </Label>
-      <Input
-        id="edit-description"
-        value={description}
-        onChange={(e) => {
-          setDescription(e.target.value);
-          scheduleUpdate({ description: e.target.value });
-        }}
-        placeholder="One-line summary"
-      />
-    </div>
+    <IdeaDescriptionField
+      id="edit-description"
+      value={description}
+      onChange={(next) => {
+        setDescription(next);
+        scheduleUpdate({ description: next });
+      }}
+    />
   );
 });
 
 const ResourcesSection = memo(function ResourcesSection({ scheduleUpdate }: FieldProps) {
   const [resources, setResources] = useAtom(editIdeaResourcesAtom);
-  const resourceList = resources.length ? resources : [""];
-
-  const updateResource = (index: number, value: string) => {
-    const next = resources.length ? [...resources] : [""];
-    next[index] = value;
-    setResources(next);
-    scheduleUpdate({ resources: next });
-  };
-
-  const addResource = () => {
-    const next = [...(resources.length ? resources : [""]), ""];
-    setResources(next);
-    scheduleUpdate({ resources: next });
-  };
-
-  const removeResource = (index: number) => {
-    if (resources.length <= 1) {
-      const next = [""];
-      setResources(next);
-      scheduleUpdate({ resources: next });
-      return;
-    }
-    const next = resources.filter((_, i) => i !== index);
-    const normalized = next.length ? next : [""];
-    setResources(normalized);
-    scheduleUpdate({ resources: normalized });
-  };
-
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor="edit-resources" className="text-sm">
-        Resources
-      </Label>
-      <div className="grid grid-cols-2 gap-2">
-        {resourceList.map((resource, index) => (
-          <div key={`resource-${index}`} className="flex items-center gap-2">
-            <Input
-              id={index === 0 ? "edit-resources" : undefined}
-              type="url"
-              value={resource}
-              onChange={(e) => updateResource(index, e.target.value)}
-              placeholder={index === 0 ? "Add resource URL" : "Another resource URL"}
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => removeResource(index)}
-              disabled={resourceList.length === 1 && resourceList[0]?.length === 0}
-              aria-label="Remove resource"
-            >
-              <MinusIcon className="w-4 h-4" />
-            </Button>
-          </div>
-        ))}
-        <div className="col-span-2">
-          <Button
-            type="button"
-            variant="ghost"
-            className="justify-start px-2"
-            onClick={addResource}
-          >
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Add resource
-          </Button>
-        </div>
-      </div>
-    </div>
+    <IdeaResourcesSection
+      id="edit-resources"
+      resources={resources}
+      onChange={(next) => {
+        setResources(next);
+        scheduleUpdate({ resources: next });
+      }}
+    />
   );
 });
 
 interface ThumbnailSectionProps extends FieldProps {
   thumbnailPreview: string | null;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
   uploadFile: () => Promise<string | null>;
 }
@@ -260,8 +169,13 @@ const ThumbnailSection = memo(function ThumbnailSection({
 }: ThumbnailSectionProps) {
   const [thumbnail, setThumbnail] = useAtom(editIdeaThumbnailAtom);
   const [thumbnailReady, setThumbnailReady] = useAtom(editIdeaThumbnailReadyAtom);
+  const storageUrl = useQuery(
+    api.files.getUrl,
+    isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
+  );
 
-  const currentThumbnail = thumbnailPreview || (thumbnail ? thumbnail : null);
+  const hasThumbnail = Boolean(thumbnailPreview || thumbnail);
+  const previewUrl = thumbnailPreview || (isConvexStorageId(thumbnail) ? storageUrl : thumbnail);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFileSelect(e);
@@ -289,70 +203,24 @@ const ThumbnailSection = memo(function ThumbnailSection({
   };
 
   return (
-    <div className="space-y-1.5">
-      <Label className="text-sm">Thumbnail</Label>
-      {currentThumbnail ? (
-        <div className="group relative rounded-lg overflow-hidden border border-border/40 aspect-video bg-muted/30">
-          {thumbnailPreview ? (
-            <img
-              src={thumbnailPreview}
-              alt="Thumbnail preview"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <ThumbnailPreview thumbnail={thumbnail} />
-          )}
-          <button
-            type="button"
-            onClick={clearThumbnail}
-            className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <XIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <Input
-            type="url"
-            value={thumbnail}
-            onChange={(e) => {
-              setThumbnail(e.target.value);
-              scheduleUpdate({ thumbnail: e.target.value });
-            }}
-            placeholder="Paste image URL"
-            className="flex-1"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <UploadIcon className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-      <div className="flex items-center gap-2 pt-1">
-        <Switch
-          id="edit-thumbnail-ready"
-          checked={thumbnailReady}
-          onChange={(e) => {
-            setThumbnailReady(e.target.checked);
-            scheduleUpdate({ thumbnailReady: e.target.checked });
-          }}
-        />
-        <Label htmlFor="edit-thumbnail-ready" className="text-sm text-muted-foreground font-normal">
-          Thumbnail ready
-        </Label>
-      </div>
-    </div>
+    <IdeaThumbnailField
+      labelId="edit-thumbnail-ready"
+      thumbnail={thumbnail}
+      thumbnailReady={thumbnailReady}
+      showPreview={hasThumbnail}
+      previewUrl={previewUrl ?? null}
+      fileInputRef={fileInputRef}
+      onFileSelect={handleFileSelect}
+      onClear={clearThumbnail}
+      onThumbnailChange={(next) => {
+        setThumbnail(next);
+        scheduleUpdate({ thumbnail: next });
+      }}
+      onThumbnailReadyChange={(next) => {
+        setThumbnailReady(next);
+        scheduleUpdate({ thumbnailReady: next });
+      }}
+    />
   );
 });
 

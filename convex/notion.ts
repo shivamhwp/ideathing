@@ -8,9 +8,9 @@ export {
   getIdeaInternal,
   getConnectionByDatabaseId,
   // OAuth queries
-  generateOAuthUrl,
   getConnectionStatus,
   getConnectionById,
+  getOAuthStateByValue,
 } from "./notion/queries";
 
 export {
@@ -22,6 +22,8 @@ export {
   updateIdeaFromNotion,
   createIdeaFromWebhook,
   archiveIdeaFromNotion,
+  createOAuthState,
+  deleteOAuthState,
   // OAuth mutations
   saveOAuthConnection,
   updateConnectionTokens,
@@ -43,5 +45,6 @@ export {
   // OAuth actions
   getValidToken,
   refreshOAuthToken,
+  generateOAuthUrl,
   exchangeOAuthCode,
 } from "./notion/actions";

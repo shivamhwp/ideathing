@@ -3,15 +3,20 @@ import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Client } from "@notionhq/client";
+import { APIResponseError } from "@notionhq/client";
+import { isFullDataSource } from "@notionhq/client";
 import type {
   BlockObjectRequest,
   CreatePageParameters,
   GetPageResponse,
   UpdatePageParameters,
 } from "@notionhq/client/build/src/api-endpoints";
+import type { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { Doc, Id } from "../_generated/dataModel";
 import { createNotionClient } from "./utils/client";
 import { NOTION_PROPERTY_NAMES } from "./utils/types";
+import { assertOrgAccess, assertOrgAdmin } from "../utils/auth";
+import { generateOAuthState } from "./utils/oauth";
 
 const BATCH_SIZE = 10;
 
@@ -379,29 +384,11 @@ const getThumbnailContent = async (
   return { block: buildExternalThumbnailBlock(thumbnailUrl, null, filename), text: null };
 };
 
-const fetchAllBlockChildren = async (blockId: string, notion: Client) => {
-  const results: Array<{ id: string; archived: boolean }> = [];
-  let cursor: string | null | undefined = undefined;
-
-  do {
-    const data = await notion.blocks.children.list({
-      block_id: blockId,
-      page_size: 100,
-      start_cursor: cursor ?? undefined,
-    });
-    const pageResults = Array.isArray(data?.results) ? data.results : [];
-    for (const block of pageResults) {
-      if (isRecord(block) && "id" in block && typeof block.id === "string") {
-        results.push({
-          id: block.id,
-          archived: "archived" in block ? Boolean(block.archived) : false,
-        });
-      }
-    }
-    cursor = data?.has_more ? data?.next_cursor : null;
-  } while (cursor);
-
-  return results;
+const ensurePageEditable = async (notion: Client, pageId: string) => {
+  const page = await notion.pages.retrieve({ page_id: pageId });
+  if (isRecord(page) && "archived" in page && page.archived === true) {
+    await notion.pages.update({ page_id: pageId, archived: false });
+  }
 };
 
 const upsertSyncedContent = async ({
@@ -445,14 +432,30 @@ const upsertSyncedContent = async ({
   };
   const nextChildren = [...children, timestampSpacer, timestampBlock];
 
-  const existingBlocks = await fetchAllBlockChildren(pageId, notion);
-  for (const block of existingBlocks) {
-    if (!block.archived) {
-      await notion.blocks.delete({ block_id: block.id });
-    }
-  }
+  const applySync = async () => {
+    await ensurePageEditable(notion, pageId);
+    await notion.pages.update({ page_id: pageId, erase_content: true });
+    await notion.blocks.children.append({ block_id: pageId, children: nextChildren });
+  };
 
-  await notion.blocks.children.append({ block_id: pageId, children: nextChildren });
+  try {
+    await applySync();
+  } catch (error) {
+    if (
+      error instanceof APIResponseError &&
+      error.code === "validation_error" &&
+      error.message?.toLowerCase().includes("archived")
+    ) {
+      try {
+        await notion.pages.update({ page_id: pageId, archived: false });
+      } catch {
+        return;
+      }
+      await applySync();
+      return;
+    }
+    throw error;
+  }
 };
 
 const getIdeaUpdatesFromNotion = ({
@@ -563,14 +566,8 @@ export const listDatabases = action({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const orgId = args.organizationId;
-    if (!orgId) {
-      throw new Error("No organization context");
-    }
+    const orgId = assertOrgAccess(identity, args.organizationId);
+    assertOrgAdmin(identity, "Only organization admins can list Notion databases");
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
       organizationId: orgId,
@@ -596,7 +593,7 @@ export const listDatabases = action({
       },
     });
 
-    let results: Array<Record<string, unknown>> = searchData.results ?? [];
+    let results: SearchResponse["results"] = searchData.results ?? [];
     if (results.length === 0) {
       searchData = await notion.search({
         sort: {
@@ -607,58 +604,13 @@ export const listDatabases = action({
       results = searchData.results ?? [];
     }
 
+    const safeResults: Array<Parameters<typeof isFullDataSource>[0]> = results ?? [];
     const dataSources: Array<{ id: string; name: string }> = [];
 
-    const dataSourceResults = results.filter(
-      (item): item is Record<string, unknown> => isRecord(item) && item.object === "data_source",
-    );
-
-    for (const item of dataSourceResults) {
+    for (const item of safeResults) {
+      if (!isFullDataSource(item)) continue;
       const name = getTitleText(item.title);
-      const id = getString(item.id) ?? "";
-      if (id) {
-        dataSources.push({ id, name: name || "Untitled data source" });
-      }
-    }
-
-    const databaseResults = results.filter(
-      (item): item is Record<string, unknown> => isRecord(item) && item.object === "database",
-    );
-
-    for (const item of databaseResults) {
-      const databaseId = getString(item.id) ?? "";
-      if (!databaseId) continue;
-
-      let databaseData: Awaited<ReturnType<typeof notion.databases.retrieve>>;
-      try {
-        databaseData = await notion.databases.retrieve({
-          database_id: databaseId,
-        });
-      } catch {
-        continue;
-      }
-
-      const databaseName = getTitleText(item.title);
-
-      const dataSourceList =
-        databaseData && "data_sources" in databaseData && Array.isArray(databaseData.data_sources)
-          ? databaseData.data_sources
-          : [];
-
-      for (const source of dataSourceList) {
-        if (!isRecord(source)) continue;
-        const sourceId = getString(source.id);
-        if (!sourceId) continue;
-        const sourceName =
-          getString(source.name)?.trim() || "" || databaseName || "Untitled data source";
-        dataSources.push({
-          id: sourceId,
-          name:
-            dataSourceList.length > 1 && databaseName
-              ? `${databaseName} — ${sourceName}`
-              : sourceName,
-        });
-      }
+      dataSources.push({ id: item.id, name: name || "Untitled data source" });
     }
 
     const databases = dataSources
@@ -677,14 +629,8 @@ export const getDataSourceSchema = action({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const orgId = args.organizationId;
-    if (!orgId) {
-      throw new Error("No organization context");
-    }
+    const orgId = assertOrgAccess(identity, args.organizationId);
+    assertOrgAdmin(identity, "Only organization admins can read Notion schemas");
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
       organizationId: orgId,
@@ -722,6 +668,48 @@ export const getDataSourceSchema = action({
       statusPropertyType: statusProperty ? "status" : selectProperty ? "select" : "status",
       descriptionPropertyName: descriptionProperty?.[0] ?? "Description",
     };
+  },
+});
+
+export const generateOAuthUrl = action({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    const orgId = assertOrgAccess(identity, args.organizationId);
+    assertOrgAdmin(identity, "Only organization admins can connect Notion");
+
+    const clientId = process.env.NOTION_CLIENT_ID;
+    const redirectUri = process.env.NOTION_OAUTH_REDIRECT_URI;
+
+    if (!clientId || !redirectUri) {
+      throw new Error("OAuth not configured");
+    }
+
+    const state = generateOAuthState();
+    const now = Date.now();
+    const expiresAt = now + 10 * 60 * 1000;
+
+    await ctx.runMutation(internal.notion.createOAuthState, {
+      state,
+      userId: identity.subject,
+      organizationId: orgId,
+      createdAt: now,
+      expiresAt,
+    });
+
+    const authUrl = new URL("https://api.notion.com/v1/oauth/authorize");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("owner", "user");
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("state", state);
+
+    return authUrl.toString();
   },
 });
 
@@ -826,10 +814,14 @@ export const getValidToken = internalAction({
 export const exchangeOAuthCode = action({
   args: {
     code: v.string(),
-    userId: v.string(),
-    organizationId: v.string(),
+    state: v.string(),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
     const clientId = process.env.NOTION_CLIENT_ID;
     const clientSecret = process.env.NOTION_CLIENT_SECRET;
     const redirectUri = process.env.NOTION_OAUTH_REDIRECT_URI;
@@ -837,6 +829,30 @@ export const exchangeOAuthCode = action({
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error("Missing OAuth configuration");
     }
+
+    const stateRecord = await ctx.runQuery(internal.notion.getOAuthStateByValue, {
+      state: args.state,
+    });
+
+    if (!stateRecord || stateRecord.expiresAt < Date.now()) {
+      if (stateRecord) {
+        await ctx.runMutation(internal.notion.deleteOAuthState, {
+          stateId: stateRecord._id,
+        });
+      }
+      throw new Error("Invalid or expired OAuth state");
+    }
+
+    assertOrgAccess(identity, stateRecord.organizationId);
+    assertOrgAdmin(identity, "Only organization admins can complete Notion connection");
+
+    if (identity.subject !== stateRecord.userId) {
+      throw new Error("OAuth state mismatch");
+    }
+
+    await ctx.runMutation(internal.notion.deleteOAuthState, {
+      stateId: stateRecord._id,
+    });
 
     // Exchange code for token
     const tokenResponse = await fetch("https://api.notion.com/v1/oauth/token", {
@@ -870,8 +886,8 @@ export const exchangeOAuthCode = action({
 
     // Save OAuth connection
     await ctx.runMutation(internal.notion.saveOAuthConnection, {
-      userId: args.userId,
-      organizationId: args.organizationId,
+      userId: stateRecord.userId,
+      organizationId: stateRecord.organizationId,
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
       tokenType: tokenData.token_type,
@@ -1452,9 +1468,23 @@ export const updateInNotion = internalAction({
       missingProperties.push(`Release Date: ${idea.releaseDate}`);
 
     try {
+      await ensurePageEditable(notion, idea.notionPageId);
       await notion.pages.update({ page_id: idea.notionPageId, properties });
-    } catch {
-      return;
+    } catch (error) {
+      if (
+        error instanceof APIResponseError &&
+        error.code === "validation_error" &&
+        error.message?.toLowerCase().includes("archived")
+      ) {
+        try {
+          await notion.pages.update({ page_id: idea.notionPageId, archived: false });
+          await notion.pages.update({ page_id: idea.notionPageId, properties });
+        } catch {
+          return;
+        }
+      } else {
+        return;
+      }
     }
 
     if (args.syncContent !== false) {

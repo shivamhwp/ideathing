@@ -2,6 +2,17 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
 import { internal } from "../_generated/api";
+import { assertOrgAccess, getIdentityOrgId } from "./auth";
+import {
+  ownerValues,
+  channelValues,
+  labelValues,
+  statusValues,
+  adReadTrackerValues,
+} from "../../shared/idea-values";
+
+const literalUnion = <T extends readonly string[]>(values: T) =>
+  v.union(...values.map((value) => v.literal(value)));
 
 const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
@@ -10,28 +21,38 @@ export const list = query({
   args: {
     organizationId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    if (!identity?.subject) {
       return [];
     }
 
-    // If organizationId provided, get team ideas; otherwise get personal ideas
-    if (args.organizationId) {
+    try {
+      // Prefer org ideas when the identity includes an organization.
+      const orgId = getIdentityOrgId(identity);
+      if (orgId) {
+        const ideas = await ctx.db
+          .query("ideas")
+          .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+          .collect();
+        return ideas;
+      }
+
       const ideas = await ctx.db
         .query("ideas")
-        .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+        .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+        .filter((q) => q.eq(q.field("organizationId"), undefined))
         .collect();
+
       return ideas;
+    } catch (error) {
+      console.error("ideas.list failed", {
+        error,
+        subject: identity.subject,
+        organizationId: getIdentityOrgId(identity),
+      });
+      return [];
     }
-
-    const ideas = await ctx.db
-      .query("ideas")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .filter((q) => q.eq(q.field("organizationId"), undefined))
-      .collect();
-
-    return ideas;
   },
 });
 
@@ -42,31 +63,40 @@ export const get = query({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    if (!identity?.subject) {
       return null;
     }
+    try {
+      const idea = await ctx.db.get(args.id);
+      if (!idea) {
+        return null;
+      }
 
-    const idea = await ctx.db.get(args.id);
-    if (!idea) {
-      return null;
-    }
-
-    // If idea belongs to an organization, check org access
-    if (idea.organizationId) {
-      // Allow access if caller is requesting with matching org ID
-      // (Clerk JWT validates org membership on the frontend)
-      if (args.organizationId === idea.organizationId) {
+      // If idea belongs to an organization, check org access
+      if (idea.organizationId) {
+        const orgId = getIdentityOrgId(identity);
+        if (!orgId) {
+          return null;
+        }
+        if (orgId !== idea.organizationId) return null;
         return idea;
       }
+
+      // Personal idea - check user ownership
+      if (idea.userId !== identity.subject) {
+        return null;
+      }
+
+      return idea;
+    } catch (error) {
+      console.error("ideas.get failed", {
+        error,
+        subject: identity.subject,
+        organizationId: getIdentityOrgId(identity),
+        ideaId: args.id,
+      });
       return null;
     }
-
-    // Personal idea - check user ownership
-    if (idea.userId !== identity.subject) {
-      return null;
-    }
-
-    return idea;
   },
 });
 
@@ -74,30 +104,40 @@ export const listRecorded = query({
   args: {
     organizationId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    if (!identity?.subject) {
       return [];
     }
 
-    if (args.organizationId) {
+    try {
+      const orgId = getIdentityOrgId(identity);
+      if (orgId) {
+        const ideas = await ctx.db
+          .query("ideas")
+          .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+          .filter((q) => q.eq(q.field("status"), "Recorded"))
+          .collect();
+        return ideas;
+      }
+
       const ideas = await ctx.db
         .query("ideas")
-        .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
-        .filter((q) => q.eq(q.field("status"), "Recorded"))
+        .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+        .filter((q) =>
+          q.and(q.eq(q.field("status"), "Recorded"), q.eq(q.field("organizationId"), undefined)),
+        )
         .collect();
+
       return ideas;
+    } catch (error) {
+      console.error("ideas.listRecorded failed", {
+        error,
+        subject: identity.subject,
+        organizationId: getIdentityOrgId(identity),
+      });
+      return [];
     }
-
-    const ideas = await ctx.db
-      .query("ideas")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .filter((q) =>
-        q.and(q.eq(q.field("status"), "Recorded"), q.eq(q.field("organizationId"), undefined)),
-      )
-      .collect();
-
-    return ideas;
   },
 });
 
@@ -108,29 +148,40 @@ export const listByColumn = query({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    if (!identity?.subject) {
       return [];
     }
 
-    if (args.organizationId) {
+    try {
+      const orgId = getIdentityOrgId(identity);
+      if (orgId) {
+        const ideas = await ctx.db
+          .query("ideas")
+          .withIndex("by_organization_column", (q) =>
+            q.eq("organizationId", orgId).eq("column", args.column),
+          )
+          .collect();
+        return ideas.sort((a, b) => a.order - b.order);
+      }
+
       const ideas = await ctx.db
         .query("ideas")
-        .withIndex("by_organization_column", (q) =>
-          q.eq("organizationId", args.organizationId).eq("column", args.column),
+        .withIndex("by_user_column", (q) =>
+          q.eq("userId", identity.subject).eq("column", args.column),
         )
+        .filter((q) => q.eq(q.field("organizationId"), undefined))
         .collect();
+
       return ideas.sort((a, b) => a.order - b.order);
+    } catch (error) {
+      console.error("ideas.listByColumn failed", {
+        error,
+        subject: identity.subject,
+        organizationId: getIdentityOrgId(identity),
+        column: args.column,
+      });
+      return [];
     }
-
-    const ideas = await ctx.db
-      .query("ideas")
-      .withIndex("by_user_column", (q) =>
-        q.eq("userId", identity.subject).eq("column", args.column),
-      )
-      .filter((q) => q.eq(q.field("organizationId"), undefined))
-      .collect();
-
-    return ideas.sort((a, b) => a.order - b.order);
   },
 });
 
@@ -144,64 +195,12 @@ export const create = mutation({
     resources: v.optional(v.array(v.string())),
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    owner: v.optional(
-      v.union(
-        v.literal("Theo"),
-        v.literal("Phase"),
-        v.literal("Mir"),
-        v.literal("flip"),
-        v.literal("melkey"),
-        v.literal("gabriel"),
-        v.literal("ben"),
-        v.literal("shivam"),
-      ),
-    ),
-    channel: v.optional(
-      v.union(
-        v.literal("C:Main"),
-        v.literal("C:Rants"),
-        v.literal("C:Throwaways"),
-        v.literal("C:Other"),
-        v.literal("C:Main(SHORT)"),
-      ),
-    ),
+    owner: v.optional(literalUnion(ownerValues)),
+    channel: v.optional(literalUnion(channelValues)),
     potential: v.optional(v.number()),
-    label: v.optional(
-      v.union(
-        v.literal("Requires Planning"),
-        v.literal("Priority"),
-        v.literal("Mid Priority"),
-        v.literal("Strict deadline"),
-        v.literal("Sponsored"),
-        v.literal("High Effort"),
-        v.literal("Worth it?"),
-        v.literal("Evergreen"),
-        v.literal("Database Week"),
-      ),
-    ),
-    status: v.optional(
-      v.union(
-        v.literal("To Record(Off stream)"),
-        v.literal("To Stream"),
-        v.literal("Recorded"),
-        v.literal("Editing"),
-        v.literal("Done Editing"),
-        v.literal("NEEDS THUMBNAIL"),
-        v.literal("Ready To Publish"),
-        v.literal("Scheduled"),
-        v.literal("Published"),
-        v.literal("Concept"),
-        v.literal("Commited"),
-        v.literal("dead"),
-        v.literal("Shorts"),
-        v.literal("2nd & 3rd Channel"),
-        v.literal("Needs sponsor spot"),
-        v.literal("Theo's Problem"),
-      ),
-    ),
-    adReadTracker: v.optional(
-      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
-    ),
+    label: v.optional(literalUnion(labelValues)),
+    status: v.optional(literalUnion(statusValues)),
+    adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
     unsponsored: v.optional(v.boolean()),
     organizationId: v.optional(v.string()),
   },
@@ -213,11 +212,12 @@ export const create = mutation({
 
     // Get existing ideas for order calculation based on org or personal
     let existingIdeas;
-    if (args.organizationId) {
+    const orgId = assertOrgAccess(identity, args.organizationId);
+    if (orgId) {
       existingIdeas = await ctx.db
         .query("ideas")
         .withIndex("by_organization_column", (q) =>
-          q.eq("organizationId", args.organizationId).eq("column", "Concept"),
+          q.eq("organizationId", orgId).eq("column", "Concept"),
         )
         .collect();
     } else {
@@ -234,7 +234,7 @@ export const create = mutation({
 
     const ideaId = await ctx.db.insert("ideas", {
       userId: identity.subject,
-      organizationId: args.organizationId,
+      organizationId: orgId ?? undefined,
       title: args.title,
       description: args.description,
       notes: args.notes,
@@ -280,7 +280,8 @@ export const move = mutation({
 
     // Check access: org idea requires matching orgId, personal requires user ownership
     if (idea.organizationId) {
-      if (args.organizationId !== idea.organizationId) {
+      assertOrgAccess(identity, idea.organizationId);
+      if (args.organizationId && args.organizationId !== idea.organizationId) {
         throw new Error("Idea not found");
       }
     } else if (idea.userId !== identity.subject) {
@@ -352,64 +353,12 @@ export const update = mutation({
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
     column: v.optional(v.union(v.literal("Concept"), v.literal("To Stream"))),
-    owner: v.optional(
-      v.union(
-        v.literal("Theo"),
-        v.literal("Phase"),
-        v.literal("Mir"),
-        v.literal("flip"),
-        v.literal("melkey"),
-        v.literal("gabriel"),
-        v.literal("ben"),
-        v.literal("shivam"),
-      ),
-    ),
-    channel: v.optional(
-      v.union(
-        v.literal("C:Main"),
-        v.literal("C:Rants"),
-        v.literal("C:Throwaways"),
-        v.literal("C:Other"),
-        v.literal("C:Main(SHORT)"),
-      ),
-    ),
+    owner: v.optional(literalUnion(ownerValues)),
+    channel: v.optional(literalUnion(channelValues)),
     potential: v.optional(v.number()),
-    label: v.optional(
-      v.union(
-        v.literal("Requires Planning"),
-        v.literal("Priority"),
-        v.literal("Mid Priority"),
-        v.literal("Strict deadline"),
-        v.literal("Sponsored"),
-        v.literal("High Effort"),
-        v.literal("Worth it?"),
-        v.literal("Evergreen"),
-        v.literal("Database Week"),
-      ),
-    ),
-    status: v.optional(
-      v.union(
-        v.literal("To Record(Off stream)"),
-        v.literal("To Stream"),
-        v.literal("Recorded"),
-        v.literal("Editing"),
-        v.literal("Done Editing"),
-        v.literal("NEEDS THUMBNAIL"),
-        v.literal("Ready To Publish"),
-        v.literal("Scheduled"),
-        v.literal("Published"),
-        v.literal("Concept"),
-        v.literal("Commited"),
-        v.literal("dead"),
-        v.literal("Shorts"),
-        v.literal("2nd & 3rd Channel"),
-        v.literal("Needs sponsor spot"),
-        v.literal("Theo's Problem"),
-      ),
-    ),
-    adReadTracker: v.optional(
-      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
-    ),
+    label: v.optional(literalUnion(labelValues)),
+    status: v.optional(literalUnion(statusValues)),
+    adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
     unsponsored: v.optional(v.boolean()),
     organizationId: v.optional(v.string()),
   },
@@ -426,7 +375,8 @@ export const update = mutation({
 
     // Check access: org idea requires matching orgId, personal requires user ownership
     if (idea.organizationId) {
-      if (args.organizationId !== idea.organizationId) {
+      assertOrgAccess(identity, idea.organizationId);
+      if (args.organizationId && args.organizationId !== idea.organizationId) {
         throw new Error("Idea not found");
       }
     } else if (idea.userId !== identity.subject) {
@@ -504,7 +454,8 @@ export const remove = mutation({
 
     // Check access: org idea requires matching orgId, personal requires user ownership
     if (idea.organizationId) {
-      if (args.organizationId !== idea.organizationId) {
+      assertOrgAccess(identity, idea.organizationId);
+      if (args.organizationId && args.organizationId !== idea.organizationId) {
         throw new Error("Idea not found");
       }
     } else if (idea.userId !== identity.subject) {

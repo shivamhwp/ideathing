@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, internalQuery } from "../_generated/server";
+import { assertOrgAccess } from "../utils/auth";
 
 export const getConnection = query({
   args: {
@@ -11,7 +12,7 @@ export const getConnection = query({
       return null;
     }
 
-    const orgId = args.organizationId;
+    const orgId = assertOrgAccess(identity, args.organizationId);
     if (!orgId) {
       return null;
     }
@@ -59,35 +60,15 @@ export const getConnectionById = internalQuery({
   },
 });
 
-// Generate OAuth URL for frontend
-export const generateOAuthUrl = query({
+export const getOAuthStateByValue = internalQuery({
   args: {
-    organizationId: v.string(),
+    state: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const clientId = process.env.NOTION_CLIENT_ID;
-    const redirectUri = process.env.NOTION_OAUTH_REDIRECT_URI;
-
-    if (!clientId || !redirectUri) {
-      throw new Error("OAuth not configured");
-    }
-
-    // State includes userId and organizationId for callback
-    const state = `${identity.subject}:${args.organizationId}`;
-
-    const authUrl = new URL("https://api.notion.com/v1/oauth/authorize");
-    authUrl.searchParams.set("client_id", clientId);
-    authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("owner", "user");
-    authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("state", state);
-
-    return authUrl.toString();
+    return await ctx.db
+      .query("notionOauthStates")
+      .withIndex("by_state", (q) => q.eq("state", args.state))
+      .first();
   },
 });
 
@@ -102,7 +83,7 @@ export const getConnectionStatus = query({
       return null;
     }
 
-    const orgId = args.organizationId;
+    const orgId = assertOrgAccess(identity, args.organizationId);
     if (!orgId) {
       return null;
     }

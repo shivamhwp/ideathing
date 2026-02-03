@@ -1,5 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+  ownerValues,
+  channelValues,
+  labelValues,
+  statusValues,
+  adReadTrackerValues,
+} from "../shared/idea-values";
+
+const literalUnion = <T extends readonly string[]>(values: T) =>
+  v.union(...values.map((value) => v.literal(value)));
 
 export default defineSchema({
   ideas: defineTable({
@@ -14,65 +24,12 @@ export default defineSchema({
 
     vodRecordingDate: v.optional(v.string()),
     releaseDate: v.optional(v.string()),
-    owner: v.optional(
-      v.union(
-        v.literal("Theo"),
-        v.literal("Phase"),
-        v.literal("Mir"),
-        v.literal("flip"),
-        v.literal("melkey"),
-        v.literal("gabriel"),
-        v.literal("ben"),
-        v.literal("shivam"),
-      ),
-    ),
-    channel: v.optional(
-      v.union(
-        v.literal("C:Main"),
-        v.literal("C:Rants"),
-        v.literal("C:Throwaways"),
-        v.literal("C:Other"),
-        v.literal("C:Main(SHORT)"),
-      ),
-    ),
+    owner: v.optional(literalUnion(ownerValues)),
+    channel: v.optional(literalUnion(channelValues)),
     potential: v.optional(v.number()),
-    label: v.optional(
-      v.union(
-        v.literal("Requires Planning"),
-        v.literal("Priority"),
-        v.literal("Mid Priority"),
-        v.literal("Strict deadline"),
-        v.literal("Sponsored"),
-        v.literal("High Effort"),
-        v.literal("Worth it?"),
-        v.literal("Evergreen"),
-        v.literal("Database Week"),
-      ),
-    ),
-    status: v.optional(
-      v.union(
-        v.literal("To Record(Off stream)"),
-        v.literal("To Stream"),
-        v.literal("Recorded"),
-        v.literal("Editing"),
-        v.literal("Done Editing"),
-        v.literal("NEEDS THUMBNAIL"),
-        v.literal("Ready To Publish"),
-        v.literal("Scheduled"),
-        v.literal("Published"),
-        v.literal("Concept"),
-        v.literal("Commited"),
-        v.literal("dead"),
-        v.literal("Shorts"),
-        v.literal("2nd & 3rd Channel"),
-        v.literal("Needs sponsor spot"),
-        v.literal("Theo's Problem"),
-        v.literal("archived"),
-      ),
-    ),
-    adReadTracker: v.optional(
-      v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
-    ),
+    label: v.optional(literalUnion(labelValues)),
+    status: v.optional(literalUnion(statusValues)),
+    adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
     unsponsored: v.optional(v.boolean()),
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
@@ -84,6 +41,16 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_organization_column", ["organizationId", "column"])
     .index("by_notion_page", ["notionPageId"]),
+
+  notionOauthStates: defineTable({
+    state: v.string(),
+    userId: v.string(),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_state", ["state"])
+    .index("by_expires_at", ["expiresAt"]),
 
   // Notion connection per organization - OAuth based
   notionConnections: defineTable({

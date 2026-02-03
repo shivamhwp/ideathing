@@ -8,19 +8,28 @@ import { useState } from "react";
 import { EditIdeaModal } from "@/components/EditIdeaModal";
 import { IdeaCard } from "@/components/IdeaCard";
 import type { Idea } from "@/components/KanbanBoard";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { getClerkAuth } from "@/lib/server/auth";
 import { createIdeaDraftFromIdea, editIdeaDraftAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/_authenticated/recorded")({
+  loader: async ({ context }) => {
+    const { orgId } = await getClerkAuth();
+    const organizationId = orgId ?? undefined;
+    await context.queryClient.ensureQueryData(convexQuery(api.ideas.listRecorded, {}));
+    return { organizationId };
+  },
   component: RecordedIdeasPage,
 });
 
 function RecordedIdeasPage() {
   const { organization } = useOrganization();
-  const organizationId = organization?.id;
+  const loaderData = Route.useLoaderData();
+  const organizationId = organization?.id ?? loaderData.organizationId;
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
   const setDraft = useSetAtom(editIdeaDraftAtom);
   const { data: recorded, isLoading } = useQuery({
-    ...convexQuery(api.ideas.listRecorded, { organizationId }),
+    ...convexQuery(api.ideas.listRecorded, {}),
     gcTime: 60 * 60 * 1000, // 1 hour
     staleTime: 61 * 60 * 1000, // 1 hour + 1 minute
   });
@@ -45,9 +54,12 @@ function RecordedIdeasPage() {
               <span className="ml-2 font-normal text-muted-foreground">{recorded?.length}</span>
             </h1>
           </div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" to="/">
-            Back to board
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link className="text-sm text-muted-foreground hover:text-foreground" to="/">
+              Back to board
+            </Link>
+          </div>
         </div>
 
         {recorded?.length === 0 ? (

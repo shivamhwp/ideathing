@@ -1,48 +1,23 @@
 import type { Id } from "convex/_generated/dataModel";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+import {
+  adReadTrackerValues,
+  channelValues,
+  labelValues,
+  ownerValues,
+  statusValues,
+  type AdReadTrackerValue,
+  type ChannelValue,
+  type LabelValue,
+  type OwnerValue,
+  type StatusValue,
+} from "../../shared/idea-values";
 
-export type OwnerType =
-  | "Theo"
-  | "Phase"
-  | "Mir"
-  | "flip"
-  | "melkey"
-  | "gabriel"
-  | "ben"
-  | "shivam"
-  | "";
-export type ChannelType = "C:Main" | "C:Rants" | "C:Throwaways" | "C:Other" | "C:Main(SHORT)" | "";
-export type LabelType =
-  | "Requires Planning"
-  | "Priority"
-  | "Mid Priority"
-  | "Strict deadline"
-  | "Sponsored"
-  | "High Effort"
-  | "Worth it?"
-  | "Evergreen"
-  | "Database Week"
-  | "";
-export type StatusType =
-  | "To Record(Off stream)"
-  | "To Stream"
-  | "Recorded"
-  | "Editing"
-  | "Done Editing"
-  | "NEEDS THUMBNAIL"
-  | "Ready To Publish"
-  | "Scheduled"
-  | "Published"
-  | "Concept"
-  | "Commited"
-  | "dead"
-  | "Shorts"
-  | "2nd & 3rd Channel"
-  | "Needs sponsor spot"
-  | "Theo's Problem"
-  | "archived"
-  | "";
+export type OwnerType = OwnerValue | "";
+export type ChannelType = ChannelValue | "";
+export type LabelType = LabelValue | "";
+export type StatusType = StatusValue | "";
 
 export interface IdeaDraft {
   ideaId?: Id<"ideas"> | null;
@@ -60,7 +35,7 @@ export interface IdeaDraft {
   potential: number | "";
   label: LabelType;
   status: StatusType;
-  adReadTracker: "planned" | "in da edit" | "done" | "";
+  adReadTracker: AdReadTrackerValue | "";
   unsponsored: boolean;
 }
 
@@ -75,12 +50,12 @@ export type IdeaDraftSource = {
 
   vodRecordingDate?: string | null;
   releaseDate?: string | null;
-  owner?: Exclude<OwnerType, ""> | null;
-  channel?: Exclude<ChannelType, ""> | null;
+  owner?: string | null;
+  channel?: string | null;
   potential?: number | null;
-  label?: Exclude<LabelType, ""> | null;
-  status?: Exclude<StatusType, ""> | null;
-  adReadTracker?: "planned" | "in da edit" | "done" | null;
+  label?: string | null;
+  status?: string | null;
+  adReadTracker?: string | null;
   unsponsored?: boolean | null;
 };
 
@@ -180,11 +155,19 @@ export const createIdeaDraftFromIdea = (idea: IdeaDraftSource): IdeaDraft => ({
 
   vodRecordingDate: idea.vodRecordingDate ?? "",
   releaseDate: idea.releaseDate ?? "",
-  owner: idea.owner ?? "",
-  channel: idea.channel ?? "",
+  owner: normalizeValue(idea.owner, ownerValues),
+  channel: normalizeValue(idea.channel, channelValues),
   potential: typeof idea.potential === "number" ? idea.potential : "",
-  label: idea.label ?? "",
-  status: idea.status ?? "",
-  adReadTracker: idea.adReadTracker ?? "",
+  label: normalizeValue(idea.label, labelValues),
+  status: normalizeValue(idea.status, statusValues),
+  adReadTracker: normalizeValue(idea.adReadTracker, adReadTrackerValues),
   unsponsored: idea.unsponsored ?? true,
 });
+
+const normalizeValue = <T extends readonly string[]>(
+  value: string | null | undefined,
+  values: T,
+): T[number] | "" => {
+  if (!value) return "";
+  return values.includes(value as T[number]) ? (value as T[number]) : "";
+};
