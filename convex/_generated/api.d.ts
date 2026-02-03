@@ -11,6 +11,9 @@
 import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as ideas from "../ideas.js";
+import type * as ideas_actions from "../ideas/actions.js";
+import type * as ideas_mutations from "../ideas/mutations.js";
+import type * as ideas_queries from "../ideas/queries.js";
 import type * as notion from "../notion.js";
 import type * as notion_actions from "../notion/actions.js";
 import type * as notion_mutations from "../notion/mutations.js";
@@ -21,7 +24,6 @@ import type * as notion_utils_types from "../notion/utils/types.js";
 import type * as types_identity from "../types/identity.js";
 import type * as utils_auth from "../utils/auth.js";
 import type * as utils_files from "../utils/files.js";
-import type * as utils_ideas from "../utils/ideas.js";
 import type * as utils_types from "../utils/types.js";
 
 import type {
@@ -34,6 +36,9 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   http: typeof http;
   ideas: typeof ideas;
+  "ideas/actions": typeof ideas_actions;
+  "ideas/mutations": typeof ideas_mutations;
+  "ideas/queries": typeof ideas_queries;
   notion: typeof notion;
   "notion/actions": typeof notion_actions;
   "notion/mutations": typeof notion_mutations;
@@ -44,7 +49,6 @@ declare const fullApi: ApiFromModules<{
   "types/identity": typeof types_identity;
   "utils/auth": typeof utils_auth;
   "utils/files": typeof utils_files;
-  "utils/ideas": typeof utils_ideas;
   "utils/types": typeof utils_types;
 }>;
 

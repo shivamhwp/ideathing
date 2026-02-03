@@ -36,6 +36,9 @@ export const saveDatabaseSettings = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
     const orgId = getIdentityOrgId(identity);
     if (!orgId) {
       throw new Error("No organization context");
@@ -67,6 +70,9 @@ export const disconnect = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
     const orgId = getIdentityOrgId(identity);
     if (!orgId) {
       throw new Error("No organization context");

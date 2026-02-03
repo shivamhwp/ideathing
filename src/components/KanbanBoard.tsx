@@ -1,22 +1,22 @@
 import { useUser } from "@clerk/tanstack-react-start";
+import { convexQuery } from "@convex-dev/react-query";
 import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  DragOverlay,
-  type DragStartEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
+	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
+	KeyboardSensor,
+	PointerSensor,
+	rectIntersection,
+	useSensor,
+	useSensors,
 } from "@dnd-kit/core";
 import {
-  rectSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
+	rectSortingStrategy,
+	SortableContext,
+	sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { SpinnerIcon } from "@phosphor-icons/react";
-import { convexQuery } from "@convex-dev/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import type { Doc, Id } from "convex/_generated/dataModel";
@@ -24,224 +24,306 @@ import { useMutation } from "convex/react";
 import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
 import {
-  createIdeaDraftFromIdea,
-  defaultIdeaDraft,
-  editIdeaDraftAtom,
-  editIdeaIdAtom,
-  editIdeaOpenAtom,
-  newIdeaDraftAtom,
+	createIdeaDraftFromIdea,
+	defaultIdeaDraft,
+	editIdeaDraftAtom,
+	editIdeaIdAtom,
+	editIdeaOpenAtom,
+	newIdeaDraftAtom,
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
+import { ShareIdeasModal } from "./ShareIdeasModal";
 
 export type Idea = Doc<"ideas">;
 
 export function KanbanBoard() {
-  const { isSignedIn } = useUser();
+	const { isSignedIn } = useUser();
 
-  const setNewDraft = useSetAtom(newIdeaDraftAtom);
-  const setEditDraft = useSetAtom(editIdeaDraftAtom);
-  const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
-  const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
-  const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+	const setNewDraft = useSetAtom(newIdeaDraftAtom);
+	const setEditDraft = useSetAtom(editIdeaDraftAtom);
+	const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
+	const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
+	const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
+	const [showAddModal, setShowAddModal] = useState(false);
+	const [selectionMode, setSelectionMode] = useState(false);
+	const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
+	const [shareModalOpen, setShareModalOpen] = useState(false);
 
-  const { data: ideas, isLoading: isIdeasLoading } = useQuery(
-    convexQuery(api.ideas.list, {}),
-  );
-  const { data: notionConnection } = useQuery(
-    convexQuery(api.notion.getConnection, {}),
-  );
-  const isNotionConnected = !!notionConnection?.databaseId;
-  const moveIdea = useMutation(api.ideas.move);
+	const { data: ideas, isLoading: isIdeasLoading } = useQuery(
+		convexQuery(api.ideas.list, {}),
+	);
+	const { data: notionConnection } = useQuery(
+		convexQuery(api.notion.getConnection, {}),
+	);
+	const isNotionConnected = !!notionConnection?.databaseId;
+	const moveIdea = useMutation(api.ideas.move);
 
-  // Show toast notifications when ideas are synced from Notion
-  useNotionSyncToast(ideas);
+	useNotionSyncToast(ideas);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 10,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: {
+				distance: 10,
+			},
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
 
-  if (isIdeasLoading || ideas === undefined) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
-      </div>
-    );
-  }
+	if (isIdeasLoading || ideas === undefined) {
+		return (
+			<div className="flex items-center justify-center h-[50vh]">
+				<SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+			</div>
+		);
+	}
 
-  const ideasData = ideas ?? [];
-  const visibleIdeas = ideasData.filter((idea) => idea.status !== "Recorded");
-  const conceptColumn = visibleIdeas
-    .filter((idea) => idea.column === "Concept")
-    .sort((a, b) => a.order - b.order);
-  const toStreamColumn = visibleIdeas
-    .filter((idea) => idea.column === "To Stream")
-    .sort((a, b) => a.order - b.order);
+	const ideasData = ideas ?? [];
+	const visibleIdeas = ideasData.filter((idea) => idea.status !== "Recorded");
+	const conceptColumn = visibleIdeas
+		.filter((idea) => idea.column === "Concept")
+		.sort((a, b) => a.order - b.order);
+	const toStreamColumn = visibleIdeas
+		.filter((idea) => idea.column === "To Stream")
+		.sort((a, b) => a.order - b.order);
 
-  const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
+	const activeIdea = activeId
+		? ideasData.find((idea) => idea._id === activeId)
+		: null;
 
-  const handleAddIdea = () => {
-    setNewDraft((prev) => (prev.ideaId ? defaultIdeaDraft : prev));
-    setIsEditOpen(false);
-    setEditIdeaId(null);
-    setShowAddModal(true);
-  };
+	const handleAddIdea = () => {
+		setNewDraft((prev) => (prev.ideaId ? defaultIdeaDraft : prev));
+		setIsEditOpen(false);
+		setEditIdeaId(null);
+		setShowAddModal(true);
+	};
 
-  const handleEditIdea = (idea: Idea) => {
-    setEditDraft(createIdeaDraftFromIdea(idea));
-    setEditIdeaId(idea._id);
-    setIsEditOpen(true);
-  };
+	const handleEditIdea = (idea: Idea) => {
+		setEditDraft(createIdeaDraftFromIdea(idea));
+		setEditIdeaId(idea._id);
+		setIsEditOpen(true);
+	};
 
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id as Id<"ideas">);
-  }
+	const toggleSelected = (ideaId: Id<"ideas">) => {
+		setSelectedIds((prev) => {
+			if (prev.includes(ideaId)) {
+				return prev.filter((id) => id !== ideaId);
+			}
+			return [...prev, ideaId];
+		});
+	};
 
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
+	const handleSelectIdea = (ideaId: Id<"ideas">) => {
+		if (!selectionMode) {
+			setSelectionMode(true);
+			setSelectedIds([ideaId]);
+			return;
+		}
+		toggleSelected(ideaId);
+	};
 
-    if (!over) {
-      setActiveId(null);
-      return;
-    }
+	const clearSelection = () => {
+		setSelectedIds([]);
+	};
 
-    const activeIdea = ideasData.find((idea) => idea._id === active.id);
-    if (!activeIdea) {
-      setActiveId(null);
-      return;
-    }
+	const cancelSelection = () => {
+		setSelectionMode(false);
+		setSelectedIds([]);
+	};
 
-    let newColumn: "Concept" | "To Stream" =
-      activeIdea.column === "To Stream" ? "To Stream" : "Concept";
-    let newOrder = activeIdea.order;
+	function handleDragStart(event: DragStartEvent) {
+		setActiveId(event.active.id as Id<"ideas">);
+	}
 
-    if (over.id === "concept" || over.id === "to-stream") {
-      newColumn = over.id === "to-stream" ? "To Stream" : "Concept";
-      const columnItems = newColumn === "Concept" ? conceptColumn : toStreamColumn;
-      newOrder = columnItems.length;
-    } else {
-      const overIdea = ideasData.find((idea) => idea._id === over.id);
-      if (overIdea) {
-        newColumn = overIdea.column === "To Stream" ? "To Stream" : "Concept";
-        newOrder = overIdea.order;
-      }
-    }
+	async function handleDragEnd(event: DragEndEvent) {
+		const { active, over } = event;
 
-    // Prevent moving to "To Stream" if not signed in or Notion not connected
-    if (newColumn === "To Stream" && (!isSignedIn || !isNotionConnected)) {
-      if (isSignedIn && !isNotionConnected) {
-        toast.error("Finish the Notion connection setup to move ideas here");
-      }
-      setActiveId(null);
-      return;
-    }
+		if (!over) {
+			setActiveId(null);
+			return;
+		}
 
-    const activeColumn = activeIdea.column === "To Stream" ? "To Stream" : "Concept";
-    if (activeColumn !== newColumn || activeIdea.order !== newOrder) {
-      await moveIdea({
-        id: activeIdea._id,
-        column: newColumn,
-        order: newOrder,
-        // Set status based on column
-        status: newColumn,
-      });
-    }
+		const activeIdea = ideasData.find((idea) => idea._id === active.id);
+		if (!activeIdea) {
+			setActiveId(null);
+			return;
+		}
 
-    // Clear after drop animation completes (matches DragOverlay dropAnimation duration)
-    setTimeout(() => setActiveId(null), 250);
-  }
+		let newColumn: "Concept" | "To Stream" =
+			activeIdea.column === "To Stream" ? "To Stream" : "Concept";
+		let newOrder = activeIdea.order;
 
-  function handleDragCancel() {
-    setActiveId(null);
-  }
+		if (over.id === "concept" || over.id === "to-stream") {
+			newColumn = over.id === "to-stream" ? "To Stream" : "Concept";
+			const columnItems =
+				newColumn === "Concept" ? conceptColumn : toStreamColumn;
+			newOrder = columnItems.length;
+		} else {
+			const overIdea = ideasData.find((idea) => idea._id === over.id);
+			if (overIdea) {
+				newColumn = overIdea.column === "To Stream" ? "To Stream" : "Concept";
+				newOrder = overIdea.order;
+			}
+		}
 
-  return (
-    <div className="flex flex-col flex-1 min-h-0 gap-4">
-      {/* Kanban Columns */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
-          <SortableContext items={conceptColumn.map((i) => i._id)} strategy={rectSortingStrategy}>
-            <KanbanColumn
-              id="concept"
-              title="Concept"
-              color="concept"
-              items={conceptColumn}
-              onAddClick={handleAddIdea}
-              onItemClick={handleEditIdea}
-              isSignedIn={isSignedIn}
-            />
-          </SortableContext>
+		// Prevent moving to "To Stream" if not signed in or Notion not connected
+		if (newColumn === "To Stream" && (!isSignedIn || !isNotionConnected)) {
+			if (isSignedIn && !isNotionConnected) {
+				toast.error("Finish the Notion connection setup to move ideas here");
+			}
+			setActiveId(null);
+			return;
+		}
 
-          <SortableContext items={toStreamColumn.map((i) => i._id)} strategy={rectSortingStrategy}>
-            <KanbanColumn
-              id="to-stream"
-              title="To Stream"
-              color="to-stream"
-              items={toStreamColumn}
-              onItemClick={handleEditIdea}
-              isSignedIn={isSignedIn}
-              isNotionConnected={isNotionConnected}
-            />
-          </SortableContext>
-        </div>
+		const activeColumn =
+			activeIdea.column === "To Stream" ? "To Stream" : "Concept";
+		if (activeColumn !== newColumn || activeIdea.order !== newOrder) {
+			await moveIdea({
+				id: activeIdea._id,
+				column: newColumn,
+				order: newOrder,
+				// Set status based on column
+				status: newColumn,
+			});
+		}
 
-        <DragOverlay
-          dropAnimation={{
-            duration: 250,
-            easing: "cubic-bezier(0.25, 1, 0.5, 1)",
-          }}
-        >
-          {activeIdea ? (
-            <div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
-              <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
-                {activeIdea.thumbnail && !activeIdea.thumbnail.startsWith("k") && (
-                  <img
-                    src={activeIdea.thumbnail}
-                    alt={activeIdea.title}
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
-              <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
-                {activeIdea.title}
-              </h3>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+		// Clear after drop animation completes (matches DragOverlay dropAnimation duration)
+		setTimeout(() => setActiveId(null), 250);
+	}
 
-      <AddIdeaModal
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-      />
-      <EditIdeaModal
-        key={editIdeaId ?? "edit-idea"}
-        idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}
-        open={isEditOpen}
-        onOpenChange={(open) => {
-          setIsEditOpen(open);
-          if (!open) {
-            setEditIdeaId(null);
-          }
-        }}
-      />
-    </div>
-  );
+	function handleDragCancel() {
+		setActiveId(null);
+	}
+
+	const selectedIdSet = new Set(selectedIds);
+
+	return (
+		<div className="flex flex-col flex-1 min-h-0 gap-4">
+			{/* Kanban Columns */}
+			<DndContext
+				sensors={sensors}
+				collisionDetection={rectIntersection}
+				onDragStart={handleDragStart}
+				onDragEnd={handleDragEnd}
+				onDragCancel={handleDragCancel}
+			>
+				<div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+					<SortableContext
+						items={conceptColumn.map((i) => i._id)}
+						strategy={rectSortingStrategy}
+					>
+						<KanbanColumn
+							id="concept"
+							title="Concept"
+							color="concept"
+							items={conceptColumn}
+							onAddClick={handleAddIdea}
+							onItemClick={handleEditIdea}
+							isSignedIn={isSignedIn}
+							selectionMode={selectionMode}
+							selectedIds={selectedIdSet}
+							onToggleSelect={handleSelectIdea}
+						/>
+					</SortableContext>
+
+					<SortableContext
+						items={toStreamColumn.map((i) => i._id)}
+						strategy={rectSortingStrategy}
+					>
+						<KanbanColumn
+							id="to-stream"
+							title="To Stream"
+							color="to-stream"
+							items={toStreamColumn}
+							onItemClick={handleEditIdea}
+							isSignedIn={isSignedIn}
+							isNotionConnected={isNotionConnected}
+							selectionMode={selectionMode}
+							selectedIds={selectedIdSet}
+							onToggleSelect={handleSelectIdea}
+						/>
+					</SortableContext>
+				</div>
+
+				<DragOverlay
+					dropAnimation={{
+						duration: 250,
+						easing: "cubic-bezier(0.25, 1, 0.5, 1)",
+					}}
+				>
+					{activeIdea ? (
+						<div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
+							<div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
+								{activeIdea.thumbnail &&
+									!activeIdea.thumbnail.startsWith("k") && (
+										<img
+											src={activeIdea.thumbnail}
+											alt={activeIdea.title}
+											className="w-full h-full object-cover"
+										/>
+									)}
+							</div>
+							<h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
+								{activeIdea.title}
+							</h3>
+						</div>
+					) : null}
+				</DragOverlay>
+			</DndContext>
+
+			<AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
+			<EditIdeaModal
+				key={editIdeaId ?? "edit-idea"}
+				idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}
+				open={isEditOpen}
+				onOpenChange={(open) => {
+					setIsEditOpen(open);
+					if (!open) {
+						setEditIdeaId(null);
+					}
+				}}
+			/>
+
+			{(selectionMode || selectedIds.length > 0) && (
+				<div className="fixed bottom-6 right-6 z-40">
+					<Card className="bg-background/95 shadow-lg border-border/60 backdrop-blur">
+						<CardContent className="px-4 py-3">
+							<div className="flex items-center gap-3">
+								<span className="text-xs text-muted-foreground">
+									{selectedIds.length} selected
+								</span>
+								<Button
+									size="sm"
+									onClick={() => setShareModalOpen(true)}
+									disabled={selectedIds.length === 0}
+								>
+									Create share link
+								</Button>
+								<Button variant="ghost" size="sm" onClick={clearSelection}>
+									Clear
+								</Button>
+								<Button variant="outline" size="sm" onClick={cancelSelection}>
+									Cancel selection
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			)}
+
+			<ShareIdeasModal
+				open={shareModalOpen}
+				onOpenChange={setShareModalOpen}
+				selectedIdeaIds={selectedIds}
+				onClearSelection={clearSelection}
+			/>
+		</div>
+	);
 }

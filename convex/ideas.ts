@@ -1,2 +1,3 @@
-// Re-export all ideas module exports
-export * from "./utils/ideas";
+// Re-export ideas module exports
+export * from "./ideas/queries";
+export * from "./ideas/mutations";

@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
+import type { Id } from "convex/_generated/dataModel";
 import type { Idea } from "./KanbanBoard";
 
 interface KanbanColumnProps {
@@ -20,6 +21,9 @@ interface KanbanColumnProps {
 	onItemClick?: (idea: Idea) => void;
 	isSignedIn?: boolean;
 	isNotionConnected?: boolean;
+	selectionMode?: boolean;
+	selectedIds?: Set<Id<"ideas">>;
+	onToggleSelect?: (ideaId: Id<"ideas">) => void;
 }
 
 export function KanbanColumn({
@@ -31,11 +35,14 @@ export function KanbanColumn({
 	onItemClick,
 	isSignedIn = true,
 	isNotionConnected = true,
+	selectionMode = false,
+	selectedIds,
+	onToggleSelect,
 }: KanbanColumnProps) {
 	const isDisabled = id === "to-stream" && (!isSignedIn || !isNotionConnected);
 	const { setNodeRef, isOver } = useDroppable({
 		id,
-		disabled: isDisabled,
+		disabled: isDisabled || selectionMode,
 	});
 
 	return (
@@ -125,6 +132,9 @@ export function KanbanColumn({
 								key={idea._id}
 								idea={idea}
 								onClick={() => onItemClick?.(idea)}
+								selectionMode={selectionMode}
+								selected={selectedIds?.has(idea._id) ?? false}
+								onToggleSelect={onToggleSelect}
 							/>
 						))}
 					</div>

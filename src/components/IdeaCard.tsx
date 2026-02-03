@@ -9,11 +9,15 @@ import { toast } from "sonner";
 import { isConvexStorageId } from "@/lib/storage";
 import { editIdeaIdAtom, editIdeaOpenAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
+import { Checkbox } from "./ui/checkbox";
 import type { Idea } from "./KanbanBoard";
 
 interface IdeaCardProps {
 	idea: Idea;
 	onClick?: () => void;
+	selectionMode?: boolean;
+	selected?: boolean;
+	onToggleSelect?: (ideaId: Id<"ideas">) => void;
 }
 
 function ThumbnailImage({
@@ -58,7 +62,13 @@ const getDisplayStatus = (idea: Idea): DisplayStatus => {
 	return "Concept";
 };
 
-export function IdeaCard({ idea, onClick }: IdeaCardProps) {
+export function IdeaCard({
+	idea,
+	onClick,
+	selectionMode = false,
+	selected = false,
+	onToggleSelect,
+}: IdeaCardProps) {
 	const deleteIdea = useMutation(api.ideas.remove);
 	const setEditIdeaId = useSetAtom(editIdeaIdAtom);
 	const setEditIdeaOpen = useSetAtom(editIdeaOpenAtom);
@@ -70,7 +80,7 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
 		transform,
 		transition,
 		isDragging: isSortableDragging,
-	} = useSortable({ id: idea._id });
+	} = useSortable({ id: idea._id, disabled: selectionMode });
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
@@ -95,10 +105,17 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
 	};
 
 	const handleClick = () => {
+		if (selectionMode) {
+			onToggleSelect?.(idea._id);
+			return;
+		}
 		if (!isSortableDragging && onClick) {
 			onClick();
 		}
 	};
+
+	const dragAttributes = selectionMode ? {} : attributes;
+	const dragListeners = selectionMode ? {} : listeners;
 
 	return (
 		<div
@@ -116,9 +133,26 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
 				{/* Thumbnail - shorter aspect ratio */}
 				<div
 					className="relative aspect-[2/1] overflow-hidden bg-muted"
-					{...attributes}
-					{...listeners}
+					{...dragAttributes}
+					{...dragListeners}
 				>
+					<div
+						className={cn(
+							"absolute top-2 left-2 z-10 transition-opacity",
+							selectionMode
+								? "opacity-100"
+								: "opacity-0 group-hover:opacity-100",
+						)}
+						onPointerDown={(e) => e.stopPropagation()}
+						onMouseDown={(e) => e.stopPropagation()}
+						onClick={(e) => e.stopPropagation()}
+					>
+						<Checkbox
+							checked={selected}
+							onChange={() => onToggleSelect?.(idea._id)}
+							aria-label="Select idea"
+						/>
+					</div>
 					{idea.thumbnail ? (
 						<ThumbnailImage thumbnail={idea.thumbnail} alt={idea.title} />
 					) : (
