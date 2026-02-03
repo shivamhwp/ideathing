@@ -37,10 +37,10 @@ export function NotionConnect() {
   const isAdmin = membership?.role === "org:admin";
 
   const { data: connection, isLoading: isConnectionLoading } = useQuery(
-    convexQuery(api.notion.getConnection, {}),
+    convexQuery(api.notion.queries.getConnection, {}),
   );
   const { data: connectionStatus, isLoading: isStatusLoading } = useQuery(
-    convexQuery(api.notion.getConnectionStatus, {}),
+    convexQuery(api.notion.queries.getConnectionStatus, {}),
   );
 
   // Not connected - show button to go to settings
@@ -83,9 +83,9 @@ function NotionConnectDropdown({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingDatabases, setIsLoadingDatabases] = useState(false);
 
-  const saveDatabaseSettings = useMutation(api.notion.saveDatabaseSettings);
-  const listDatabases = useAction(api.notion.listDatabases);
-  const getDataSourceSchema = useAction(api.notion.getDataSourceSchema);
+  const saveDatabaseSettings = useMutation(api.notion.mutations.saveDatabaseSettings);
+  const listDatabases = useAction(api.notion.actions.listDatabases);
+  const getDataSourceSchema = useAction(api.notion.actions.getDataSourceSchema);
 
   const hasDatabase = !!connection?.databaseId;
 

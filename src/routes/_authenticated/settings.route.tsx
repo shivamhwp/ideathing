@@ -37,6 +37,11 @@ function SettingsLayout() {
                 label: "Notion",
                 to: "/settings/notion" as const,
               },
+              {
+                key: "shared",
+                label: "Shared",
+                to: "/settings/shared" as const,
+              },
             ] as const
           ).map((t) => (
             <Trigger

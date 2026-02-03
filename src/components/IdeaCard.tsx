@@ -10,15 +10,19 @@ import { isConvexStorageId } from "@/lib/storage";
 import { editIdeaIdAtom, editIdeaOpenAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 import type { Idea } from "./KanbanBoard";
+import { Checkbox } from "./ui/checkbox";
 
 interface IdeaCardProps {
   idea: Idea;
   onClick?: () => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (ideaId: Id<"ideas">) => void;
 }
 
 function ThumbnailImage({ thumbnail, alt }: { thumbnail: string; alt: string }) {
   const storageUrl = useQuery(
-    api.files.getUrl,
+    api.utils.files.getUrl,
     isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
   );
 
@@ -50,8 +54,14 @@ const getDisplayStatus = (idea: Idea): DisplayStatus => {
   return "Concept";
 };
 
-export function IdeaCard({ idea, onClick }: IdeaCardProps) {
-  const deleteIdea = useMutation(api.ideas.remove);
+export function IdeaCard({
+  idea,
+  onClick,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
+}: IdeaCardProps) {
+  const deleteIdea = useMutation(api.ideas.mutations.remove);
   const setEditIdeaId = useSetAtom(editIdeaIdAtom);
   const setEditIdeaOpen = useSetAtom(editIdeaOpenAtom);
 
@@ -62,7 +72,7 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
     transform,
     transition,
     isDragging: isSortableDragging,
-  } = useSortable({ id: idea._id });
+  } = useSortable({ id: idea._id, disabled: selectionMode });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -87,10 +97,17 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
   };
 
   const handleClick = () => {
+    if (selectionMode) {
+      onToggleSelect?.(idea._id);
+      return;
+    }
     if (!isSortableDragging && onClick) {
       onClick();
     }
   };
+
+  const dragAttributes = selectionMode ? {} : attributes;
+  const dragListeners = selectionMode ? {} : listeners;
 
   return (
     <div
@@ -104,10 +121,25 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
       <div className="rounded-lg overflow-hidden bg-card border border-border/60 hover:border-border hover:shadow-sm transition-all duration-200">
         {/* Thumbnail - shorter aspect ratio */}
         <div
-          className="relative aspect-[2/1] overflow-hidden bg-muted"
-          {...attributes}
-          {...listeners}
+          className="relative aspect-2/1 overflow-hidden bg-muted"
+          {...dragAttributes}
+          {...dragListeners}
         >
+          <div
+            className={cn(
+              "absolute top-2 left-2 z-10 transition-opacity",
+              selectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            )}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Checkbox
+              checked={selected}
+              onChange={() => onToggleSelect?.(idea._id)}
+              aria-label="Select idea"
+            />
+          </div>
           {idea.thumbnail ? (
             <ThumbnailImage thumbnail={idea.thumbnail} alt={idea.title} />
           ) : (
@@ -132,9 +164,9 @@ export function IdeaCard({ idea, onClick }: IdeaCardProps) {
         </div>
 
         {/* Content - minimal */}
-        <div className="p-2.5 space-y-1.5">
+        <div className="p-2.5 flex flex-col gap-1.5 min-h-[58px]">
           {/* Title */}
-          <h3 className="text-[13px] font-medium text-foreground leading-tight line-clamp-2">
+          <h3 className="text-[13px] font-medium text-foreground leading-tight line-clamp-2 min-h-[32px]">
             {idea.title}
           </h3>
 

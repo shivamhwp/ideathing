@@ -103,7 +103,7 @@ http.route({
     if (eventType?.startsWith("database.") || eventType?.startsWith("data_source.")) {
       const dataSourceId = entityId;
       if (dataSourceId) {
-        await ctx.scheduler.runAfter(0, internal.notion.syncFromDataSource, {
+        await ctx.scheduler.runAfter(0, internal.notion.actions.syncFromDataSource, {
           dataSourceId,
           workspaceId,
           eventType,
@@ -119,12 +119,12 @@ http.route({
     const pageId = entityId;
     const normalizedPageId = normalizeNotionId(pageId);
 
-    let idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+    let idea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
       notionPageId: pageId,
     });
 
     if (!idea) {
-      idea = await ctx.runQuery(internal.notion.getIdeaByNotionPageId, {
+      idea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
         notionPageId: normalizedPageId,
       });
     }
@@ -134,13 +134,13 @@ http.route({
       case "page.content_updated":
       case "page.moved":
         if (idea) {
-          await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
             notionPageId: pageId,
             ideaId: idea._id,
             organizationId: idea.organizationId,
           });
         } else if (parentId && parentType === "database") {
-          await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.createIdeaFromNotionPage, {
             notionPageId: pageId,
             databaseId: parentId,
           });
@@ -149,13 +149,13 @@ http.route({
 
       case "page.created":
         if (idea) {
-          await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
             notionPageId: pageId,
             ideaId: idea._id,
             organizationId: idea.organizationId,
           });
         } else if (parentId && parentType === "database") {
-          await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.createIdeaFromNotionPage, {
             notionPageId: pageId,
             databaseId: parentId,
           });
@@ -164,7 +164,7 @@ http.route({
 
       case "page.deleted":
         if (idea) {
-          await ctx.scheduler.runAfter(0, internal.notion.handleNotionPageDeleted, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.handleNotionPageDeleted, {
             ideaId: idea._id,
             notionPageId: pageId,
           });
@@ -173,13 +173,13 @@ http.route({
 
       case "page.undeleted":
         if (idea) {
-          await ctx.scheduler.runAfter(0, internal.notion.syncIdeaFromNotionPage, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
             notionPageId: pageId,
             ideaId: idea._id,
             organizationId: idea.organizationId,
           });
         } else if (parentId && parentType === "database") {
-          await ctx.scheduler.runAfter(0, internal.notion.createIdeaFromNotionPage, {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.createIdeaFromNotionPage, {
             notionPageId: pageId,
             databaseId: parentId,
           });

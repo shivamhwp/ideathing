@@ -1,24 +1,27 @@
 import { v } from "convex/values";
-import { query, internalQuery } from "../_generated/server";
+import type { Doc } from "../_generated/dataModel";
+import { query, internalQuery, type QueryCtx } from "../_generated/server";
+
+const fetchOrgConnection = async (
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<Doc<"notionConnections"> | null> => {
+  return await ctx.db
+    .query("notionConnections")
+    .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
+    .first();
+};
 
 export const getConnection = query({
   args: {},
   handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const orgId = identity.org_id;
+    const orgId = identity?.org_id;
     if (!orgId) {
       return null;
     }
 
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-      .first();
-
+    const connection = await fetchOrgConnection(ctx, orgId);
     if (!connection || !connection.accessToken) {
       return null;
     }
@@ -40,10 +43,7 @@ export const getConnectionInternal = internalQuery({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("notionConnections")
-      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
-      .first();
+    return await fetchOrgConnection(ctx, args.organizationId);
   },
 });
 
@@ -73,20 +73,12 @@ export const getConnectionStatus = query({
   args: {},
   handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const orgId = identity.org_id;
+    const orgId = identity?.org_id;
     if (!orgId) {
       return null;
     }
 
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-      .first();
-
+    const connection = await fetchOrgConnection(ctx, orgId);
     if (!connection) {
       return null;
     }

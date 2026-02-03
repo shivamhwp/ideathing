@@ -30,7 +30,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<File | null>(null);
 
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const generateUploadUrl = useMutation(api.utils.files.generateUploadUrl);
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

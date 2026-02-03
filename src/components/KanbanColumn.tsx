@@ -6,6 +6,7 @@ import {
   PlusIcon,
   VideoCameraIcon,
 } from "@phosphor-icons/react";
+import type { Id } from "convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
@@ -20,6 +21,9 @@ interface KanbanColumnProps {
   onItemClick?: (idea: Idea) => void;
   isSignedIn?: boolean;
   isNotionConnected?: boolean;
+  selectionMode?: boolean;
+  selectedIds?: Set<Id<"ideas">>;
+  onToggleSelect?: (ideaId: Id<"ideas">) => void;
 }
 
 export function KanbanColumn({
@@ -31,11 +35,14 @@ export function KanbanColumn({
   onItemClick,
   isSignedIn = true,
   isNotionConnected = true,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelect,
 }: KanbanColumnProps) {
   const isDisabled = id === "to-stream" && (!isSignedIn || !isNotionConnected);
   const { setNodeRef, isOver } = useDroppable({
     id,
-    disabled: isDisabled,
+    disabled: isDisabled || selectionMode,
   });
 
   return (
@@ -98,21 +105,26 @@ export function KanbanColumn({
 
       {/* Grid of cards */}
       {!isDisabled && items.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50">
+        <div className="flex-1 flex flex-col items-center justify-center text-xl text-muted-foreground/25">
           {id === "concept" ? (
             <LightbulbIcon className="w-8 h-8 mb-2" weight="duotone" />
           ) : (
-            <VideoCameraIcon className="w-8 h-8 mb-2" weight="duotone" />
+            <VideoCameraIcon className="w-16 h-16" weight="duotone" />
           )}
-          <p className="text-xs">
-            {id === "concept" ? "Add your first concept" : "Drag ideas here"}
-          </p>
+          {id === "concept" ? "Add your first concept" : "Drag ideas here"}
         </div>
       ) : items.length > 0 ? (
         <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {items.map((idea) => (
-              <IdeaCard key={idea._id} idea={idea} onClick={() => onItemClick?.(idea)} />
+              <IdeaCard
+                key={idea._id}
+                idea={idea}
+                onClick={() => onItemClick?.(idea)}
+                selectionMode={selectionMode}
+                selected={selectedIds?.has(idea._id) ?? false}
+                onToggleSelect={onToggleSelect}
+              />
             ))}
           </div>
         </div>

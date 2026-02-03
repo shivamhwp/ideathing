@@ -15,6 +15,13 @@ import { useAtom, useAtomValue } from "jotai";
 import type { ChangeEvent, RefObject } from "react";
 import { memo, useRef } from "react";
 import { useDebouncedCallback } from "use-debounce";
+import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
+import {
+  DescriptionField as IdeaDescriptionField,
+  ResourcesSection as IdeaResourcesSection,
+  ThumbnailField as IdeaThumbnailField,
+  TitleField as IdeaTitleField,
+} from "@/components/idea-form/fields";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,13 +38,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { isConvexStorageId } from "@/lib/storage";
-import { parseDateValue, formatDateValue } from "@/components/idea-form/date-utils";
-import {
-  DescriptionField as IdeaDescriptionField,
-  ResourcesSection as IdeaResourcesSection,
-  ThumbnailField as IdeaThumbnailField,
-  TitleField as IdeaTitleField,
-} from "@/components/idea-form/fields";
 import {
   editIdeaAdReadTrackerAtom,
   editIdeaChannelAtom,
@@ -76,7 +76,7 @@ function useScheduledUpdate() {
     isPending,
     isSuccess,
   } = useMutation({
-    mutationFn: useConvexMutation(api.ideas.update),
+    mutationFn: useConvexMutation(api.ideas.mutations.update),
   });
   const pendingUpdatesRef = useRef<Record<string, unknown>>({});
 
@@ -168,7 +168,7 @@ const ThumbnailSection = memo(function ThumbnailSection({
   const [thumbnail, setThumbnail] = useAtom(editIdeaThumbnailAtom);
   const [thumbnailReady, setThumbnailReady] = useAtom(editIdeaThumbnailReadyAtom);
   const storageUrl = useQuery(
-    api.files.getUrl,
+    api.utils.files.getUrl,
     isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
   );
 
@@ -622,16 +622,11 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
 
         {isEditing ? (
           <div className="px-6 py-5 space-y-5">
-            {/* Title & Description */}
             <div className="space-y-4">
               <TitleField scheduleUpdate={scheduleUpdate} />
               <DescriptionField scheduleUpdate={scheduleUpdate} />
             </div>
-
-            {/* Resources */}
             <ResourcesSection scheduleUpdate={scheduleUpdate} />
-
-            {/* Thumbnail + Dates */}
             <div className="grid grid-cols-2 gap-4">
               <ThumbnailSection
                 scheduleUpdate={scheduleUpdate}
@@ -646,17 +641,9 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
                 <UnsponsoredSection scheduleUpdate={scheduleUpdate} />
               </div>
             </div>
-
-            {/* Owner, Channel Row */}
             <OwnerChannelSection scheduleUpdate={scheduleUpdate} />
-
-            {/* Label, Status Row */}
             <LabelStatusSection scheduleUpdate={scheduleUpdate} />
-
-            {/* Potential Row + Ad Track Reader */}
             <PotentialAdReadSection scheduleUpdate={scheduleUpdate} />
-
-            {/* Notes */}
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
         ) : (

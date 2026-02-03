@@ -322,7 +322,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     clear: clearFileUpload,
   } = useFileUpload();
 
-  const createIdea = useMutation(api.ideas.create);
+  const createIdea = useMutation(api.ideas.mutations.create);
 
   const clearAll = () => {
     setNewDraft(defaultIdeaDraft);
@@ -418,19 +418,10 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
             <DatesSection />
           </div>
 
-          {/* Owner, Channel Row */}
           <OwnerChannelSection />
-
-          {/* Label */}
           <LabelSection />
-
-          {/* Potential Row + Ad Track Reader */}
           <PotentialAdReadSection />
-
-          {/* Unsponsored Toggle */}
           <UnsponsoredToggle />
-
-          {/* Notes */}
           <NotesField autoFocus />
         </form>
 

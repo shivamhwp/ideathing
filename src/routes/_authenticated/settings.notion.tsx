@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/settings/notion")({
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(convexQuery(api.notion.getConnectionStatus, {}));
+    await context.queryClient.ensureQueryData(
+      convexQuery(api.notion.queries.getConnectionStatus, {}),
+    );
   },
   component: NotionSettings,
 });
@@ -28,7 +30,9 @@ type DatabaseOption = {
 
 function NotionSettings() {
   const { organization, membership, isLoaded: isOrgLoaded } = useOrganization();
-  const { data: connectionStatus } = useQuery(convexQuery(api.notion.getConnectionStatus, {}));
+  const { data: connectionStatus } = useQuery(
+    convexQuery(api.notion.queries.getConnectionStatus, {}),
+  );
 
   const isAdmin = membership?.role === "org:admin";
 
@@ -37,11 +41,11 @@ function NotionSettings() {
   const [isLoadingDatabases, setIsLoadingDatabases] = useState(false);
   const [isSavingDatabase, setIsSavingDatabase] = useState(false);
 
-  const generateOAuthUrl = useAction(api.notion.generateOAuthUrl);
-  const listDatabases = useAction(api.notion.listDatabases);
-  const saveDatabaseSettings = useMutation(api.notion.saveDatabaseSettings);
-  const getDataSourceSchema = useAction(api.notion.getDataSourceSchema);
-  const disconnect = useMutation(api.notion.disconnect);
+  const generateOAuthUrl = useAction(api.notion.actions.generateOAuthUrl);
+  const listDatabases = useAction(api.notion.actions.listDatabases);
+  const saveDatabaseSettings = useMutation(api.notion.mutations.saveDatabaseSettings);
+  const getDataSourceSchema = useAction(api.notion.actions.getDataSourceSchema);
+  const disconnect = useMutation(api.notion.mutations.disconnect);
 
   if (!isOrgLoaded) {
     return (

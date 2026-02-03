@@ -1,18 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { env } from "@/env/client";
 
 export const Route = createFileRoute("/_authenticated/notion/webhook")({
   component: NotionWebhooksPage,
 });
 
 function NotionWebhooksPage() {
-  const convexUrl = (import.meta as any).env.VITE_CONVEX_URL as string | undefined;
-  const webhookBase = convexUrl
-    ? convexUrl.includes(".convex.cloud")
-      ? convexUrl.replace(".convex.cloud", ".convex.site")
-      : convexUrl
-    : null;
-  const webhookUrl = webhookBase ? `${webhookBase}/notion/webhook` : null;
+  const convexUrl = env.VITE_CONVEX_SITE_URL;
+  const webhookUrl = convexUrl ? `${convexUrl}/notion/webhook` : null;
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
@@ -29,39 +26,49 @@ function NotionWebhooksPage() {
           </Button>
         </div>
 
-        <div className="rounded-2xl border border-border/60 bg-card/40 p-5 space-y-4">
-          <div>
-            <p className="text-sm font-medium text-foreground">Webhook endpoint</p>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Webhook endpoint</CardTitle>
+            <CardDescription>Use your Convex HTTP endpoint (not the app domain).</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="rounded-lg border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground break-all">
+              {webhookUrl ?? "Set VITE_CONVEX_URL to see the full webhook URL here."}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Use your Convex HTTP endpoint (not the app domain).
+              If your Convex URL ends in{" "}
+              <code className="rounded bg-muted px-1 py-0.5">.convex.cloud</code>, replace it with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">.convex.site</code> for webhooks.
             </p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 font-mono text-xs text-foreground break-all">
-            {webhookUrl ?? "Set VITE_CONVEX_URL to see the full webhook URL here."}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            If your Convex URL ends in <span className="font-mono">.convex.cloud</span>, replace it
-            with <span className="font-mono">.convex.site</span> for webhooks.
-          </p>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-2xl border border-border/60 bg-card/40 p-5 space-y-4 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Checklist</p>
-          <ol className="list-decimal list-inside space-y-2">
-            <li>Create a webhook subscription in your Notion integration.</li>
-            <li>Set the webhook URL to the endpoint above.</li>
-            <li>
-              Subscribe to events: <span className="font-mono">page.properties_updated</span> (and
-              optionally <span className="font-mono">page.created</span> /{" "}
-              <span className="font-mono">page.content_updated</span>).
-            </li>
-            <li>Complete the Notion verification step and copy the verification token.</li>
-            <li>
-              Set <span className="font-mono">NOTION_WEBHOOK_VERIFICATION_TOKEN</span> in your
-              Convex env to enable signature validation.
-            </li>
-          </ol>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Checklist</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+              <li>Create a webhook subscription in your Notion integration.</li>
+              <li>Set the webhook URL to the endpoint above.</li>
+              <li>
+                Subscribe to events:{" "}
+                <code className="rounded bg-muted px-1 py-0.5">page.properties_updated</code> (and
+                optionally <code className="rounded bg-muted px-1 py-0.5">page.created</code> /{" "}
+                <code className="rounded bg-muted px-1 py-0.5">page.content_updated</code>
+                ).
+              </li>
+              <li>Complete the Notion verification step and copy the verification token.</li>
+              <li>
+                Set{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  NOTION_WEBHOOK_VERIFICATION_TOKEN
+                </code>{" "}
+                in your Convex env to enable signature validation.
+              </li>
+            </ol>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
