@@ -7,7 +7,7 @@ import {
   statusValues,
   adReadTrackerValues,
 } from "../utils/types";
-import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
+import { assertOrgAdmin } from "../utils/auth";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {

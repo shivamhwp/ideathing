@@ -21,17 +21,17 @@ import { Route as AuthenticatedNotionWebhookRouteImport } from './routes/_authen
 import { Route as AuthenticatedNotionCallbackRouteImport } from './routes/_authenticated/notion/callback'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+  id: "/_authenticated",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AuthenticatedRecordedRoute = AuthenticatedRecordedRouteImport.update({
-  id: '/recorded',
-  path: '/recorded',
+  id: "/recorded",
+  path: "/recorded",
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSettingsRouteRoute =
@@ -112,7 +112,7 @@ export interface FileRoutesById {
   '/_authenticated/share/$token': typeof AuthenticatedShareTokenRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
     | '/settings'
@@ -149,11 +149,11 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  IndexRoute: typeof IndexRoute;
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
     '/_authenticated': {
       id: '/_authenticated'
@@ -242,9 +242,7 @@ const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteCh
   }
 
 const AuthenticatedSettingsRouteRouteWithChildren =
-  AuthenticatedSettingsRouteRoute._addFileChildren(
-    AuthenticatedSettingsRouteRouteChildren,
-  )
+  AuthenticatedSettingsRouteRoute._addFileChildren(AuthenticatedSettingsRouteRouteChildren);
 
 interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
@@ -264,22 +262,22 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
-)
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
+import type { getRouter } from "./router.tsx";
+import type { startInstance } from "./start.ts";
+declare module "@tanstack/react-start" {
   interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>;
   }
 }
