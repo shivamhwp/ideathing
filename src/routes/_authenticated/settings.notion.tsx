@@ -13,16 +13,12 @@ import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { getClerkAuth } from "@/lib/server/auth";
 
 export const Route = createFileRoute("/_authenticated/settings/notion")({
 	loader: async ({ context }) => {
-		const { orgId } = await getClerkAuth();
-		const organizationId = orgId ?? undefined;
 		await context.queryClient.ensureQueryData(
-			convexQuery(api.notion.getConnectionStatus, { organizationId }),
+			convexQuery(api.notion.getConnectionStatus, {}),
 		);
-		return { organizationId };
 	},
 	component: NotionSettings,
 });
@@ -34,10 +30,8 @@ type DatabaseOption = {
 
 function NotionSettings() {
 	const { organization, membership, isLoaded: isOrgLoaded } = useOrganization();
-	const loaderData = Route.useLoaderData();
-	const organizationId = organization?.id ?? loaderData.organizationId;
 	const { data: connectionStatus } = useQuery(
-		convexQuery(api.notion.getConnectionStatus, { organizationId }),
+		convexQuery(api.notion.getConnectionStatus, {}),
 	);
 
 	const isAdmin = membership?.role === "org:admin";
@@ -107,14 +101,9 @@ function NotionSettings() {
 	}
 
 	const handleConnectOAuth = async () => {
-		if (!organizationId) {
-			toast.error("No organization context");
-			return;
-		}
-
 		setIsConnecting(true);
 		try {
-			const authUrl = await generateOAuthUrl({ organizationId });
+			const authUrl = await generateOAuthUrl({});
 			window.location.href = authUrl;
 		} catch (error) {
 			toast.error(
@@ -126,12 +115,8 @@ function NotionSettings() {
 
 	const handleLoadDatabases = async () => {
 		setIsLoadingDatabases(true);
-		if (!organizationId) {
-			toast.error("No organization ID");
-			return;
-		}
 		try {
-			const result = await listDatabases({ organizationId: organizationId });
+			const result = await listDatabases({});
 			setDatabases(result.databases);
 		} catch (error) {
 			toast.error(
@@ -145,13 +130,8 @@ function NotionSettings() {
 	const handleSelectDatabase = async (db: DatabaseOption) => {
 		setIsSavingDatabase(true);
 
-		if (!organizationId) {
-			toast.error("No organization ID");
-			return;
-		}
 		try {
 			const schema = await getDataSourceSchema({
-				organizationId: organizationId,
 				dataSourceId: db.id,
 			});
 			await saveDatabaseSettings({

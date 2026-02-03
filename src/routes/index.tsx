@@ -16,30 +16,23 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { getClerkAuth } from "@/lib/server/auth";
 import { streamModeAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/")({
 	loader: async ({ context }) => {
-		const { orgId } = await getClerkAuth();
-		const organizationId = orgId ?? undefined;
-
 		await context.queryClient.ensureQueryData(convexQuery(api.ideas.list, {}));
 		await context.queryClient.ensureQueryData(
-			convexQuery(api.notion.getConnection, { organizationId }),
+			convexQuery(api.notion.getConnection, {}),
 		);
 		await context.queryClient.ensureQueryData(
-			convexQuery(api.notion.getConnectionStatus, { organizationId }),
+			convexQuery(api.notion.getConnectionStatus, {}),
 		);
-
-		return { organizationId };
 	},
 	component: App,
 });
 
 function App() {
 	const [streamMode, setStreamMode] = useAtom(streamModeAtom);
-	const { organizationId } = Route.useLoaderData();
 	return (
 		<div className="h-screen flex flex-col bg-background">
 			<div className="px-4 py-4 flex flex-col flex-1 min-h-0 gap-4">
@@ -84,7 +77,7 @@ function App() {
 									</Popover>
 								</div>
 							</div>
-							<NotionConnect organizationId={organizationId} />
+							<NotionConnect />
 							<div className="flex items-center">
 								<SignedIn>
 									<div className="flex items-center bg-primary/10 rounded-md ">
@@ -109,7 +102,7 @@ function App() {
 						</Unauthenticated>
 					</div>
 				</div>
-				<KanbanBoard organizationId={organizationId} />
+				<KanbanBoard />
 			</div>
 		</div>
 	);

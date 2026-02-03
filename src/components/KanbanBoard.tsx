@@ -39,7 +39,7 @@ import { KanbanColumn } from "./KanbanColumn";
 
 export type Idea = Doc<"ideas">;
 
-export function KanbanBoard({ organizationId }: { organizationId?: string }) {
+export function KanbanBoard() {
   const { isSignedIn } = useUser();
 
   const setNewDraft = useSetAtom(newIdeaDraftAtom);
@@ -53,7 +53,7 @@ export function KanbanBoard({ organizationId }: { organizationId?: string }) {
     convexQuery(api.ideas.list, {}),
   );
   const { data: notionConnection } = useQuery(
-    convexQuery(api.notion.getConnection, { organizationId }),
+    convexQuery(api.notion.getConnection, {}),
   );
   const isNotionConnected = !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.move);
@@ -155,7 +155,6 @@ export function KanbanBoard({ organizationId }: { organizationId?: string }) {
         order: newOrder,
         // Set status based on column
         status: newColumn,
-        organizationId,
       });
     }
 
@@ -187,7 +186,6 @@ export function KanbanBoard({ organizationId }: { organizationId?: string }) {
               onAddClick={handleAddIdea}
               onItemClick={handleEditIdea}
               isSignedIn={isSignedIn}
-              organizationId={organizationId}
             />
           </SortableContext>
 
@@ -198,7 +196,6 @@ export function KanbanBoard({ organizationId }: { organizationId?: string }) {
               color="to-stream"
               items={toStreamColumn}
               onItemClick={handleEditIdea}
-              organizationId={organizationId}
               isSignedIn={isSignedIn}
               isNotionConnected={isNotionConnected}
             />
@@ -233,7 +230,6 @@ export function KanbanBoard({ organizationId }: { organizationId?: string }) {
       <AddIdeaModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
-        organizationId={organizationId}
       />
       <EditIdeaModal
         key={editIdeaId ?? "edit-idea"}
@@ -245,7 +241,6 @@ export function KanbanBoard({ organizationId }: { organizationId?: string }) {
             setEditIdeaId(null);
           }
         }}
-        organizationId={organizationId}
       />
     </div>
   );

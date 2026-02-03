@@ -19,7 +19,6 @@ interface KanbanColumnProps {
 	onAddClick?: () => void;
 	onItemClick?: (idea: Idea) => void;
 	isSignedIn?: boolean;
-	organizationId?: string;
 	isNotionConnected?: boolean;
 }
 
@@ -31,7 +30,6 @@ export function KanbanColumn({
 	onAddClick,
 	onItemClick,
 	isSignedIn = true,
-	organizationId,
 	isNotionConnected = true,
 }: KanbanColumnProps) {
 	const isDisabled = id === "to-stream" && (!isSignedIn || !isNotionConnected);
@@ -127,7 +125,6 @@ export function KanbanColumn({
 								key={idea._id}
 								idea={idea}
 								onClick={() => onItemClick?.(idea)}
-								organizationId={organizationId}
 							/>
 						))}
 					</div>

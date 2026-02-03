@@ -63,7 +63,6 @@ import {
 interface AddIdeaModalProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	organizationId?: string;
 }
 
 const DatesSection = memo(function DatesSection() {
@@ -295,7 +294,11 @@ const UnsponsoredToggle = memo(function UnsponsoredToggle() {
 	);
 });
 
-const NotesField = memo(function NotesField() {
+const NotesField = memo(function NotesField({
+	autoFocus = false,
+}: {
+	autoFocus?: boolean;
+}) {
 	const [notes, setNotes] = useAtom(newIdeaNotesAtom);
 
 	return (
@@ -305,6 +308,7 @@ const NotesField = memo(function NotesField() {
 			</Label>
 			<Textarea
 				id="notes"
+				autoFocus={autoFocus}
 				value={notes}
 				onChange={(e) => setNotes(e.target.value)}
 				placeholder="Loose thoughts, beats, punchlines…"
@@ -317,7 +321,6 @@ const NotesField = memo(function NotesField() {
 export function AddIdeaModal({
 	open,
 	onOpenChange,
-	organizationId,
 }: AddIdeaModalProps) {
 	const [title, setTitle] = useAtom(newIdeaTitleAtom);
 	const [description, setDescription] = useAtom(newIdeaDescriptionAtom);
@@ -392,7 +395,6 @@ export function AddIdeaModal({
 				label: label || undefined,
 				adReadTracker: adReadTracker || undefined,
 				unsponsored,
-				organizationId,
 			});
 
 			toast.success("Idea added successfully");

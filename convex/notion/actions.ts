@@ -15,7 +15,7 @@ import type { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { Doc, Id } from "../_generated/dataModel";
 import { createNotionClient } from "./utils/client";
 import { NOTION_PROPERTY_NAMES } from "./utils/types";
-import { assertOrgAccess, assertOrgAdmin } from "../utils/auth";
+import { assertOrgAccess, assertOrgAdmin} from "../utils/auth";
 import { generateOAuthState } from "./utils/oauth";
 
 const BATCH_SIZE = 10;
@@ -561,12 +561,13 @@ const omitUndefinedUpdates = <T extends Record<string, unknown>>(updates: T) => 
 // ===== API Actions (formerly api.ts) =====
 
 export const listDatabases = action({
-  args: {
-    organizationId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
-    const orgId = assertOrgAccess(identity, args.organizationId);
+    const orgId = identity?.org_role;
+    if (!orgId) {
+      throw new Error("No organization context");
+    }
     assertOrgAdmin(identity, "Only organization admins can list Notion databases");
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
@@ -624,12 +625,14 @@ export const listDatabases = action({
 
 export const getDataSourceSchema = action({
   args: {
-    organizationId: v.string(),
     dataSourceId: v.string(),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    const orgId = assertOrgAccess(identity, args.organizationId);
+    const orgId = identity?.org_id;
+    if (!orgId) {
+      throw new Error("No organization context");
+    }
     assertOrgAdmin(identity, "Only organization admins can read Notion schemas");
 
     const connection = await ctx.runQuery(internal.notion.getConnectionInternal, {
@@ -672,15 +675,16 @@ export const getDataSourceSchema = action({
 });
 
 export const generateOAuthUrl = action({
-  args: {
-    organizationId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
     }
-    const orgId = assertOrgAccess(identity, args.organizationId);
+    const orgId = identity.org_id;
+    if (!orgId) {
+      throw new Error("No organization context");
+    }
     assertOrgAdmin(identity, "Only organization admins can connect Notion");
 
     const clientId = process.env.NOTION_CLIENT_ID;

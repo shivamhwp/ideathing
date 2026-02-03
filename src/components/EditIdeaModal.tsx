@@ -66,11 +66,10 @@ interface EditIdeaModalProps {
   idea: Idea | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  organizationId?: string;
 }
 
 // Hook to share update logic across field components
-function useScheduledUpdate(organizationId?: string) {
+function useScheduledUpdate() {
   const ideaId = useAtomValue(editIdeaIdFieldAtom);
   const {
     mutate: updateIdea,
@@ -89,7 +88,6 @@ function useScheduledUpdate(organizationId?: string) {
     void updateIdea({
       id: ideaId,
       ...payload,
-      organizationId,
     });
   }, 750);
 
@@ -531,7 +529,7 @@ const NotesField = memo(function NotesField({ scheduleUpdate }: FieldProps) {
   );
 });
 
-export function EditIdeaModal({ open, onOpenChange, organizationId }: EditIdeaModalProps) {
+export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
   const [isEditing, setIsEditing] = useAtom(editIdeaIsEditingAtom);
   const title = useAtomValue(editIdeaTitleAtom);
   const description = useAtomValue(editIdeaDescriptionAtom);
@@ -551,7 +549,7 @@ export function EditIdeaModal({ open, onOpenChange, organizationId }: EditIdeaMo
   const streamMode = useAtomValue(streamModeAtom);
   const resourceList = resources.length ? resources : [""];
 
-  const { scheduleUpdate, isPending, isSuccess } = useScheduledUpdate(organizationId);
+  const { scheduleUpdate, isPending, isSuccess } = useScheduledUpdate();
 
   const {
     preview: thumbnailPreview,

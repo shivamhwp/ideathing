@@ -1,30 +1,14 @@
 import type { UserIdentity } from "convex/server";
 
-type IdentityLike = UserIdentity | null;
-
-export const getIdentityOrgId = (identity: IdentityLike): string | null => {
-  return identity?.org_id ?? null;
+export const getIdentityOrgId = (identity: UserIdentity) => {
+  return identity.org_id ;
 };
 
-export const getIdentityOrgRole = (identity: IdentityLike): string | null => {
-  return identity?.org_role ?? null;
+export const getIdentityOrgRole = (identity: UserIdentity)=> {
+  return identity.org_role ;
 };
 
-export const getAuthorizedOrgId = (
-  identity: IdentityLike,
-  organizationId?: string,
-): string | null => {
-  if (!organizationId || !identity) return null;
-  const orgId = getIdentityOrgId(identity);
-  if (!orgId || orgId !== organizationId) {
-    return null;
-  }
-  return orgId;
-};
-
-export function assertOrgAccess(identity: IdentityLike, organizationId: string): string;
-export function assertOrgAccess(identity: IdentityLike, organizationId?: string): string | null;
-export function assertOrgAccess(identity: IdentityLike, organizationId?: string) {
+export function assertOrgAccess(identity: UserIdentity, organizationId?: string) {
   if (!organizationId) return null;
   if (!identity) {
     throw new Error("Not authenticated");
@@ -37,7 +21,7 @@ export function assertOrgAccess(identity: IdentityLike, organizationId?: string)
 }
 
 export const assertOrgAdmin = (
-  identity: IdentityLike,
+  identity: UserIdentity,
   message = "Only organization admins can perform this action",
 ) => {
   if (!identity) {

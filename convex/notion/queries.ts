@@ -1,18 +1,15 @@
 import { v } from "convex/values";
 import { query, internalQuery } from "../_generated/server";
-import { assertOrgAccess } from "../utils/auth";
 
 export const getConnection = query({
-  args: {
-    organizationId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;
     }
 
-    const orgId = assertOrgAccess(identity, args.organizationId);
+    const orgId = identity.org_id;
     if (!orgId) {
       return null;
     }
@@ -72,18 +69,15 @@ export const getOAuthStateByValue = internalQuery({
   },
 });
 
-// Get connection status - organizationId passed from frontend
 export const getConnectionStatus = query({
-  args: {
-    organizationId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;
     }
 
-    const orgId = assertOrgAccess(identity, args.organizationId);
+    const orgId = identity.org_id;
     if (!orgId) {
       return null;
     }

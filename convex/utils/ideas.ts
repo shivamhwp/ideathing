@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { assertOrgAccess, getIdentityOrgId } from "./auth";
+import { assertOrgAccess} from "./auth";
 import {
   ownerValues,
   channelValues,
@@ -18,9 +18,7 @@ const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
 
 export const list = query({
-  args: {
-    organizationId: v.optional(v.string()),
-  },
+  args: {},
   handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity?.subject) {
@@ -28,8 +26,7 @@ export const list = query({
     }
 
     try {
-      // Prefer org ideas when the identity includes an organization.
-      const orgId = getIdentityOrgId(identity);
+      const orgId = identity.org_id;
       if (orgId) {
         const ideas = await ctx.db
           .query("ideas")
@@ -49,7 +46,7 @@ export const list = query({
       console.error("ideas.list failed", {
         error,
         subject: identity.subject,
-        organizationId: getIdentityOrgId(identity),
+        organizationId: identity.org_id
       });
       return [];
     }
@@ -59,7 +56,6 @@ export const list = query({
 export const get = query({
   args: {
     id: v.id("ideas"),
-    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -74,7 +70,7 @@ export const get = query({
 
       // If idea belongs to an organization, check org access
       if (idea.organizationId) {
-        const orgId = getIdentityOrgId(identity);
+        const orgId = identity.org_id;
         if (!orgId) {
           return null;
         }
@@ -92,7 +88,7 @@ export const get = query({
       console.error("ideas.get failed", {
         error,
         subject: identity.subject,
-        organizationId: getIdentityOrgId(identity),
+        organizationId: identity.org_id,
         ideaId: args.id,
       });
       return null;
@@ -101,9 +97,7 @@ export const get = query({
 });
 
 export const listRecorded = query({
-  args: {
-    organizationId: v.optional(v.string()),
-  },
+  args: {},
   handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity?.subject) {
@@ -111,7 +105,7 @@ export const listRecorded = query({
     }
 
     try {
-      const orgId = getIdentityOrgId(identity);
+      const orgId = identity.org_id;
       if (orgId) {
         const ideas = await ctx.db
           .query("ideas")
@@ -134,7 +128,7 @@ export const listRecorded = query({
       console.error("ideas.listRecorded failed", {
         error,
         subject: identity.subject,
-        organizationId: getIdentityOrgId(identity),
+        organizationId: identity.org_id,
       });
       return [];
     }
@@ -144,7 +138,6 @@ export const listRecorded = query({
 export const listByColumn = query({
   args: {
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
-    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -153,7 +146,7 @@ export const listByColumn = query({
     }
 
     try {
-      const orgId = getIdentityOrgId(identity);
+      const orgId = identity.org_id;
       if (orgId) {
         const ideas = await ctx.db
           .query("ideas")
@@ -177,7 +170,7 @@ export const listByColumn = query({
       console.error("ideas.listByColumn failed", {
         error,
         subject: identity.subject,
-        organizationId: getIdentityOrgId(identity),
+        organizationId: identity.org_id,
         column: args.column,
       });
       return [];
@@ -202,7 +195,6 @@ export const create = mutation({
     status: v.optional(literalUnion(statusValues)),
     adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
     unsponsored: v.optional(v.boolean()),
-    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -212,7 +204,7 @@ export const create = mutation({
 
     // Get existing ideas for order calculation based on org or personal
     let existingIdeas;
-    const orgId = assertOrgAccess(identity, args.organizationId);
+    const orgId = identity.org_id;
     if (orgId) {
       existingIdeas = await ctx.db
         .query("ideas")
@@ -265,7 +257,6 @@ export const move = mutation({
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
     status: v.optional(v.union(v.literal("To Stream"), v.literal("Concept"))),
-    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -281,9 +272,6 @@ export const move = mutation({
     // Check access: org idea requires matching orgId, personal requires user ownership
     if (idea.organizationId) {
       assertOrgAccess(identity, idea.organizationId);
-      if (args.organizationId && args.organizationId !== idea.organizationId) {
-        throw new Error("Idea not found");
-      }
     } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
@@ -360,7 +348,6 @@ export const update = mutation({
     status: v.optional(literalUnion(statusValues)),
     adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
     unsponsored: v.optional(v.boolean()),
-    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -376,14 +363,11 @@ export const update = mutation({
     // Check access: org idea requires matching orgId, personal requires user ownership
     if (idea.organizationId) {
       assertOrgAccess(identity, idea.organizationId);
-      if (args.organizationId && args.organizationId !== idea.organizationId) {
-        throw new Error("Idea not found");
-      }
     } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
 
-    const { id, clearThumbnail, organizationId: _organizationId, ...updates } = args;
+    const { id, clearThumbnail, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, v]) => v !== undefined),
     );
@@ -439,7 +423,6 @@ export const update = mutation({
 export const remove = mutation({
   args: {
     id: v.id("ideas"),
-    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -455,9 +438,6 @@ export const remove = mutation({
     // Check access: org idea requires matching orgId, personal requires user ownership
     if (idea.organizationId) {
       assertOrgAccess(identity, idea.organizationId);
-      if (args.organizationId && args.organizationId !== idea.organizationId) {
-        throw new Error("Idea not found");
-      }
     } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }

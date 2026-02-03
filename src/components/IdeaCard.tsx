@@ -14,7 +14,6 @@ import type { Idea } from "./KanbanBoard";
 interface IdeaCardProps {
 	idea: Idea;
 	onClick?: () => void;
-	organizationId?: string;
 }
 
 function ThumbnailImage({
@@ -59,7 +58,7 @@ const getDisplayStatus = (idea: Idea): DisplayStatus => {
 	return "Concept";
 };
 
-export function IdeaCard({ idea, onClick, organizationId }: IdeaCardProps) {
+export function IdeaCard({ idea, onClick }: IdeaCardProps) {
 	const deleteIdea = useMutation(api.ideas.remove);
 	const setEditIdeaId = useSetAtom(editIdeaIdAtom);
 	const setEditIdeaOpen = useSetAtom(editIdeaOpenAtom);
@@ -85,7 +84,7 @@ export function IdeaCard({ idea, onClick, organizationId }: IdeaCardProps) {
 
 	const handleConfirmDelete = async () => {
 		try {
-			await deleteIdea({ id: idea._id, organizationId });
+			await deleteIdea({ id: idea._id });
 			setEditIdeaOpen(false);
 			setEditIdeaId(null);
 			toast.success("Idea deleted");

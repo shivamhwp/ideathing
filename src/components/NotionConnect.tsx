@@ -32,20 +32,15 @@ type DatabaseOption = {
 	name: string;
 };
 
-export function NotionConnect({ organizationId }: { organizationId?: string }) {
-	const { organization, membership } = useOrganization();
-	const resolvedOrganizationId = organization?.id ?? organizationId;
+export function NotionConnect() {
+	const { membership } = useOrganization();
 	const isAdmin = membership?.role === "org:admin";
 
 	const { data: connection, isLoading: isConnectionLoading } = useQuery(
-		convexQuery(api.notion.getConnection, {
-			organizationId: resolvedOrganizationId,
-		}),
+		convexQuery(api.notion.getConnection, {}),
 	);
 	const { data: connectionStatus, isLoading: isStatusLoading } = useQuery(
-		convexQuery(api.notion.getConnectionStatus, {
-			organizationId: resolvedOrganizationId,
-		}),
+		convexQuery(api.notion.getConnectionStatus, {}),
 	);
 
 	// Not connected - show button to go to settings
@@ -61,7 +56,6 @@ export function NotionConnect({ organizationId }: { organizationId?: string }) {
 		<NotionConnectDropdown
 			connection={connection ?? null}
 			isAdmin={isAdmin}
-			organizationId={resolvedOrganizationId}
 		/>
 	);
 }
@@ -84,11 +78,9 @@ function NotionConnectButton() {
 function NotionConnectDropdown({
 	connection,
 	isAdmin,
-	organizationId,
 }: {
 	connection: NotionConnection | null;
 	isAdmin?: boolean;
-	organizationId?: string;
 }) {
 	const navigate = useNavigate();
 	const [open, setOpen] = useState(false);
@@ -105,11 +97,7 @@ function NotionConnectDropdown({
 	const loadDatabases = async () => {
 		setIsLoadingDatabases(true);
 		try {
-			if (!organizationId) {
-				toast.error("No organization context");
-				return;
-			}
-			const result = await listDatabases({ organizationId });
+			const result = await listDatabases({});
 			setDatabases(result.databases);
 		} catch (error) {
 			toast.error(
@@ -128,13 +116,12 @@ function NotionConnectDropdown({
 	};
 
 	const handleSelectDatabase = async (db: DatabaseOption) => {
-		if (!isAdmin || !organizationId) return;
+		if (!isAdmin) return;
 
 		setIsSubmitting(true);
 
 		try {
 			const schema = await getDataSourceSchema({
-				organizationId,
 				dataSourceId: db.id,
 			});
 			await saveDatabaseSettings({
