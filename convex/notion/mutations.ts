@@ -7,7 +7,7 @@ import {
   statusValues,
   adReadTrackerValues,
 } from "../utils/types";
-import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
+import { assertOrgAdmin } from "../utils/auth";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {
@@ -36,7 +36,7 @@ export const saveDatabaseSettings = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    const orgId = getIdentityOrgId(identity);
+    const orgId = identity?.org_id;
     if (!orgId) {
       throw new Error("No organization context");
     }
@@ -67,7 +67,7 @@ export const disconnect = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    const orgId = getIdentityOrgId(identity);
+    const orgId = identity?.org_id;
     if (!orgId) {
       throw new Error("No organization context");
     }

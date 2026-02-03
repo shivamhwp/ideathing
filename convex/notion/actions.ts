@@ -15,7 +15,7 @@ import type { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { Doc, Id } from "../_generated/dataModel";
 import { createNotionClient } from "./utils/client";
 import { NOTION_PROPERTY_NAMES } from "./utils/types";
-import { assertOrgAccess, assertOrgAdmin} from "../utils/auth";
+import { assertOrgAccess, assertOrgAdmin } from "../utils/auth";
 import { generateOAuthState } from "./utils/oauth";
 
 const BATCH_SIZE = 10;

@@ -49,12 +49,8 @@ export function KanbanBoard() {
   const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const { data: ideas, isLoading: isIdeasLoading } = useQuery(
-    convexQuery(api.ideas.list, {}),
-  );
-  const { data: notionConnection } = useQuery(
-    convexQuery(api.notion.getConnection, {}),
-  );
+  const { data: ideas, isLoading: isIdeasLoading } = useQuery(convexQuery(api.ideas.list, {}));
+  const { data: notionConnection } = useQuery(convexQuery(api.notion.getConnection, {}));
   const isNotionConnected = !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.move);
 
@@ -227,10 +223,7 @@ export function KanbanBoard() {
         </DragOverlay>
       </DndContext>
 
-      <AddIdeaModal
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-      />
+      <AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
       <EditIdeaModal
         key={editIdeaId ?? "edit-idea"}
         idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}

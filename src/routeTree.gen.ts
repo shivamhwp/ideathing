@@ -8,208 +8,200 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedRecordedRouteImport } from './routes/_authenticated/recorded'
-import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings.route'
-import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings.profile'
-import { Route as AuthenticatedSettingsNotionRouteImport } from './routes/_authenticated/settings.notion'
-import { Route as AuthenticatedNotionWebhookRouteImport } from './routes/_authenticated/notion/webhook'
-import { Route as AuthenticatedNotionCallbackRouteImport } from './routes/_authenticated/notion/callback'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as AuthenticatedRouteImport } from "./routes/_authenticated";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as AuthenticatedRecordedRouteImport } from "./routes/_authenticated/recorded";
+import { Route as AuthenticatedSettingsRouteRouteImport } from "./routes/_authenticated/settings.route";
+import { Route as AuthenticatedSettingsProfileRouteImport } from "./routes/_authenticated/settings.profile";
+import { Route as AuthenticatedSettingsNotionRouteImport } from "./routes/_authenticated/settings.notion";
+import { Route as AuthenticatedNotionWebhookRouteImport } from "./routes/_authenticated/notion/webhook";
+import { Route as AuthenticatedNotionCallbackRouteImport } from "./routes/_authenticated/notion/callback";
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+  id: "/_authenticated",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AuthenticatedRecordedRoute = AuthenticatedRecordedRouteImport.update({
-  id: '/recorded',
-  path: '/recorded',
+  id: "/recorded",
+  path: "/recorded",
   getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedSettingsRouteRoute =
-  AuthenticatedSettingsRouteRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSettingsProfileRoute =
-  AuthenticatedSettingsProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedSettingsNotionRoute =
-  AuthenticatedSettingsNotionRouteImport.update({
-    id: '/notion',
-    path: '/notion',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedNotionWebhookRoute =
-  AuthenticatedNotionWebhookRouteImport.update({
-    id: '/notion/webhook',
-    path: '/notion/webhook',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedNotionCallbackRoute =
-  AuthenticatedNotionCallbackRouteImport.update({
-    id: '/notion/callback',
-    path: '/notion/callback',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+} as any);
+const AuthenticatedSettingsRouteRoute = AuthenticatedSettingsRouteRouteImport.update({
+  id: "/settings",
+  path: "/settings",
+  getParentRoute: () => AuthenticatedRoute,
+} as any);
+const AuthenticatedSettingsProfileRoute = AuthenticatedSettingsProfileRouteImport.update({
+  id: "/profile",
+  path: "/profile",
+  getParentRoute: () => AuthenticatedSettingsRouteRoute,
+} as any);
+const AuthenticatedSettingsNotionRoute = AuthenticatedSettingsNotionRouteImport.update({
+  id: "/notion",
+  path: "/notion",
+  getParentRoute: () => AuthenticatedSettingsRouteRoute,
+} as any);
+const AuthenticatedNotionWebhookRoute = AuthenticatedNotionWebhookRouteImport.update({
+  id: "/notion/webhook",
+  path: "/notion/webhook",
+  getParentRoute: () => AuthenticatedRoute,
+} as any);
+const AuthenticatedNotionCallbackRoute = AuthenticatedNotionCallbackRouteImport.update({
+  id: "/notion/callback",
+  path: "/notion/callback",
+  getParentRoute: () => AuthenticatedRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
-  '/recorded': typeof AuthenticatedRecordedRoute
-  '/notion/callback': typeof AuthenticatedNotionCallbackRoute
-  '/notion/webhook': typeof AuthenticatedNotionWebhookRoute
-  '/settings/notion': typeof AuthenticatedSettingsNotionRoute
-  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  "/": typeof IndexRoute;
+  "/settings": typeof AuthenticatedSettingsRouteRouteWithChildren;
+  "/recorded": typeof AuthenticatedRecordedRoute;
+  "/notion/callback": typeof AuthenticatedNotionCallbackRoute;
+  "/notion/webhook": typeof AuthenticatedNotionWebhookRoute;
+  "/settings/notion": typeof AuthenticatedSettingsNotionRoute;
+  "/settings/profile": typeof AuthenticatedSettingsProfileRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
-  '/recorded': typeof AuthenticatedRecordedRoute
-  '/notion/callback': typeof AuthenticatedNotionCallbackRoute
-  '/notion/webhook': typeof AuthenticatedNotionWebhookRoute
-  '/settings/notion': typeof AuthenticatedSettingsNotionRoute
-  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  "/": typeof IndexRoute;
+  "/settings": typeof AuthenticatedSettingsRouteRouteWithChildren;
+  "/recorded": typeof AuthenticatedRecordedRoute;
+  "/notion/callback": typeof AuthenticatedNotionCallbackRoute;
+  "/notion/webhook": typeof AuthenticatedNotionWebhookRoute;
+  "/settings/notion": typeof AuthenticatedSettingsNotionRoute;
+  "/settings/profile": typeof AuthenticatedSettingsProfileRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
-  '/_authenticated/recorded': typeof AuthenticatedRecordedRoute
-  '/_authenticated/notion/callback': typeof AuthenticatedNotionCallbackRoute
-  '/_authenticated/notion/webhook': typeof AuthenticatedNotionWebhookRoute
-  '/_authenticated/settings/notion': typeof AuthenticatedSettingsNotionRoute
-  '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/_authenticated": typeof AuthenticatedRouteWithChildren;
+  "/_authenticated/settings": typeof AuthenticatedSettingsRouteRouteWithChildren;
+  "/_authenticated/recorded": typeof AuthenticatedRecordedRoute;
+  "/_authenticated/notion/callback": typeof AuthenticatedNotionCallbackRoute;
+  "/_authenticated/notion/webhook": typeof AuthenticatedNotionWebhookRoute;
+  "/_authenticated/settings/notion": typeof AuthenticatedSettingsNotionRoute;
+  "/_authenticated/settings/profile": typeof AuthenticatedSettingsProfileRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/settings'
-    | '/recorded'
-    | '/notion/callback'
-    | '/notion/webhook'
-    | '/settings/notion'
-    | '/settings/profile'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/settings"
+    | "/recorded"
+    | "/notion/callback"
+    | "/notion/webhook"
+    | "/settings/notion"
+    | "/settings/profile";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/settings'
-    | '/recorded'
-    | '/notion/callback'
-    | '/notion/webhook'
-    | '/settings/notion'
-    | '/settings/profile'
+    | "/"
+    | "/settings"
+    | "/recorded"
+    | "/notion/callback"
+    | "/notion/webhook"
+    | "/settings/notion"
+    | "/settings/profile";
   id:
-    | '__root__'
-    | '/'
-    | '/_authenticated'
-    | '/_authenticated/settings'
-    | '/_authenticated/recorded'
-    | '/_authenticated/notion/callback'
-    | '/_authenticated/notion/webhook'
-    | '/_authenticated/settings/notion'
-    | '/_authenticated/settings/profile'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/_authenticated"
+    | "/_authenticated/settings"
+    | "/_authenticated/recorded"
+    | "/_authenticated/notion/callback"
+    | "/_authenticated/notion/webhook"
+    | "/_authenticated/settings/notion"
+    | "/_authenticated/settings/profile";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  IndexRoute: typeof IndexRoute;
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/recorded': {
-      id: '/_authenticated/recorded'
-      path: '/recorded'
-      fullPath: '/recorded'
-      preLoaderRoute: typeof AuthenticatedRecordedRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/settings/profile': {
-      id: '/_authenticated/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/notion': {
-      id: '/_authenticated/settings/notion'
-      path: '/notion'
-      fullPath: '/settings/notion'
-      preLoaderRoute: typeof AuthenticatedSettingsNotionRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/notion/webhook': {
-      id: '/_authenticated/notion/webhook'
-      path: '/notion/webhook'
-      fullPath: '/notion/webhook'
-      preLoaderRoute: typeof AuthenticatedNotionWebhookRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/notion/callback': {
-      id: '/_authenticated/notion/callback'
-      path: '/notion/callback'
-      fullPath: '/notion/callback'
-      preLoaderRoute: typeof AuthenticatedNotionCallbackRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
+    "/_authenticated": {
+      id: "/_authenticated";
+      path: "";
+      fullPath: "/";
+      preLoaderRoute: typeof AuthenticatedRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_authenticated/recorded": {
+      id: "/_authenticated/recorded";
+      path: "/recorded";
+      fullPath: "/recorded";
+      preLoaderRoute: typeof AuthenticatedRecordedRouteImport;
+      parentRoute: typeof AuthenticatedRoute;
+    };
+    "/_authenticated/settings": {
+      id: "/_authenticated/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport;
+      parentRoute: typeof AuthenticatedRoute;
+    };
+    "/_authenticated/settings/profile": {
+      id: "/_authenticated/settings/profile";
+      path: "/profile";
+      fullPath: "/settings/profile";
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport;
+      parentRoute: typeof AuthenticatedSettingsRouteRoute;
+    };
+    "/_authenticated/settings/notion": {
+      id: "/_authenticated/settings/notion";
+      path: "/notion";
+      fullPath: "/settings/notion";
+      preLoaderRoute: typeof AuthenticatedSettingsNotionRouteImport;
+      parentRoute: typeof AuthenticatedSettingsRouteRoute;
+    };
+    "/_authenticated/notion/webhook": {
+      id: "/_authenticated/notion/webhook";
+      path: "/notion/webhook";
+      fullPath: "/notion/webhook";
+      preLoaderRoute: typeof AuthenticatedNotionWebhookRouteImport;
+      parentRoute: typeof AuthenticatedRoute;
+    };
+    "/_authenticated/notion/callback": {
+      id: "/_authenticated/notion/callback";
+      path: "/notion/callback";
+      fullPath: "/notion/callback";
+      preLoaderRoute: typeof AuthenticatedNotionCallbackRouteImport;
+      parentRoute: typeof AuthenticatedRoute;
+    };
   }
 }
 
 interface AuthenticatedSettingsRouteRouteChildren {
-  AuthenticatedSettingsNotionRoute: typeof AuthenticatedSettingsNotionRoute
-  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsNotionRoute: typeof AuthenticatedSettingsNotionRoute;
+  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute;
 }
 
-const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
-  {
-    AuthenticatedSettingsNotionRoute: AuthenticatedSettingsNotionRoute,
-    AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
-  }
+const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren = {
+  AuthenticatedSettingsNotionRoute: AuthenticatedSettingsNotionRoute,
+  AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+};
 
 const AuthenticatedSettingsRouteRouteWithChildren =
-  AuthenticatedSettingsRouteRoute._addFileChildren(
-    AuthenticatedSettingsRouteRouteChildren,
-  )
+  AuthenticatedSettingsRouteRoute._addFileChildren(AuthenticatedSettingsRouteRouteChildren);
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
-  AuthenticatedRecordedRoute: typeof AuthenticatedRecordedRoute
-  AuthenticatedNotionCallbackRoute: typeof AuthenticatedNotionCallbackRoute
-  AuthenticatedNotionWebhookRoute: typeof AuthenticatedNotionWebhookRoute
+  AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren;
+  AuthenticatedRecordedRoute: typeof AuthenticatedRecordedRoute;
+  AuthenticatedNotionCallbackRoute: typeof AuthenticatedNotionCallbackRoute;
+  AuthenticatedNotionWebhookRoute: typeof AuthenticatedNotionWebhookRoute;
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -217,26 +209,26 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedRecordedRoute: AuthenticatedRecordedRoute,
   AuthenticatedNotionCallbackRoute: AuthenticatedNotionCallbackRoute,
   AuthenticatedNotionWebhookRoute: AuthenticatedNotionWebhookRoute,
-}
+};
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
-)
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
+import type { getRouter } from "./router.tsx";
+import type { startInstance } from "./start.ts";
+declare module "@tanstack/react-start" {
   interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>;
   }
 }

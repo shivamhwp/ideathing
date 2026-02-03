@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { assertOrgAccess} from "./auth";
+import { assertOrgAccess } from "./auth";
 import {
   ownerValues,
   channelValues,
@@ -46,7 +46,7 @@ export const list = query({
       console.error("ideas.list failed", {
         error,
         subject: identity.subject,
-        organizationId: identity.org_id
+        organizationId: identity.org_id,
       });
       return [];
     }
