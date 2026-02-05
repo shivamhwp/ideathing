@@ -21,7 +21,7 @@ export function TopNav() {
   const recordedLinkActive = cn(recordedLink, "text-primary");
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex h-12 items-center justify-between">
       <div className="flex items-center justify-center gap-4">
         <Link
           to="/"

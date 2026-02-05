@@ -1,10 +1,4 @@
-export {
-  ownerValues,
-  channelValues,
-  labelValues,
-  statusValues,
-  adReadTrackerValues,
-} from "../../shared/idea-values";
+export { ownerValues, channelValues, labelValues, statusValues } from "../../shared/idea-values";
 
 export const NOTION_VERSION = "2025-09-03";
 

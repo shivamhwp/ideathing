@@ -29,7 +29,7 @@ interface IdeaPreviewProps {
   owner: string;
   channel: string;
   potential: string | number;
-  label: string;
+  labels: string[];
   status: string;
   adReadTracker: string;
   unsponsored: boolean;
@@ -90,7 +90,7 @@ export function IdeaPreview({
   owner,
   channel,
   potential,
-  label,
+  labels,
   status,
   adReadTracker,
   unsponsored,
@@ -138,7 +138,7 @@ export function IdeaPreview({
     }
   };
 
-  const labelVariant = getLabelVariant(label);
+  const labelVariant = (label: string) => getLabelVariant(label);
 
   return (
     <div>
@@ -201,7 +201,11 @@ export function IdeaPreview({
               {channel.replace("C:", "")}
             </Tag>
           )}
-          {label && <Tag variant={labelVariant}>{label}</Tag>}
+          {labels.map((label) => (
+            <Tag key={label} variant={labelVariant(label)}>
+              {label}
+            </Tag>
+          ))}
           {status && <Tag variant={getStatusVariant(status)}>{status}</Tag>}
           {potential !== "" && (
             <Tag variant="secondary">
@@ -233,7 +237,7 @@ export function IdeaPreview({
           )}
           {!streamMode && adReadTracker && (
             <span className="opacity-50">
-              <Tag variant="secondary">{adReadTracker}</Tag>
+              <Tag variant="secondary">Ad Read Tracker •••••</Tag>
             </span>
           )}
           <Tag variant={thumbnailReady ? "primary" : "muted"}>

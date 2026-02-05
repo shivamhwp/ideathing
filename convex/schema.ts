@@ -1,12 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import {
-  ownerValues,
-  channelValues,
-  labelValues,
-  statusValues,
-  adReadTrackerValues,
-} from "../shared/idea-values";
+import { ownerValues, channelValues, labelValues, statusValues } from "../shared/idea-values";
 
 const literalUnion = <T extends readonly string[]>(values: T) =>
   v.union(...values.map((value) => v.literal(value)));
@@ -27,9 +21,9 @@ export default defineSchema({
     owner: v.optional(literalUnion(ownerValues)),
     channel: v.optional(literalUnion(channelValues)),
     potential: v.optional(v.number()),
-    label: v.optional(literalUnion(labelValues)),
+    label: v.optional(v.array(literalUnion(labelValues))),
     status: v.optional(literalUnion(statusValues)),
-    adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
+    adReadTracker: v.optional(v.string()),
     unsponsored: v.optional(v.boolean()),
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
@@ -133,19 +127,7 @@ export default defineSchema({
         ),
       ),
       potential: v.optional(v.number()),
-      label: v.optional(
-        v.union(
-          v.literal("Requires Planning"),
-          v.literal("Priority"),
-          v.literal("Mid Priority"),
-          v.literal("Strict deadline"),
-          v.literal("Sponsored"),
-          v.literal("High Effort"),
-          v.literal("Worth it?"),
-          v.literal("Evergreen"),
-          v.literal("Database Week"),
-        ),
-      ),
+      label: v.optional(v.array(literalUnion(labelValues))),
       status: v.optional(
         v.union(
           v.literal("To Record(Off stream)"),
@@ -167,9 +149,7 @@ export default defineSchema({
           v.literal("archived"),
         ),
       ),
-      adReadTracker: v.optional(
-        v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
-      ),
+      adReadTracker: v.optional(v.string()),
       unsponsored: v.optional(v.boolean()),
       column: v.union(v.literal("Concept"), v.literal("To Stream")),
       order: v.number(),

@@ -49,7 +49,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col h-full overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
+        "flex flex-col h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
         isOver && !isDisabled && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
         isDisabled && "opacity-60",
       )}

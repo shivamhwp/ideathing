@@ -16,9 +16,11 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/settings/notion")({
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.notion.queries.getConnectionStatus, {}),
-    );
+    if (typeof window === "undefined") {
+      await context.queryClient.ensureQueryData(
+        convexQuery(api.notion.queries.getConnectionStatus, {}),
+      );
+    }
   },
   component: NotionSettings,
 });

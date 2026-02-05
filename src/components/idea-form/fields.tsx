@@ -1,7 +1,15 @@
 import { MinusIcon, PlusIcon, UploadIcon, XIcon } from "@phosphor-icons/react";
 import type { ChangeEvent, RefObject } from "react";
 import { memo } from "react";
+import { labelValues, type LabelValue } from "../../../shared/idea-values";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -135,6 +143,67 @@ export const ResourcesSection = memo(function ResourcesSection({
         </div>
       </div>
     </div>
+  );
+});
+
+interface LabelSelectProps {
+  id?: string;
+  labels: LabelValue[];
+  onChange: (next: LabelValue[]) => void;
+}
+
+export const LabelSelect = memo(function LabelSelect({ id, labels, onChange }: LabelSelectProps) {
+  const orderedLabels = labelValues.filter((label) => labels.includes(label));
+  const visibleLabels = orderedLabels.slice(0, 2);
+  const extraCount = orderedLabels.length - visibleLabels.length;
+
+  const toggleLabel = (label: LabelValue) => {
+    const nextLabels = labels.includes(label)
+      ? labels.filter((value) => value !== label)
+      : [...labels, label];
+    const orderedNext = labelValues.filter((value) => nextLabels.includes(value));
+    onChange(orderedNext);
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          id={id}
+          variant="outline"
+          type="button"
+          className="w-full justify-between text-left font-normal"
+        >
+          {orderedLabels.length ? (
+            <span className="flex items-center gap-1.5">
+              {visibleLabels.map((label) => (
+                <Badge key={label} variant="secondary">
+                  {label}
+                </Badge>
+              ))}
+              {extraCount > 0 && (
+                <span className="text-xs text-muted-foreground">+{extraCount}</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Not set</span>
+          )}
+          <span className="text-muted-foreground text-xs">Select</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[220px]">
+        {labelValues.map((label) => (
+          <DropdownMenuCheckboxItem
+            key={label}
+            checked={labels.includes(label)}
+            onCheckedChange={() => toggleLabel(label)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            {label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 });
 

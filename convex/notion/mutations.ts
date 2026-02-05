@@ -1,13 +1,8 @@
 import { v } from "convex/values";
 import { mutation, internalMutation } from "../_generated/server";
-import {
-  ownerValues,
-  channelValues,
-  labelValues,
-  statusValues,
-  adReadTrackerValues,
-} from "../utils/types";
-import { assertOrgAdmin } from "../utils/auth";
+import { ownerValues, channelValues, labelValues, statusValues } from "../utils/types";
+import { requireAuth } from "../helper";
+import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {
@@ -20,9 +15,15 @@ const createLookup = <T extends readonly string[]>(values: T) => {
 
 const normalizeOwner = createLookup(ownerValues);
 const normalizeChannel = createLookup(channelValues);
-const normalizeLabel = createLookup(labelValues);
 const normalizeStatus = createLookup(statusValues);
-const normalizeAdReadTracker = createLookup(adReadTrackerValues);
+const normalizeLabels = (values?: string[] | null) => {
+  if (!values?.length) return [];
+  const map = new Map(labelValues.map((label) => [label.toLowerCase(), label]));
+  const normalized = values
+    .map((value) => map.get(value.toLowerCase()))
+    .filter(Boolean) as (typeof labelValues)[number][];
+  return labelValues.filter((label) => normalized.includes(label));
+};
 
 export const saveDatabaseSettings = mutation({
   args: {
@@ -35,10 +36,7 @@ export const saveDatabaseSettings = mutation({
     descriptionPropertyName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
     const orgId = getIdentityOrgId(identity);
     if (!orgId) {
       throw new Error("No organization context");
@@ -69,10 +67,7 @@ export const saveDatabaseSettings = mutation({
 export const disconnect = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
     const orgId = getIdentityOrgId(identity);
     if (!orgId) {
       throw new Error("No organization context");
@@ -154,7 +149,7 @@ export const updateIdeaFromNotion = internalMutation({
     notes: v.optional(v.string()),
     owner: v.optional(v.string()),
     channel: v.optional(v.string()),
-    label: v.optional(v.string()),
+    label: v.optional(v.array(v.string())),
     adReadTracker: v.optional(v.string()),
     potential: v.optional(v.number()),
     thumbnailReady: v.optional(v.boolean()),
@@ -176,8 +171,9 @@ export const updateIdeaFromNotion = internalMutation({
         notes: args.notes,
         owner: normalizeOwner(args.owner),
         channel: normalizeChannel(args.channel),
-        label: normalizeLabel(args.label),
-        adReadTracker: normalizeAdReadTracker(args.adReadTracker),
+        label: args.label === undefined ? undefined : normalizeLabels(args.label),
+        adReadTracker:
+          args.adReadTracker === undefined ? undefined : args.adReadTracker.trim() || "",
         potential: args.potential,
         thumbnailReady: args.thumbnailReady,
         unsponsored: args.unsponsored,
@@ -231,7 +227,7 @@ export const createIdeaFromWebhook = internalMutation({
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     owner: v.optional(v.string()),
     channel: v.optional(v.string()),
-    label: v.optional(v.string()),
+    label: v.optional(v.array(v.string())),
     adReadTracker: v.optional(v.string()),
     potential: v.optional(v.number()),
     thumbnailReady: v.optional(v.boolean()),
@@ -268,8 +264,8 @@ export const createIdeaFromWebhook = internalMutation({
       order: maxOrder + 1,
       owner: normalizeOwner(args.owner),
       channel: normalizeChannel(args.channel),
-      label: normalizeLabel(args.label),
-      adReadTracker: normalizeAdReadTracker(args.adReadTracker),
+      label: args.label ? normalizeLabels(args.label) : undefined,
+      adReadTracker: args.adReadTracker?.trim() || "",
       potential: args.potential,
       thumbnailReady: args.thumbnailReady ?? false,
       unsponsored: args.unsponsored,

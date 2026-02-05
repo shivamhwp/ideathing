@@ -2,14 +2,12 @@ import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { requireAuth } from "../helper";
 import { assertOrgAccess } from "../utils/auth";
-import {
-  adReadTrackerValues,
-  channelValues,
-  labelValues,
-  ownerValues,
-  statusValues,
-} from "../utils/types";
+import { channelValues, labelValues, ownerValues, statusValues } from "../utils/types";
+
+const literalUnion = <T extends readonly string[]>(values: T) =>
+  v.union(...values.map((value) => v.literal(value)));
 
 const payloadSchema = v.object({
   title: v.string(),
@@ -42,19 +40,7 @@ const payloadSchema = v.object({
     ),
   ),
   potential: v.optional(v.number()),
-  label: v.optional(
-    v.union(
-      v.literal("Requires Planning"),
-      v.literal("Priority"),
-      v.literal("Mid Priority"),
-      v.literal("Strict deadline"),
-      v.literal("Sponsored"),
-      v.literal("High Effort"),
-      v.literal("Worth it?"),
-      v.literal("Evergreen"),
-      v.literal("Database Week"),
-    ),
-  ),
+  label: v.optional(v.array(literalUnion(labelValues))),
   status: v.optional(
     v.union(
       v.literal("To Record(Off stream)"),
@@ -76,16 +62,11 @@ const payloadSchema = v.object({
       v.literal("archived"),
     ),
   ),
-  adReadTracker: v.optional(
-    v.union(v.literal("planned"), v.literal("in da edit"), v.literal("done")),
-  ),
+  adReadTracker: v.optional(v.string()),
   unsponsored: v.optional(v.boolean()),
   column: v.union(v.literal("Concept"), v.literal("To Stream")),
   order: v.number(),
 });
-
-const literalUnion = <T extends readonly string[]>(values: T) =>
-  v.union(...values.map((value) => v.literal(value)));
 
 const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
@@ -165,10 +146,7 @@ export const revokeExport = mutation({
     exportId: v.id("ideaExports"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const record = await ctx.db.get(args.exportId);
     if (!record) {
@@ -286,16 +264,13 @@ export const create = mutation({
     owner: v.optional(literalUnion(ownerValues)),
     channel: v.optional(literalUnion(channelValues)),
     potential: v.optional(v.number()),
-    label: v.optional(literalUnion(labelValues)),
+    label: v.optional(v.array(literalUnion(labelValues))),
     status: v.optional(literalUnion(statusValues)),
-    adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
+    adReadTracker: v.optional(v.string()),
     unsponsored: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     // Get existing ideas for order calculation based on org or personal
     let existingIdeas;
@@ -354,10 +329,7 @@ export const move = mutation({
     status: v.optional(v.union(v.literal("To Stream"), v.literal("Concept"))),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const idea = await ctx.db.get(args.id);
     if (!idea) {
@@ -441,16 +413,13 @@ export const update = mutation({
     owner: v.optional(literalUnion(ownerValues)),
     channel: v.optional(literalUnion(channelValues)),
     potential: v.optional(v.number()),
-    label: v.optional(literalUnion(labelValues)),
+    label: v.optional(v.array(literalUnion(labelValues))),
     status: v.optional(literalUnion(statusValues)),
-    adReadTracker: v.optional(literalUnion(adReadTrackerValues)),
+    adReadTracker: v.optional(v.string()),
     unsponsored: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const idea = await ctx.db.get(args.id);
     if (!idea) {
@@ -524,10 +493,7 @@ export const remove = mutation({
     id: v.id("ideas"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const idea = await ctx.db.get(args.id);
     if (!idea) {

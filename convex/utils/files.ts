@@ -1,13 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
+import { requireAuth } from "../helper";
 
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    await requireAuth(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });

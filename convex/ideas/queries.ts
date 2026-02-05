@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
+import type { UserIdentity } from "convex/server";
 import { internalQuery, query, type QueryCtx } from "../_generated/server";
+import { requireAuth } from "../helper";
 
 type IdeaDoc = Doc<"ideas">;
 type IdeaColumn = IdeaDoc["column"];
@@ -68,14 +70,9 @@ const listIdeasForUser = async (
 
 const listIdeasForIdentity = async (
   ctx: QueryCtx,
+  identity: UserIdentity,
   options: ListOptions = {},
-): Promise<IdeaDoc[]> => {
-  const identity = await ctx.auth.getUserIdentity();
-
-  if (!identity) {
-    throw new Error("User not authenticated");
-  }
-
+) => {
   const orgId = identity.org_id;
   if (orgId) {
     return listIdeasForOrg(ctx, orgId, options);
@@ -126,18 +123,15 @@ export const listExportItemsInternal = internalQuery({
 export const list = query({
   args: {},
   handler: async (ctx, _args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.subject) {
-      return [];
-    }
-
     try {
-      return await listIdeasForIdentity(ctx);
+      const identity = await requireAuth(ctx).catch(() => null);
+      if (!identity) {
+        return [];
+      }
+      return await listIdeasForIdentity(ctx, identity);
     } catch (error) {
       console.error("ideas.list failed", {
         error,
-        subject: identity.subject,
-        organizationId: identity.org_id,
       });
       return [];
     }
@@ -147,16 +141,11 @@ export const list = query({
 export const listExportsForUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.subject) {
-      return [];
-    }
-
+    const identity = await requireAuth(ctx);
     const orgId = identity.org_id;
     if (!orgId) {
       return [];
     }
-
     const exports = await ctx.db
       .query("ideaExports")
       .withIndex("by_source_org", (q) => q.eq("sourceOrganizationId", orgId))
@@ -179,18 +168,15 @@ export const listExportsForUser = query({
 export const listRecorded = query({
   args: {},
   handler: async (ctx, _args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.subject) {
-      return [];
-    }
-
     try {
-      return await listIdeasForIdentity(ctx, { status: "Recorded" });
+      const identity = await requireAuth(ctx).catch(() => null);
+      if (!identity) {
+        return [];
+      }
+      return await listIdeasForIdentity(ctx, identity, { status: "Recorded" });
     } catch (error) {
       console.error("ideas.listRecorded failed", {
         error,
-        subject: identity.subject,
-        organizationId: identity.org_id,
       });
       return [];
     }

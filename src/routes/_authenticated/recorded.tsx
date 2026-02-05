@@ -13,7 +13,9 @@ import { createIdeaDraftFromIdea, editIdeaDraftAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/_authenticated/recorded")({
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.listRecorded, {}));
+    if (typeof window === "undefined") {
+      await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.listRecorded, {}));
+    }
   },
   component: RecordedIdeasPage,
 });
@@ -29,7 +31,7 @@ function RecordedIdeasPage() {
 
   if (isLoading || !recorded) {
     return (
-      <div className="h-screen flex flex-col bg-background">
+      <div className="min-h-dvh flex flex-col bg-background">
         <div className="px-4 py-6 flex flex-col flex-1 min-h-0 gap-4">
           <div className="h-[40vh] rounded-2xl border border-border/60 bg-muted/20 animate-pulse" />
         </div>
@@ -38,7 +40,7 @@ function RecordedIdeasPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="min-h-dvh flex flex-col bg-background">
       <div className="px-4 py-4 flex flex-col flex-1 min-h-0 gap-4">
         <TopNav />
 

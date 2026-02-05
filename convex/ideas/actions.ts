@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { createHash, randomBytes } from "node:crypto";
 import type { Doc, Id } from "../_generated/dataModel";
 import { action } from "../_generated/server";
+import { requireAuth } from "../helper";
 import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,7 +26,7 @@ type ExportPayload = {
   owner?: "Theo" | "Phase" | "Mir" | "flip" | "melkey" | "gabriel" | "ben" | "shivam";
   channel?: "C:Main" | "C:Rants" | "C:Throwaways" | "C:Other" | "C:Main(SHORT)";
   potential?: number;
-  label?:
+  label?: (
     | "Requires Planning"
     | "Priority"
     | "Mid Priority"
@@ -34,7 +35,8 @@ type ExportPayload = {
     | "High Effort"
     | "Worth it?"
     | "Evergreen"
-    | "Database Week";
+    | "Database Week"
+  )[];
   status?:
     | "To Record(Off stream)"
     | "To Stream"
@@ -53,7 +55,7 @@ type ExportPayload = {
     | "Needs sponsor spot"
     | "Theo's Problem"
     | "archived";
-  adReadTracker?: "planned" | "in da edit" | "done";
+  adReadTracker?: string;
   unsponsored?: boolean;
   column: "Concept" | "To Stream";
   order: number;
@@ -64,7 +66,7 @@ export const getSummary = action({
     token: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
+    const identity = await requireAuth(ctx).catch(() => null);
     if (!identity) {
       return null;
     }
@@ -107,10 +109,7 @@ export const create = action({
     origin: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const { internal: internalApi } = await internalApiPromise;
     const runQuery = ctx.runQuery as any;
@@ -203,10 +202,7 @@ export const importIdeas = action({
     itemCount: number;
     importedIdeaIds: Id<"ideas">[];
   }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const { internal: internalApi } = await internalApiPromise;
     const runQuery = ctx.runQuery as any;
@@ -272,6 +268,7 @@ export const importIdeas = action({
         sourceIdeaId: item.ideaId,
         payload: {
           ...item.payload,
+          label: item.payload.label as ExportPayload["label"],
           thumbnail: nextThumbnail,
         },
       });

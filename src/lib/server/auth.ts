@@ -7,7 +7,7 @@ export const getClerkAuth = createServerFn({ method: "GET" }).handler(async () =
 
   return {
     isSignedIn: Boolean(clerkAuth.userId),
-    orgId: clerkAuth.orgId ?? null,
+    orgId: clerkAuth.orgId,
     convexToken,
   };
 });

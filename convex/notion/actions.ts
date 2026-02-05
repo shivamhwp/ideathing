@@ -14,6 +14,7 @@ import type {
 import type { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import type { Doc, Id } from "../_generated/dataModel";
 import { createNotionClient } from "./utils/client";
+import { requireAuth } from "../helper";
 import { assertOrgAccess, assertOrgAdmin } from "../utils/auth";
 import { generateOAuthState } from "./utils/oauth";
 import { NOTION_PROPERTY_NAMES } from "../utils/types";
@@ -66,6 +67,18 @@ const addSelectProperty = (
   }
 };
 
+const addMultiSelectProperty = (
+  properties: NonNullable<CreatePageParameters["properties"]>,
+  entry: PropertyEntry,
+  values?: string[] | null,
+) => {
+  const resolved = (values ?? [])
+    .map((value) => resolveOptionName(entry, value))
+    .filter((value): value is string => Boolean(value));
+  const unique = Array.from(new Set(resolved));
+  properties[entry.name] = { multi_select: unique.map((name) => ({ name })) };
+};
+
 const addStatusProperty = (
   properties: NonNullable<CreatePageParameters["properties"]>,
   entry: PropertyEntry,
@@ -116,13 +129,19 @@ const fetchDataSourceProperties = async (notion: Client, dataSourceId: string) =
     const type = getType(entry);
     const selectOptions =
       type === "select" && entry && isRecord(entry.select) ? entry.select.options : undefined;
+    const multiSelectOptions =
+      type === "multi_select" && entry && isRecord(entry.multi_select)
+        ? entry.multi_select.options
+        : undefined;
     const statusOptions =
       type === "status" && entry && isRecord(entry.status) ? entry.status.options : undefined;
     const options = Array.isArray(selectOptions)
       ? selectOptions
-      : Array.isArray(statusOptions)
-        ? statusOptions
-        : undefined;
+      : Array.isArray(multiSelectOptions)
+        ? multiSelectOptions
+        : Array.isArray(statusOptions)
+          ? statusOptions
+          : undefined;
     const optionsMap = options
       ? new Map(
           options
@@ -170,6 +189,23 @@ const getNotionSelect = (property: unknown) => {
   if (!isRecord(property.select)) return null;
   const name = getString(property.select.name);
   return name?.trim() || null;
+};
+
+const getNotionMultiSelect = (property: unknown) => {
+  if (!isRecord(property) || getType(property) !== "multi_select") return null;
+  if (!Array.isArray(property.multi_select)) return null;
+  return property.multi_select
+    .map((entry) => (isRecord(entry) ? getString(entry.name)?.trim() : undefined))
+    .filter((value): value is string => Boolean(value));
+};
+
+const getNotionRelationId = (property: unknown) => {
+  if (!isRecord(property) || getType(property) !== "relation") return null;
+  if (!Array.isArray(property.relation)) return null;
+  const relation = property.relation.find(
+    (entry) => isRecord(entry) && typeof entry.id === "string",
+  );
+  return typeof relation?.id === "string" ? relation.id : null;
 };
 
 const getNotionCheckbox = (property: unknown) => {
@@ -529,6 +565,16 @@ const getIdeaUpdatesFromNotion = ({
     column = "Concept";
   }
 
+  const labelValue = labelEntry
+    ? labelEntry.type === "multi_select"
+      ? (getNotionMultiSelect(labelProperty) ?? [])
+      : (() => {
+          const label = getNotionSelect(labelProperty);
+          return label ? [label] : [];
+        })()
+    : undefined;
+  const adReadValue = adReadEntry ? (getNotionRelationId(adReadProperty) ?? "") : undefined;
+
   return {
     mappedStatus,
     updates: {
@@ -539,8 +585,8 @@ const getIdeaUpdatesFromNotion = ({
       notes: getNotionRichText(notesProperty) ?? undefined,
       owner: getNotionSelect(ownerProperty) ?? undefined,
       channel: getNotionSelect(channelProperty) ?? undefined,
-      label: getNotionSelect(labelProperty) ?? undefined,
-      adReadTracker: getNotionSelect(adReadProperty) ?? undefined,
+      label: labelValue,
+      adReadTracker: adReadValue,
       potential: getNotionNumber(potentialProperty),
       thumbnailReady: getNotionCheckbox(thumbnailProperty),
       unsponsored: getNotionCheckbox(unsponsoredProperty),
@@ -561,8 +607,8 @@ const omitUndefinedUpdates = <T extends Record<string, unknown>>(updates: T) => 
 export const listDatabases = action({
   args: {},
   handler: async (ctx, _args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const orgId = identity?.org_role;
+    const identity = await requireAuth(ctx);
+    const orgId = identity.org_id;
     if (!orgId) {
       throw new Error("No organization context");
     }
@@ -626,8 +672,8 @@ export const getDataSourceSchema = action({
     dataSourceId: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const orgId = identity?.org_id;
+    const identity = await requireAuth(ctx);
+    const orgId = identity.org_id;
     if (!orgId) {
       throw new Error("No organization context");
     }
@@ -675,10 +721,7 @@ export const getDataSourceSchema = action({
 export const generateOAuthUrl = action({
   args: {},
   handler: async (ctx, _args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
     const orgId = identity.org_id;
     if (!orgId) {
       throw new Error("No organization context");
@@ -819,10 +862,7 @@ export const exchangeOAuthCode = action({
     state: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const identity = await requireAuth(ctx);
 
     const clientId = process.env.NOTION_CLIENT_ID;
     const clientSecret = process.env.NOTION_CLIENT_SECRET;
@@ -946,7 +986,6 @@ export const syncToNotion = internalAction({
     const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
     const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
     const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
-    const adReadEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.adReadTracker);
     const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
     const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
     const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
@@ -975,8 +1014,13 @@ export const syncToNotion = internalAction({
 
     if (ownerEntry) addSelectProperty(properties, ownerEntry, trim(idea.owner));
     if (channelEntry) addSelectProperty(properties, channelEntry, trim(idea.channel));
-    if (labelEntry) addSelectProperty(properties, labelEntry, trim(idea.label));
-    if (adReadEntry) addSelectProperty(properties, adReadEntry, trim(idea.adReadTracker));
+    if (labelEntry) {
+      if (labelEntry.type === "multi_select") {
+        addMultiSelectProperty(properties, labelEntry, idea.label ?? []);
+      } else {
+        addSelectProperty(properties, labelEntry, trim(idea.label?.[0]));
+      }
+    }
     if (potentialEntry) addNumberProperty(properties, potentialEntry.name, idea.potential);
     if (thumbnailEntry) addCheckboxProperty(properties, thumbnailEntry.name, idea.thumbnailReady);
     if (unsponsoredEntry) addCheckboxProperty(properties, unsponsoredEntry.name, idea.unsponsored);
@@ -992,9 +1036,8 @@ export const syncToNotion = internalAction({
     const missingProperties: string[] = [];
     if (!ownerEntry && idea.owner) missingProperties.push(`Owner: ${idea.owner}`);
     if (!channelEntry && idea.channel) missingProperties.push(`Channel: ${idea.channel}`);
-    if (!labelEntry && idea.label) missingProperties.push(`Label: ${idea.label}`);
-    if (!adReadEntry && idea.adReadTracker)
-      missingProperties.push(`Ad Read Tracker: ${idea.adReadTracker}`);
+    if (!labelEntry && idea.label?.length)
+      missingProperties.push(`Label: ${idea.label.join(", ")}`);
     if (!potentialEntry && idea.potential !== undefined)
       missingProperties.push(`Potential: ${idea.potential}`);
     if (!thumbnailEntry && idea.thumbnailReady !== undefined)
@@ -1023,10 +1066,9 @@ export const syncToNotion = internalAction({
 export const syncStatusesFromNotion = action({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const identity = await requireAuth(ctx);
 
-    const orgId = (identity as { org_id?: string }).org_id;
+    const orgId = identity.org_id;
     if (!orgId) return { updated: 0 };
 
     const connection = await ctx.runQuery(internal.notion.queries.getConnectionInternal, {
@@ -1068,7 +1110,10 @@ export const syncStatusesFromNotion = action({
 
         const { idea, data } = result;
         const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
-        const payload = omitUndefinedUpdates(updates);
+        const payload = omitUndefinedUpdates({
+          ...updates,
+          label: updates.label ?? undefined,
+        });
         if (Object.keys(payload).length === 0) continue;
         await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
           ideaId: idea._id,
@@ -1129,7 +1174,10 @@ export const syncIdeaFromNotionPage = internalAction({
     const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
 
     const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
-    const payload = omitUndefinedUpdates(updates);
+    const payload = omitUndefinedUpdates({
+      ...updates,
+      label: updates.label ?? undefined,
+    });
     if (Object.keys(payload).length === 0) {
       return;
     }
@@ -1353,7 +1401,10 @@ export const syncFromDataSource = internalAction({
         });
 
         if (existingIdea) {
-          const payload = omitUndefinedUpdates(updates);
+          const payload = omitUndefinedUpdates({
+            ...updates,
+            label: updates.label ?? undefined,
+          });
           if (Object.keys(payload).length > 0) {
             await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
               ideaId: existingIdea._id,
@@ -1425,7 +1476,6 @@ export const updateInNotion = internalAction({
     const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
     const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
     const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
-    const adReadEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.adReadTracker);
     const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
     const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
     const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
@@ -1454,8 +1504,13 @@ export const updateInNotion = internalAction({
 
     if (ownerEntry) addSelectProperty(properties, ownerEntry, trim(idea.owner));
     if (channelEntry) addSelectProperty(properties, channelEntry, trim(idea.channel));
-    if (labelEntry) addSelectProperty(properties, labelEntry, trim(idea.label));
-    if (adReadEntry) addSelectProperty(properties, adReadEntry, trim(idea.adReadTracker));
+    if (labelEntry) {
+      if (labelEntry.type === "multi_select") {
+        addMultiSelectProperty(properties, labelEntry, idea.label ?? []);
+      } else {
+        addSelectProperty(properties, labelEntry, trim(idea.label?.[0]));
+      }
+    }
     if (potentialEntry) addNumberProperty(properties, potentialEntry.name, idea.potential);
     if (thumbnailEntry) addCheckboxProperty(properties, thumbnailEntry.name, idea.thumbnailReady);
     if (unsponsoredEntry) addCheckboxProperty(properties, unsponsoredEntry.name, idea.unsponsored);
@@ -1471,9 +1526,8 @@ export const updateInNotion = internalAction({
     const missingProperties: string[] = [];
     if (!ownerEntry && idea.owner) missingProperties.push(`Owner: ${idea.owner}`);
     if (!channelEntry && idea.channel) missingProperties.push(`Channel: ${idea.channel}`);
-    if (!labelEntry && idea.label) missingProperties.push(`Label: ${idea.label}`);
-    if (!adReadEntry && idea.adReadTracker)
-      missingProperties.push(`Ad Read Tracker: ${idea.adReadTracker}`);
+    if (!labelEntry && idea.label?.length)
+      missingProperties.push(`Label: ${idea.label.join(", ")}`);
     if (!potentialEntry && idea.potential !== undefined)
       missingProperties.push(`Potential: ${idea.potential}`);
     if (!thumbnailEntry && idea.thumbnailReady !== undefined)

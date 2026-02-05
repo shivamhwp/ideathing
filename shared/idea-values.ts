@@ -49,10 +49,7 @@ export const statusValues = [
   "archived",
 ] as const;
 
-export const adReadTrackerValues = ["planned", "in da edit", "done"] as const;
-
 export type OwnerValue = (typeof ownerValues)[number];
 export type ChannelValue = (typeof channelValues)[number];
 export type LabelValue = (typeof labelValues)[number];
 export type StatusValue = (typeof statusValues)[number];
-export type AdReadTrackerValue = (typeof adReadTrackerValues)[number];

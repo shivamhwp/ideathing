@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
 import {
   DescriptionField,
+  LabelSelect,
   ResourcesSection,
   ThumbnailField,
   TitleField,
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -181,22 +183,7 @@ const LabelSection = memo(function LabelSection() {
       <Label htmlFor="label" className="text-sm">
         Label
       </Label>
-      <Select value={label || undefined} onValueChange={(value) => setLabel(value as typeof label)}>
-        <SelectTrigger id="label">
-          <SelectValue placeholder="Not set" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="Priority">Priority</SelectItem>
-          <SelectItem value="Mid Priority">Mid Priority</SelectItem>
-          <SelectItem value="Requires Planning">Requires Planning</SelectItem>
-          <SelectItem value="Strict deadline">Strict deadline</SelectItem>
-          <SelectItem value="Sponsored">Sponsored</SelectItem>
-          <SelectItem value="High Effort">High Effort</SelectItem>
-          <SelectItem value="Worth it?">Worth it?</SelectItem>
-          <SelectItem value="Evergreen">Evergreen</SelectItem>
-          <SelectItem value="Database Week">Database Week</SelectItem>
-        </SelectContent>
-      </Select>
+      <LabelSelect id="label" labels={label} onChange={setLabel} />
     </div>
   );
 });
@@ -233,20 +220,13 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection() {
           <Label htmlFor="ad-read-tracker" className="text-sm">
             Ad Read Tracker
           </Label>
-          <Select
-            value={adReadTracker || undefined}
-            onValueChange={(value) => setAdReadTracker(value as typeof adReadTracker)}
+          <Input
+            id="ad-read-tracker"
+            value={adReadTracker ? "•••••" : ""}
+            placeholder="Not set"
             disabled
-          >
-            <SelectTrigger id="ad-read-tracker">
-              <SelectValue placeholder="Not set" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="planned">Planned</SelectItem>
-              <SelectItem value="in da edit">In Da Edit</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(event) => setAdReadTracker(event.target.value)}
+          />
         </div>
       )}
     </div>
@@ -360,7 +340,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         owner: owner || undefined,
         channel: channel || undefined,
         potential: typeof potential === "number" ? potential : undefined,
-        label: label || undefined,
+        label: label.length ? label : undefined,
         adReadTracker: adReadTracker || undefined,
         unsponsored,
       });

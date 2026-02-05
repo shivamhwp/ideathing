@@ -12,7 +12,9 @@ const exportsQuery = convexQuery(api.ideas.queries.listExportsForUser, {});
 
 export const Route = createFileRoute("/_authenticated/settings/shared")({
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(exportsQuery);
+    if (typeof window === "undefined") {
+      await context.queryClient.ensureQueryData(exportsQuery);
+    }
   },
   component: SharedLinksSettings,
 });

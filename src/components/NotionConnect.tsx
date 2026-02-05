@@ -45,7 +45,7 @@ export function NotionConnect() {
 
   // Not connected - show button to go to settings
   if (isConnectionLoading || isStatusLoading) {
-    return null;
+    return <NotionConnectPlaceholder />;
   }
 
   if (!connectionStatus?.isConnected) {
@@ -53,6 +53,10 @@ export function NotionConnect() {
   }
 
   return <NotionConnectDropdown connection={connection ?? null} isAdmin={isAdmin} />;
+}
+
+function NotionConnectPlaceholder() {
+  return <div aria-hidden="true" className="h-9 w-9 rounded-lg" />;
 }
 
 function NotionConnectButton() {

@@ -18,6 +18,7 @@ import { useDebouncedCallback } from "use-debounce";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
 import {
   DescriptionField as IdeaDescriptionField,
+  LabelSelect,
   ResourcesSection as IdeaResourcesSection,
   ThumbnailField as IdeaThumbnailField,
   TitleField as IdeaTitleField,
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -402,29 +404,14 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
         <Label htmlFor="edit-label" className="text-sm">
           Label
         </Label>
-        <Select
-          value={label || undefined}
-          onValueChange={(value) => {
-            const nextValue = (value || "") as typeof label;
-            setLabel(nextValue);
-            scheduleUpdate({ label: value || undefined });
+        <LabelSelect
+          id="edit-label"
+          labels={label}
+          onChange={(next) => {
+            setLabel(next);
+            scheduleUpdate({ label: next });
           }}
-        >
-          <SelectTrigger id="edit-label">
-            <SelectValue placeholder="Not set" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Priority">Priority</SelectItem>
-            <SelectItem value="Mid Priority">Mid Priority</SelectItem>
-            <SelectItem value="Requires Planning">Requires Planning</SelectItem>
-            <SelectItem value="Strict deadline">Strict deadline</SelectItem>
-            <SelectItem value="Sponsored">Sponsored</SelectItem>
-            <SelectItem value="High Effort">High Effort</SelectItem>
-            <SelectItem value="Worth it?">Worth it?</SelectItem>
-            <SelectItem value="Evergreen">Evergreen</SelectItem>
-            <SelectItem value="Database Week">Database Week</SelectItem>
-          </SelectContent>
-        </Select>
+        />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="edit-status" className="text-sm">
@@ -483,24 +470,16 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection({
           <Label htmlFor="edit-ad-read-tracker" className="text-sm">
             Ad Read Tracker
           </Label>
-          <Select
-            value={adReadTracker || undefined}
-            onValueChange={(value) => {
-              const nextValue = (value || "") as typeof adReadTracker;
-              setAdReadTracker(nextValue);
-              scheduleUpdate({ adReadTracker: value || undefined });
-            }}
+          <Input
+            id="edit-ad-read-tracker"
+            value={adReadTracker ? "•••••" : ""}
+            placeholder="Not set"
             disabled
-          >
-            <SelectTrigger id="edit-ad-read-tracker">
-              <SelectValue placeholder="Not set" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="planned">Planned</SelectItem>
-              <SelectItem value="in da edit">In Da Edit</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(event) => {
+              setAdReadTracker(event.target.value);
+              scheduleUpdate({ adReadTracker: event.target.value });
+            }}
+          />
         </div>
       )}
     </div>
@@ -660,7 +639,7 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
             owner={owner}
             channel={channel}
             potential={potential}
-            label={label}
+            labels={label}
             status={status}
             adReadTracker={adReadTracker}
             unsponsored={unsponsored}
