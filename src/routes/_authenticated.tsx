@@ -3,6 +3,7 @@ import { SpinnerIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
+import { AppCommandCenter } from "@/components/AppCommandCenter";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -58,5 +59,10 @@ function AuthenticatedLayout() {
     return <Navigate to="/" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <AppCommandCenter />
+      <Outlet />
+    </>
+  );
 }

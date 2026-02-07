@@ -80,6 +80,8 @@ export const defaultIdeaDraft: IdeaDraft = {
 
 export const streamModeAtom = atomWithStorage("streamMode", false);
 export const ideaSelectionModeAtom = atom(false);
+export const commandMenuOpenAtom = atom(false);
+export const addIdeaModalOpenAtom = atom(false);
 
 export const newIdeaDraftAtom = atomWithStorage<IdeaDraft>("ideathing-draft", defaultIdeaDraft);
 
@@ -88,6 +90,13 @@ export const editIdeaDraftAtom = atom<IdeaDraft>(defaultIdeaDraft);
 export const editIdeaIdAtom = atom<Id<"ideas"> | null>(null);
 export const editIdeaOpenAtom = atom(false);
 export const editIdeaIsEditingAtom = atom(false);
+export const openAddIdeaModalAtom = atom(null, (get, set) => {
+  const draft = get(newIdeaDraftAtom);
+  set(newIdeaDraftAtom, draft.ideaId ? defaultIdeaDraft : draft);
+  set(editIdeaOpenAtom, false);
+  set(editIdeaIdAtom, null);
+  set(addIdeaModalOpenAtom, true);
+});
 
 type FieldAtoms = {
   [K in keyof IdeaDraft]-?: WritableAtom<IdeaDraft[K], [IdeaDraft[K]], void>;
