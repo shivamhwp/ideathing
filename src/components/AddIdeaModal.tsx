@@ -385,7 +385,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           <LabelSection />
           <PotentialAdReadSection />
           <UnsponsoredToggle />
-          <NotesField autoFocus />
+          <NotesField />
         </form>
 
         <DialogFooter className="px-6 py-4 border-t border-border/40">
