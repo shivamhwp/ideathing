@@ -64,12 +64,12 @@ function NotionConnectButton() {
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
       onClick={() => navigate({ to: "/settings/notion" })}
-      className="h-9 w-9 cursor-pointer rounded-lg border-dashed border-border"
+      className="h-9 w-9 cursor-pointer rounded-lg text-foreground/60"
     >
-      <NotionLogoIcon className="w-4 h-4 " weight="fill" />
+      <NotionLogoIcon className="w-4 h-4" weight="regular" />
     </Button>
   );
 }
@@ -90,8 +90,6 @@ function NotionConnectDropdown({
   const saveDatabaseSettings = useMutation(api.notion.mutations.saveDatabaseSettings);
   const listDatabases = useAction(api.notion.actions.listDatabases);
   const getDataSourceSchema = useAction(api.notion.actions.getDataSourceSchema);
-
-  const hasDatabase = !!connection?.databaseId;
 
   const loadDatabases = async () => {
     setIsLoadingDatabases(true);
@@ -139,11 +137,8 @@ function NotionConnectDropdown({
   };
 
   const triggerButton = (
-    <Button variant="secondary" size="icon" className="cursor-pointer bg-primary/10">
-      <NotionLogoIcon
-        className={cn("w-4 h-4", hasDatabase ? "" : "text-muted-foreground hover:text-foreground")}
-        weight="fill"
-      />
+    <Button variant="secondary" size="icon" className="cursor-pointer">
+      <NotionLogoIcon className={cn("w-4 h-4")} weight="fill" />
     </Button>
   );
 

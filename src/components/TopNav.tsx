@@ -1,20 +1,16 @@
 import { SignedIn, SignedOut, SignInButton } from "@clerk/tanstack-react-start";
-import { GearSixIcon } from "@phosphor-icons/react";
+import { GearSixIcon, TwitchLogoIcon } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { NotionConnect } from "@/components/NotionConnect";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
-import { commandMenuOpenAtom, streamModeAtom } from "@/store/atoms";
+import { streamModeAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 
 export function TopNav() {
   const [streamMode, setStreamMode] = useAtom(streamModeAtom);
-  const setCommandMenuOpen = useSetAtom(commandMenuOpenAtom);
   const baseLink = "text-foreground/40 hover:text-primary font-semibold transition-colors";
   const boardLink = cn(baseLink, "flex items-center gap-2 font-semibold");
   const boardLinkActive = cn(boardLink, "text-primary font-semibold");
@@ -25,8 +21,8 @@ export function TopNav() {
   const recordedLinkActive = cn(recordedLink, "font-semibold text-foreground text-primary");
 
   return (
-    <div className="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-2">
-      <div className="flex items-center gap-4 justify-self-start">
+    <div className="flex h-12 w-full items-center justify-between gap-3">
+      <div className="flex items-center gap-4">
         <Link
           to="/"
           activeOptions={{ exact: true }}
@@ -45,39 +41,20 @@ export function TopNav() {
           recorded vids
         </Link>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setCommandMenuOpen(true)}
-        className="text-foreground/30"
-        aria-label="Open command menu"
-      >
-        cmd + k
-      </Button>
-      <div className="flex items-center gap-2 justify-self-end">
+
+      <div className="flex items-center gap-2">
         <Authenticated>
           <div className="flex items-center justify-end gap-0">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="stream-mode"
-                checked={streamMode}
-                onChange={(e) => setStreamMode(e.target.checked)}
-                aria-label="Stream Mode"
-              />
-              <Popover>
-                <PopoverTrigger asChild className="bg-transparent">
-                  <Label className="text-sm text-muted-foreground font-normal cursor-pointer">
-                    Stream Mode
-                  </Label>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 text-sm text-muted-foreground">
-                  <p>
-                    Stream Mode hides sponsor-related fields (Ad Read Tracker and Unsponsored) for a
-                    cleaner view during streaming.
-                  </p>
-                </PopoverContent>
-              </Popover>
-            </div>
+            <Button
+              type="button"
+              variant={streamMode ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setStreamMode((prev) => !prev)}
+              aria-label={streamMode ? "Disable stream mode" : "Enable stream mode"}
+              className={cn("cursor-pointer", !streamMode && "text-foreground/60")}
+            >
+              <TwitchLogoIcon className="w-4 h-4" weight={streamMode ? "fill" : "regular"} />
+            </Button>
           </div>
           <NotionConnect />
           <div className="flex items-center">
