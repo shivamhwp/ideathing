@@ -1,5 +1,4 @@
 import { v } from "convex/values";
-import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
 import type { Client } from "@notionhq/client";
@@ -12,8 +11,8 @@ import type {
   UpdatePageParameters,
 } from "@notionhq/client/build/src/api-endpoints";
 import type { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
-import type { Doc, Id } from "../_generated/dataModel";
-import { createNotionClient } from "./utils/client";
+import type { Doc } from "../_generated/dataModel";
+import { withTokenRefresh } from "./utils/client";
 import { requireAuth } from "../helper";
 import { assertOrgAccess, assertOrgAdmin } from "../utils/auth";
 import { generateOAuthState } from "./utils/oauth";
@@ -278,16 +277,10 @@ const isImageFile = (contentType: string | null, filename: string) => {
   return /\.(png|jpe?g|gif|webp)$/i.test(filename);
 };
 
-const isStorageId = (value: string | null | undefined) =>
-  !!value && value.startsWith("k") && !value.includes("://");
-
-const resolveThumbnailUrl = async (ctx: ActionCtx, thumbnail: string | null | undefined) => {
-  if (!thumbnail) return null;
-  if (isStorageId(thumbnail)) {
-    const url = await ctx.storage.getUrl(thumbnail as Id<"_storage">);
-    return url ?? null;
-  }
-  if (thumbnail.startsWith("http://") || thumbnail.startsWith("https://")) return thumbnail;
+const resolveThumbnailUrl = (draftThumbnail: string) => {
+  if (!draftThumbnail) return null;
+  if (draftThumbnail.startsWith("http://") || draftThumbnail.startsWith("https://"))
+    return draftThumbnail;
   return null;
 };
 
@@ -314,7 +307,7 @@ const buildSyncedContentChildren = (
   idea: {
     description?: string | null;
     notes?: string | null;
-    thumbnail?: string | null;
+    draftThumbnail?: string | null;
     resources?: string[] | null;
   },
   missingProperties?: string[],
@@ -402,16 +395,14 @@ const buildSyncedContentChildren = (
   return blocks;
 };
 
-const getThumbnailContent = async (
-  ctx: ActionCtx,
-  _notion: Client,
-  thumbnail?: string | null,
-): Promise<{ block: BlockObjectRequest | null; text: string | null }> => {
-  if (!thumbnail) return { block: null, text: null };
+const getThumbnailContent = (
+  draftThumbnail?: string | null,
+): { block: BlockObjectRequest | null; text: string | null } => {
+  if (!draftThumbnail) return { block: null, text: null };
 
-  const thumbnailUrl = await resolveThumbnailUrl(ctx, thumbnail);
+  const thumbnailUrl = resolveThumbnailUrl(draftThumbnail);
   if (!thumbnailUrl) {
-    return { block: null, text: isStorageId(thumbnail) ? null : thumbnail };
+    return { block: null, text: draftThumbnail };
   }
 
   const filename = getFilenameFromUrl(thumbnailUrl, null);
@@ -426,24 +417,22 @@ const ensurePageEditable = async (notion: Client, pageId: string) => {
 };
 
 const upsertSyncedContent = async ({
-  ctx,
   pageId,
   notion,
   idea,
   missingProperties,
 }: {
-  ctx: ActionCtx;
   pageId: string;
   notion: Client;
   idea: {
     description?: string | null;
     notes?: string | null;
-    thumbnail?: string | null;
+    draftThumbnail?: string | null;
     resources?: string[] | null;
   };
   missingProperties?: string[];
 }) => {
-  const thumbnailContent = await getThumbnailContent(ctx, notion, idea.thumbnail);
+  const thumbnailContent = getThumbnailContent(idea.draftThumbnail);
   const children = buildSyncedContentChildren(idea, missingProperties, {
     thumbnailBlock: thumbnailContent.block,
     thumbnailText: thumbnailContent.text,
@@ -622,48 +611,45 @@ export const listDatabases = action({
       throw new Error("Notion is not connected.");
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: orgId,
-    });
-
-    const notion = createNotionClient(token);
-    let searchData = await notion.search({
-      filter: {
-        property: "object",
-        value: "data_source",
-      },
-      sort: {
-        direction: "descending",
-        timestamp: "last_edited_time",
-      },
-    });
-
-    let results: SearchResponse["results"] = searchData.results ?? [];
-    if (results.length === 0) {
-      searchData = await notion.search({
+    return await withTokenRefresh(ctx, orgId, async (notion) => {
+      let searchData = await notion.search({
+        filter: {
+          property: "object",
+          value: "data_source",
+        },
         sort: {
           direction: "descending",
           timestamp: "last_edited_time",
         },
       });
-      results = searchData.results ?? [];
-    }
 
-    const safeResults: Array<Parameters<typeof isFullDataSource>[0]> = results ?? [];
-    const dataSources: Array<{ id: string; name: string }> = [];
+      let results: SearchResponse["results"] = searchData.results ?? [];
+      if (results.length === 0) {
+        searchData = await notion.search({
+          sort: {
+            direction: "descending",
+            timestamp: "last_edited_time",
+          },
+        });
+        results = searchData.results ?? [];
+      }
 
-    for (const item of safeResults) {
-      if (!isFullDataSource(item)) continue;
-      const name = getTitleText(item.title);
-      dataSources.push({ id: item.id, name: name || "Untitled data source" });
-    }
+      const safeResults: Array<Parameters<typeof isFullDataSource>[0]> = results ?? [];
+      const dataSources: Array<{ id: string; name: string }> = [];
 
-    const databases = dataSources
-      .filter((item) => item && typeof item === "object")
-      .map((item) => item)
-      .filter((item): item is { id: string; name: string } => Boolean(item?.id));
+      for (const item of safeResults) {
+        if (!isFullDataSource(item)) continue;
+        const name = getTitleText(item.title);
+        dataSources.push({ id: item.id, name: name || "Untitled data source" });
+      }
 
-    return { databases };
+      const databases = dataSources
+        .filter((item) => item && typeof item === "object")
+        .map((item) => item)
+        .filter((item): item is { id: string; name: string } => Boolean(item?.id));
+
+      return { databases };
+    });
   },
 });
 
@@ -687,34 +673,31 @@ export const getDataSourceSchema = action({
       throw new Error("Notion is not connected.");
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: orgId,
+    return await withTokenRefresh(ctx, orgId, async (notion) => {
+      const data = await notion.dataSources.retrieve({
+        data_source_id: args.dataSourceId,
+      });
+
+      const properties = data?.properties ?? {};
+      const entries = Object.entries(properties);
+
+      const getPropType = (prop: unknown) => (isRecord(prop) ? getString(prop.type) : undefined);
+      const getPropName = (prop: unknown) => (isRecord(prop) ? getString(prop.name) : undefined);
+
+      const titleProperty = entries.find(([, prop]) => getPropType(prop) === "title");
+      const statusProperty = entries.find(([, prop]) => getPropType(prop) === "status");
+      const selectProperty = entries.find(([, prop]) => getPropType(prop) === "select");
+      const descriptionProperty =
+        entries.find(([, prop]) => (getPropName(prop) || "").toLowerCase() === "description") ??
+        entries.find(([, prop]) => getPropType(prop) === "rich_text");
+
+      return {
+        titlePropertyName: titleProperty?.[0] ?? "Name",
+        statusPropertyName: (statusProperty ?? selectProperty)?.[0] ?? "Status",
+        statusPropertyType: statusProperty ? "status" : selectProperty ? "select" : "status",
+        descriptionPropertyName: descriptionProperty?.[0] ?? "Description",
+      };
     });
-
-    const notion = createNotionClient(token);
-    const data = await notion.dataSources.retrieve({
-      data_source_id: args.dataSourceId,
-    });
-
-    const properties = data?.properties ?? {};
-    const entries = Object.entries(properties);
-
-    const getPropType = (prop: unknown) => (isRecord(prop) ? getString(prop.type) : undefined);
-    const getPropName = (prop: unknown) => (isRecord(prop) ? getString(prop.name) : undefined);
-
-    const titleProperty = entries.find(([, prop]) => getPropType(prop) === "title");
-    const statusProperty = entries.find(([, prop]) => getPropType(prop) === "status");
-    const selectProperty = entries.find(([, prop]) => getPropType(prop) === "select");
-    const descriptionProperty =
-      entries.find(([, prop]) => (getPropName(prop) || "").toLowerCase() === "description") ??
-      entries.find(([, prop]) => getPropType(prop) === "rich_text");
-
-    return {
-      titlePropertyName: titleProperty?.[0] ?? "Name",
-      statusPropertyName: (statusProperty ?? selectProperty)?.[0] ?? "Status",
-      statusPropertyType: statusProperty ? "status" : selectProperty ? "select" : "status",
-      descriptionPropertyName: descriptionProperty?.[0] ?? "Description",
-    };
   },
 });
 
@@ -970,91 +953,92 @@ export const syncToNotion = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: idea.organizationId,
-    });
-    const notion = createNotionClient(token);
-    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
+    const databaseId = connection.databaseId;
+    const data = await withTokenRefresh(ctx, idea.organizationId, async (notion) => {
+      const propertyNames = await fetchDataSourceProperties(notion, databaseId);
 
-    const titlePropertyName = connection.titlePropertyName || "Name";
-    const statusPropertyName = connection.statusPropertyName || "Status";
-    const statusPropertyType = connection.statusPropertyType || "status";
-    const descriptionPropertyName = connection.descriptionPropertyName || "Description";
-    const titleEntry = getTitlePropertyEntry(propertyNames, titlePropertyName);
-    const statusEntry = getPropertyEntry(propertyNames, statusPropertyName);
-    const descriptionEntry = getPropertyEntry(propertyNames, descriptionPropertyName);
-    const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
-    const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
-    const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
-    const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
-    const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
-    const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
-    const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
-    const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
-    const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
-    const statusValue = trim(
-      deriveStatusForNotion(idea.status, idea.column) ?? connection.targetSection,
-    );
+      const titlePropertyName = connection.titlePropertyName || "Name";
+      const statusPropertyName = connection.statusPropertyName || "Status";
+      const statusPropertyType = connection.statusPropertyType || "status";
+      const descriptionPropertyName = connection.descriptionPropertyName || "Description";
+      const titleEntry = getTitlePropertyEntry(propertyNames, titlePropertyName);
+      const statusEntry = getPropertyEntry(propertyNames, statusPropertyName);
+      const descriptionEntry = getPropertyEntry(propertyNames, descriptionPropertyName);
+      const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
+      const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
+      const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
+      const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
+      const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
+      const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
+      const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
+      const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
+      const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
+      const statusValue = trim(
+        deriveStatusForNotion(idea.status, idea.column) ?? connection.targetSection,
+      );
 
-    const properties: CreatePageParameters["properties"] = {};
-    if (titleEntry) {
-      properties[titleEntry.name] = { title: [{ text: { content: idea.title } }] };
-    }
-
-    if (statusEntry) {
-      addStatusProperty(properties, statusEntry, statusPropertyType, statusValue);
-    }
-
-    if (descriptionEntry) {
-      const descriptionValue = trim(idea.description);
-      properties[descriptionEntry.name] = {
-        rich_text: descriptionValue ? [{ text: { content: descriptionValue } }] : [],
-      };
-    }
-
-    if (ownerEntry) addSelectProperty(properties, ownerEntry, trim(idea.owner));
-    if (channelEntry) addSelectProperty(properties, channelEntry, trim(idea.channel));
-    if (labelEntry) {
-      if (labelEntry.type === "multi_select") {
-        addMultiSelectProperty(properties, labelEntry, idea.label ?? []);
-      } else {
-        addSelectProperty(properties, labelEntry, trim(idea.label?.[0]));
+      const properties: CreatePageParameters["properties"] = {};
+      if (titleEntry) {
+        properties[titleEntry.name] = { title: [{ text: { content: idea.title } }] };
       }
-    }
-    if (potentialEntry) addNumberProperty(properties, potentialEntry.name, idea.potential);
-    if (thumbnailEntry) addCheckboxProperty(properties, thumbnailEntry.name, idea.thumbnailReady);
-    if (unsponsoredEntry) addCheckboxProperty(properties, unsponsoredEntry.name, idea.unsponsored);
-    if (vodEntry) addDateProperty(properties, vodEntry.name, trim(idea.vodRecordingDate));
-    if (releaseEntry) addDateProperty(properties, releaseEntry.name, trim(idea.releaseDate));
-    if (notesEntry) {
-      const notesValue = trim(idea.notes);
-      properties[notesEntry.name] = {
-        rich_text: notesValue ? [{ text: { content: notesValue } }] : [],
-      };
-    }
 
-    const missingProperties: string[] = [];
-    if (!ownerEntry && idea.owner) missingProperties.push(`Owner: ${idea.owner}`);
-    if (!channelEntry && idea.channel) missingProperties.push(`Channel: ${idea.channel}`);
-    if (!labelEntry && idea.label?.length)
-      missingProperties.push(`Label: ${idea.label.join(", ")}`);
-    if (!potentialEntry && idea.potential !== undefined)
-      missingProperties.push(`Potential: ${idea.potential}`);
-    if (!thumbnailEntry && idea.thumbnailReady !== undefined)
-      missingProperties.push(`Thumbnail Ready: ${idea.thumbnailReady ? "Yes" : "No"}`);
-    if (!unsponsoredEntry && idea.unsponsored !== undefined)
-      missingProperties.push(`Unsponsored: ${idea.unsponsored ? "Yes" : "No"}`);
-    if (!vodEntry && idea.vodRecordingDate)
-      missingProperties.push(`VOD Recording Date: ${idea.vodRecordingDate}`);
-    if (!releaseEntry && idea.releaseDate)
-      missingProperties.push(`Release Date: ${idea.releaseDate}`);
+      if (statusEntry) {
+        addStatusProperty(properties, statusEntry, statusPropertyType, statusValue);
+      }
 
-    const data = await notion.pages.create({
-      parent: { type: "data_source_id", data_source_id: connection.databaseId },
-      properties,
+      if (descriptionEntry) {
+        const descriptionValue = trim(idea.description);
+        properties[descriptionEntry.name] = {
+          rich_text: descriptionValue ? [{ text: { content: descriptionValue } }] : [],
+        };
+      }
+
+      if (ownerEntry) addSelectProperty(properties, ownerEntry, trim(idea.owner));
+      if (channelEntry) addSelectProperty(properties, channelEntry, trim(idea.channel));
+      if (labelEntry) {
+        if (labelEntry.type === "multi_select") {
+          addMultiSelectProperty(properties, labelEntry, idea.label ?? []);
+        } else {
+          addSelectProperty(properties, labelEntry, trim(idea.label?.[0]));
+        }
+      }
+      if (potentialEntry) addNumberProperty(properties, potentialEntry.name, idea.potential);
+      if (thumbnailEntry) addCheckboxProperty(properties, thumbnailEntry.name, idea.thumbnailReady);
+      if (unsponsoredEntry)
+        addCheckboxProperty(properties, unsponsoredEntry.name, idea.unsponsored);
+      if (vodEntry) addDateProperty(properties, vodEntry.name, trim(idea.vodRecordingDate));
+      if (releaseEntry) addDateProperty(properties, releaseEntry.name, trim(idea.releaseDate));
+      if (notesEntry) {
+        const notesValue = trim(idea.notes);
+        properties[notesEntry.name] = {
+          rich_text: notesValue ? [{ text: { content: notesValue } }] : [],
+        };
+      }
+
+      const missingProperties: string[] = [];
+      if (!ownerEntry && idea.owner) missingProperties.push(`Owner: ${idea.owner}`);
+      if (!channelEntry && idea.channel) missingProperties.push(`Channel: ${idea.channel}`);
+      if (!labelEntry && idea.label?.length)
+        missingProperties.push(`Label: ${idea.label.join(", ")}`);
+      if (!potentialEntry && idea.potential !== undefined)
+        missingProperties.push(`Potential: ${idea.potential}`);
+      if (!thumbnailEntry && idea.thumbnailReady !== undefined)
+        missingProperties.push(`Thumbnail Ready: ${idea.thumbnailReady ? "Yes" : "No"}`);
+      if (!unsponsoredEntry && idea.unsponsored !== undefined)
+        missingProperties.push(`Unsponsored: ${idea.unsponsored ? "Yes" : "No"}`);
+      if (!vodEntry && idea.vodRecordingDate)
+        missingProperties.push(`VOD Recording Date: ${idea.vodRecordingDate}`);
+      if (!releaseEntry && idea.releaseDate)
+        missingProperties.push(`Release Date: ${idea.releaseDate}`);
+
+      const result = await notion.pages.create({
+        parent: { type: "data_source_id", data_source_id: databaseId },
+        properties,
+      });
+
+      await upsertSyncedContent({ pageId: result.id, notion, idea, missingProperties });
+      return result;
     });
-
-    await upsertSyncedContent({ ctx, pageId: data.id, notion, idea, missingProperties });
 
     await ctx.runMutation(internal.notion.mutations.updateIdeaSynced, {
       ideaId: args.ideaId,
@@ -1065,7 +1049,7 @@ export const syncToNotion = internalAction({
 
 export const syncStatusesFromNotion = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<{ updated: number }> => {
     const identity = await requireAuth(ctx);
 
     const orgId = identity.org_id;
@@ -1078,50 +1062,51 @@ export const syncStatusesFromNotion = action({
 
     if (!connection.accessToken || !connection.databaseId) return { updated: 0 };
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
     const ideas = await ctx.runQuery(internal.notion.queries.listIdeasWithNotion, {
       organizationId: orgId,
     });
 
-    let updated = 0;
+    const databaseId = connection.databaseId;
+    const updated = await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      const propertyNames = await fetchDataSourceProperties(notion, databaseId);
+      let count = 0;
 
-    for (let i = 0; i < ideas.length; i += BATCH_SIZE) {
-      const batch = ideas.slice(i, i + BATCH_SIZE);
-      const ideasWithNotion = batch.filter(
-        (idea): idea is Doc<"ideas"> & { notionPageId: string } => Boolean(idea.notionPageId),
-      );
-      const results = await Promise.all(
-        ideasWithNotion.map(async (idea) => {
-          try {
-            const data = await notion.pages.retrieve({ page_id: idea.notionPageId });
-            return { idea, data };
-          } catch {
-            return null;
-          }
-        }),
-      );
+      for (let i = 0; i < ideas.length; i += BATCH_SIZE) {
+        const batch = ideas.slice(i, i + BATCH_SIZE);
+        const ideasWithNotion = batch.filter(
+          (idea): idea is Doc<"ideas"> & { notionPageId: string } => Boolean(idea.notionPageId),
+        );
+        const results = await Promise.all(
+          ideasWithNotion.map(async (idea) => {
+            try {
+              const data = await notion.pages.retrieve({ page_id: idea.notionPageId });
+              return { idea, data };
+            } catch {
+              return null;
+            }
+          }),
+        );
 
-      for (const result of results) {
-        if (!result) continue;
+        for (const result of results) {
+          if (!result) continue;
 
-        const { idea, data } = result;
-        const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
-        const payload = omitUndefinedUpdates({
-          ...updates,
-          label: updates.label ?? undefined,
-        });
-        if (Object.keys(payload).length === 0) continue;
-        await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
-          ideaId: idea._id,
-          ...payload,
-        });
-        updated += 1;
+          const { idea, data } = result;
+          const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
+          const payload = omitUndefinedUpdates({
+            ...updates,
+            label: updates.label ?? undefined,
+          });
+          if (Object.keys(payload).length === 0) continue;
+          await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
+            ideaId: idea._id,
+            ...payload,
+          });
+          count += 1;
+        }
       }
-    }
+
+      return count;
+    });
 
     return { updated };
   },
@@ -1160,30 +1145,30 @@ export const syncIdeaFromNotionPage = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    let data: GetPageResponse;
-    try {
-      data = await notion.pages.retrieve({ page_id: args.notionPageId });
-    } catch {
-      return;
-    }
+    const databaseId = connection.databaseId;
+    const ideaId = idea._id;
+    await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      let data: GetPageResponse;
+      try {
+        data = await notion.pages.retrieve({ page_id: args.notionPageId });
+      } catch {
+        return;
+      }
 
-    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
+      const propertyNames = await fetchDataSourceProperties(notion, databaseId);
 
-    const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
-    const payload = omitUndefinedUpdates({
-      ...updates,
-      label: updates.label ?? undefined,
-    });
-    if (Object.keys(payload).length === 0) {
-      return;
-    }
-    await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
-      ideaId: idea._id,
-      ...payload,
+      const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
+      const payload = omitUndefinedUpdates({
+        ...updates,
+        label: updates.label ?? undefined,
+      });
+      if (Object.keys(payload).length === 0) {
+        return;
+      }
+      await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
+        ideaId,
+        ...payload,
+      });
     });
   },
 });
@@ -1209,19 +1194,17 @@ export const deleteFromNotion = internalAction({
     });
     if (!connection?.accessToken) return;
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    try {
-      await notion.pages.update({ page_id: notionPageId, archived: true });
-    } catch {
-      return;
-    }
+    await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      try {
+        await notion.pages.update({ page_id: notionPageId, archived: true });
+      } catch {
+        return;
+      }
 
-    if (idea) {
-      await ctx.runMutation(internal.notion.mutations.clearIdeaSynced, { ideaId: args.ideaId });
-    }
+      if (idea) {
+        await ctx.runMutation(internal.notion.mutations.clearIdeaSynced, { ideaId: args.ideaId });
+      }
+    });
   },
 });
 
@@ -1256,41 +1239,40 @@ export const createIdeaFromNotionPage = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    let data: GetPageResponse;
-    try {
-      data = await notion.pages.retrieve({ page_id: args.notionPageId });
-    } catch {
-      return;
-    }
+    const databaseId = args.databaseId;
+    await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      let data: GetPageResponse;
+      try {
+        data = await notion.pages.retrieve({ page_id: args.notionPageId });
+      } catch {
+        return;
+      }
 
-    const propertyNames = await fetchDataSourceProperties(notion, args.databaseId);
-    const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
+      const propertyNames = await fetchDataSourceProperties(notion, databaseId);
+      const { updates } = getIdeaUpdatesFromNotion({ data, propertyNames, connection });
 
-    const title = updates.title || "Untitled";
-    const column = updates.column || "Concept";
+      const title = updates.title || "Untitled";
+      const column = updates.column || "Concept";
 
-    await ctx.runMutation(internal.notion.mutations.createIdeaFromWebhook, {
-      organizationId: connection.organizationId,
-      userId: connection.createdBy,
-      notionPageId: args.notionPageId,
-      title,
-      description: updates.description,
-      notes: updates.notes,
-      status: updates.status as Doc<"ideas">["status"],
-      column,
-      owner: updates.owner as Doc<"ideas">["owner"],
-      channel: updates.channel as Doc<"ideas">["channel"],
-      label: updates.label as Doc<"ideas">["label"],
-      adReadTracker: updates.adReadTracker as Doc<"ideas">["adReadTracker"],
-      potential: updates.potential,
-      thumbnailReady: updates.thumbnailReady,
-      unsponsored: updates.unsponsored,
-      vodRecordingDate: updates.vodRecordingDate,
-      releaseDate: updates.releaseDate,
+      await ctx.runMutation(internal.notion.mutations.createIdeaFromWebhook, {
+        organizationId: connection.organizationId,
+        userId: connection.createdBy,
+        notionPageId: args.notionPageId,
+        title,
+        description: updates.description,
+        notes: updates.notes,
+        status: updates.status as Doc<"ideas">["status"],
+        column,
+        owner: updates.owner as Doc<"ideas">["owner"],
+        channel: updates.channel as Doc<"ideas">["channel"],
+        label: updates.label as Doc<"ideas">["label"],
+        adReadTracker: updates.adReadTracker as Doc<"ideas">["adReadTracker"],
+        potential: updates.potential,
+        thumbnailReady: updates.thumbnailReady,
+        unsponsored: updates.unsponsored,
+        vodRecordingDate: updates.vodRecordingDate,
+        releaseDate: updates.releaseDate,
+      });
     });
   },
 });
@@ -1326,28 +1308,26 @@ export const handleNotionPageDeleted = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    try {
-      const page = await notion.pages.retrieve({ page_id: args.notionPageId });
-      if ("archived" in page && page.archived === true) {
+    await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      try {
+        const page = await notion.pages.retrieve({ page_id: args.notionPageId });
+        if ("archived" in page && page.archived === true) {
+          await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
+            ideaId: args.ideaId,
+          });
+        } else {
+          await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
+            notionPageId: args.notionPageId,
+            ideaId: args.ideaId,
+            organizationId: idea.organizationId,
+          });
+        }
+      } catch {
         await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
           ideaId: args.ideaId,
         });
-      } else {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.syncIdeaFromNotionPage, {
-          notionPageId: args.notionPageId,
-          ideaId: args.ideaId,
-          organizationId: idea.organizationId,
-        });
       }
-    } catch {
-      await ctx.runMutation(internal.notion.mutations.archiveIdeaFromNotion, {
-        ideaId: args.ideaId,
-      });
-    }
+    });
   },
 });
 
@@ -1370,76 +1350,75 @@ export const syncFromDataSource = internalAction({
       return;
     }
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    const propertyNames = await fetchDataSourceProperties(notion, args.dataSourceId);
+    const dataSourceId = args.dataSourceId;
+    await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      const propertyNames = await fetchDataSourceProperties(notion, dataSourceId);
 
-    let cursor: string | undefined;
-    let hasMore = true;
+      let cursor: string | undefined;
+      let hasMore = true;
 
-    while (hasMore) {
-      const response = await notion.dataSources.query({
-        data_source_id: args.dataSourceId,
-        start_cursor: cursor,
-        page_size: 100,
-      });
-
-      for (const page of response.results) {
-        if (!("properties" in page)) continue;
-
-        const pageId = page.id;
-        const existingIdea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
-          notionPageId: pageId,
+      while (hasMore) {
+        const response = await notion.dataSources.query({
+          data_source_id: dataSourceId,
+          start_cursor: cursor,
+          page_size: 100,
         });
 
-        const { updates } = getIdeaUpdatesFromNotion({
-          data: page as GetPageResponse,
-          propertyNames,
-          connection,
-        });
+        for (const page of response.results) {
+          if (!("properties" in page)) continue;
 
-        if (existingIdea) {
-          const payload = omitUndefinedUpdates({
-            ...updates,
-            label: updates.label ?? undefined,
+          const pageId = page.id;
+          const existingIdea = await ctx.runQuery(internal.notion.queries.getIdeaByNotionPageId, {
+            notionPageId: pageId,
           });
-          if (Object.keys(payload).length > 0) {
-            await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
-              ideaId: existingIdea._id,
-              ...payload,
+
+          const { updates } = getIdeaUpdatesFromNotion({
+            data: page as GetPageResponse,
+            propertyNames,
+            connection,
+          });
+
+          if (existingIdea) {
+            const payload = omitUndefinedUpdates({
+              ...updates,
+              label: updates.label ?? undefined,
+            });
+            if (Object.keys(payload).length > 0) {
+              await ctx.runMutation(internal.notion.mutations.updateIdeaFromNotion, {
+                ideaId: existingIdea._id,
+                ...payload,
+              });
+            }
+          } else {
+            const title = updates.title || "Untitled";
+            const column = updates.column || "Concept";
+
+            await ctx.runMutation(internal.notion.mutations.createIdeaFromWebhook, {
+              organizationId: connection.organizationId,
+              userId: connection.createdBy,
+              notionPageId: pageId,
+              title,
+              description: updates.description,
+              notes: updates.notes,
+              status: updates.status as Doc<"ideas">["status"],
+              column,
+              owner: updates.owner as Doc<"ideas">["owner"],
+              channel: updates.channel as Doc<"ideas">["channel"],
+              label: updates.label as Doc<"ideas">["label"],
+              adReadTracker: updates.adReadTracker as Doc<"ideas">["adReadTracker"],
+              potential: updates.potential,
+              thumbnailReady: updates.thumbnailReady,
+              unsponsored: updates.unsponsored,
+              vodRecordingDate: updates.vodRecordingDate,
+              releaseDate: updates.releaseDate,
             });
           }
-        } else {
-          const title = updates.title || "Untitled";
-          const column = updates.column || "Concept";
-
-          await ctx.runMutation(internal.notion.mutations.createIdeaFromWebhook, {
-            organizationId: connection.organizationId,
-            userId: connection.createdBy,
-            notionPageId: pageId,
-            title,
-            description: updates.description,
-            notes: updates.notes,
-            status: updates.status as Doc<"ideas">["status"],
-            column,
-            owner: updates.owner as Doc<"ideas">["owner"],
-            channel: updates.channel as Doc<"ideas">["channel"],
-            label: updates.label as Doc<"ideas">["label"],
-            adReadTracker: updates.adReadTracker as Doc<"ideas">["adReadTracker"],
-            potential: updates.potential,
-            thumbnailReady: updates.thumbnailReady,
-            unsponsored: updates.unsponsored,
-            vodRecordingDate: updates.vodRecordingDate,
-            releaseDate: updates.releaseDate,
-          });
         }
-      }
 
-      hasMore = response.has_more;
-      cursor = response.next_cursor ?? undefined;
-    }
+        hasMore = response.has_more;
+        cursor = response.next_cursor ?? undefined;
+      }
+    });
   },
 });
 
@@ -1460,118 +1439,118 @@ export const updateInNotion = internalAction({
     });
     if (!connection?.accessToken || !connection.databaseId) return;
 
-    const token = await ctx.runAction(internal.notion.actions.getValidToken, {
-      organizationId: connection.organizationId,
-    });
-    const notion = createNotionClient(token);
-    const propertyNames = await fetchDataSourceProperties(notion, connection.databaseId);
+    const databaseId = connection.databaseId;
+    const notionPageId = idea.notionPageId;
+    await withTokenRefresh(ctx, connection.organizationId, async (notion) => {
+      const propertyNames = await fetchDataSourceProperties(notion, databaseId);
 
-    const titlePropertyName = connection.titlePropertyName || "Name";
-    const statusPropertyName = connection.statusPropertyName || "Status";
-    const statusPropertyType = connection.statusPropertyType || "status";
-    const descriptionPropertyName = connection.descriptionPropertyName || "Description";
-    const titleEntry = getTitlePropertyEntry(propertyNames, titlePropertyName);
-    const statusEntry = getPropertyEntry(propertyNames, statusPropertyName);
-    const descriptionEntry = getPropertyEntry(propertyNames, descriptionPropertyName);
-    const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
-    const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
-    const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
-    const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
-    const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
-    const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
-    const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
-    const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
-    const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
-    const statusValue = trim(
-      deriveStatusForNotion(idea.status, idea.column) ?? connection.targetSection,
-    );
+      const titlePropertyName = connection.titlePropertyName || "Name";
+      const statusPropertyName = connection.statusPropertyName || "Status";
+      const statusPropertyType = connection.statusPropertyType || "status";
+      const descriptionPropertyName = connection.descriptionPropertyName || "Description";
+      const titleEntry = getTitlePropertyEntry(propertyNames, titlePropertyName);
+      const statusEntry = getPropertyEntry(propertyNames, statusPropertyName);
+      const descriptionEntry = getPropertyEntry(propertyNames, descriptionPropertyName);
+      const ownerEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.owner);
+      const channelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.channel);
+      const labelEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.label);
+      const potentialEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.potential);
+      const thumbnailEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.thumbnailReady);
+      const unsponsoredEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.unsponsored);
+      const vodEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.vodRecordingDate);
+      const releaseEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.releaseDate);
+      const notesEntry = getPropertyEntry(propertyNames, NOTION_PROPERTY_NAMES.notes);
+      const statusValue = trim(
+        deriveStatusForNotion(idea.status, idea.column) ?? connection.targetSection,
+      );
 
-    const properties: UpdatePageParameters["properties"] = {};
-    if (titleEntry) {
-      properties[titleEntry.name] = { title: [{ text: { content: idea.title } }] };
-    }
-
-    if (statusEntry) {
-      addStatusProperty(properties, statusEntry, statusPropertyType, statusValue);
-    }
-
-    if (descriptionEntry) {
-      const descriptionValue = trim(idea.description);
-      properties[descriptionEntry.name] = {
-        rich_text: descriptionValue ? [{ text: { content: descriptionValue } }] : [],
-      };
-    }
-
-    if (ownerEntry) addSelectProperty(properties, ownerEntry, trim(idea.owner));
-    if (channelEntry) addSelectProperty(properties, channelEntry, trim(idea.channel));
-    if (labelEntry) {
-      if (labelEntry.type === "multi_select") {
-        addMultiSelectProperty(properties, labelEntry, idea.label ?? []);
-      } else {
-        addSelectProperty(properties, labelEntry, trim(idea.label?.[0]));
+      const properties: UpdatePageParameters["properties"] = {};
+      if (titleEntry) {
+        properties[titleEntry.name] = { title: [{ text: { content: idea.title } }] };
       }
-    }
-    if (potentialEntry) addNumberProperty(properties, potentialEntry.name, idea.potential);
-    if (thumbnailEntry) addCheckboxProperty(properties, thumbnailEntry.name, idea.thumbnailReady);
-    if (unsponsoredEntry) addCheckboxProperty(properties, unsponsoredEntry.name, idea.unsponsored);
-    if (vodEntry) addDateProperty(properties, vodEntry.name, trim(idea.vodRecordingDate));
-    if (releaseEntry) addDateProperty(properties, releaseEntry.name, trim(idea.releaseDate));
-    if (notesEntry) {
-      const notesValue = trim(idea.notes);
-      properties[notesEntry.name] = {
-        rich_text: notesValue ? [{ text: { content: notesValue } }] : [],
-      };
-    }
 
-    const missingProperties: string[] = [];
-    if (!ownerEntry && idea.owner) missingProperties.push(`Owner: ${idea.owner}`);
-    if (!channelEntry && idea.channel) missingProperties.push(`Channel: ${idea.channel}`);
-    if (!labelEntry && idea.label?.length)
-      missingProperties.push(`Label: ${idea.label.join(", ")}`);
-    if (!potentialEntry && idea.potential !== undefined)
-      missingProperties.push(`Potential: ${idea.potential}`);
-    if (!thumbnailEntry && idea.thumbnailReady !== undefined)
-      missingProperties.push(`Thumbnail Ready: ${idea.thumbnailReady ? "Yes" : "No"}`);
-    if (!unsponsoredEntry && idea.unsponsored !== undefined)
-      missingProperties.push(`Unsponsored: ${idea.unsponsored ? "Yes" : "No"}`);
-    if (!vodEntry && idea.vodRecordingDate)
-      missingProperties.push(`VOD Recording Date: ${idea.vodRecordingDate}`);
-    if (!releaseEntry && idea.releaseDate)
-      missingProperties.push(`Release Date: ${idea.releaseDate}`);
+      if (statusEntry) {
+        addStatusProperty(properties, statusEntry, statusPropertyType, statusValue);
+      }
 
-    try {
-      await ensurePageEditable(notion, idea.notionPageId);
-      await notion.pages.update({ page_id: idea.notionPageId, properties });
-    } catch (error) {
-      if (
-        error instanceof APIResponseError &&
-        error.code === "validation_error" &&
-        error.message?.toLowerCase().includes("archived")
-      ) {
-        try {
-          await notion.pages.update({ page_id: idea.notionPageId, archived: false });
-          await notion.pages.update({ page_id: idea.notionPageId, properties });
-        } catch {
+      if (descriptionEntry) {
+        const descriptionValue = trim(idea.description);
+        properties[descriptionEntry.name] = {
+          rich_text: descriptionValue ? [{ text: { content: descriptionValue } }] : [],
+        };
+      }
+
+      if (ownerEntry) addSelectProperty(properties, ownerEntry, trim(idea.owner));
+      if (channelEntry) addSelectProperty(properties, channelEntry, trim(idea.channel));
+      if (labelEntry) {
+        if (labelEntry.type === "multi_select") {
+          addMultiSelectProperty(properties, labelEntry, idea.label ?? []);
+        } else {
+          addSelectProperty(properties, labelEntry, trim(idea.label?.[0]));
+        }
+      }
+      if (potentialEntry) addNumberProperty(properties, potentialEntry.name, idea.potential);
+      if (thumbnailEntry) addCheckboxProperty(properties, thumbnailEntry.name, idea.thumbnailReady);
+      if (unsponsoredEntry)
+        addCheckboxProperty(properties, unsponsoredEntry.name, idea.unsponsored);
+      if (vodEntry) addDateProperty(properties, vodEntry.name, trim(idea.vodRecordingDate));
+      if (releaseEntry) addDateProperty(properties, releaseEntry.name, trim(idea.releaseDate));
+      if (notesEntry) {
+        const notesValue = trim(idea.notes);
+        properties[notesEntry.name] = {
+          rich_text: notesValue ? [{ text: { content: notesValue } }] : [],
+        };
+      }
+
+      const missingProperties: string[] = [];
+      if (!ownerEntry && idea.owner) missingProperties.push(`Owner: ${idea.owner}`);
+      if (!channelEntry && idea.channel) missingProperties.push(`Channel: ${idea.channel}`);
+      if (!labelEntry && idea.label?.length)
+        missingProperties.push(`Label: ${idea.label.join(", ")}`);
+      if (!potentialEntry && idea.potential !== undefined)
+        missingProperties.push(`Potential: ${idea.potential}`);
+      if (!thumbnailEntry && idea.thumbnailReady !== undefined)
+        missingProperties.push(`Thumbnail Ready: ${idea.thumbnailReady ? "Yes" : "No"}`);
+      if (!unsponsoredEntry && idea.unsponsored !== undefined)
+        missingProperties.push(`Unsponsored: ${idea.unsponsored ? "Yes" : "No"}`);
+      if (!vodEntry && idea.vodRecordingDate)
+        missingProperties.push(`VOD Recording Date: ${idea.vodRecordingDate}`);
+      if (!releaseEntry && idea.releaseDate)
+        missingProperties.push(`Release Date: ${idea.releaseDate}`);
+
+      try {
+        await ensurePageEditable(notion, notionPageId);
+        await notion.pages.update({ page_id: notionPageId, properties });
+      } catch (error) {
+        if (
+          error instanceof APIResponseError &&
+          error.code === "validation_error" &&
+          error.message?.toLowerCase().includes("archived")
+        ) {
+          try {
+            await notion.pages.update({ page_id: notionPageId, archived: false });
+            await notion.pages.update({ page_id: notionPageId, properties });
+          } catch {
+            return;
+          }
+        } else {
           return;
         }
-      } else {
-        return;
       }
-    }
 
-    if (args.syncContent !== false) {
-      await upsertSyncedContent({
-        ctx,
-        pageId: idea.notionPageId,
-        notion,
-        idea,
-        missingProperties,
+      if (args.syncContent !== false) {
+        await upsertSyncedContent({
+          pageId: notionPageId,
+          notion,
+          idea,
+          missingProperties,
+        });
+      }
+
+      await ctx.runMutation(internal.notion.mutations.updateIdeaSynced, {
+        ideaId: args.ideaId,
+        notionPageId,
       });
-    }
-
-    await ctx.runMutation(internal.notion.mutations.updateIdeaSynced, {
-      ideaId: args.ideaId,
-      notionPageId: idea.notionPageId,
     });
   },
 });

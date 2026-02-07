@@ -10,11 +10,7 @@ import {
   UserIcon,
   YoutubeLogoIcon,
 } from "@phosphor-icons/react";
-import { api } from "convex/_generated/api";
-import type { Id } from "convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { format, isValid, parseISO } from "date-fns";
-import { isConvexStorageId } from "@/lib/storage";
 
 interface IdeaPreviewProps {
   title: string;
@@ -42,15 +38,8 @@ const formatDateValue = (value: string) => {
   return isValid(parsed) ? format(parsed, "MMM d") : null;
 };
 
-function ThumbnailImage({ thumbnail }: { thumbnail: string }) {
-  const storageUrl = useQuery(
-    api.utils.files.getUrl,
-    isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
-  );
-  const imageUrl = isConvexStorageId(thumbnail) ? storageUrl : thumbnail;
-
-  if (!imageUrl) return null;
-  return <img src={imageUrl} alt="Video thumbnail" className="w-full h-full object-cover" />;
+function ThumbnailImage({ src }: { src: string }) {
+  return <img src={src} alt="Video thumbnail" className="w-full h-full object-cover" />;
 }
 
 function Tag({
@@ -148,7 +137,7 @@ export function IdeaPreview({
           thumbnailPreview ? (
             <img src={thumbnailPreview} alt="Thumbnail" className="w-full h-full object-cover" />
           ) : (
-            <ThumbnailImage thumbnail={thumbnail} />
+            <ThumbnailImage src={thumbnail} />
           )
         ) : (
           <div className="w-full h-full flex items-center justify-center">

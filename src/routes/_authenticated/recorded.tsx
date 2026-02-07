@@ -12,11 +12,6 @@ import { TopNav } from "@/components/TopNav";
 import { createIdeaDraftFromIdea, editIdeaDraftAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/_authenticated/recorded")({
-  loader: async ({ context }) => {
-    if (typeof window === "undefined") {
-      await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.listRecorded, {}));
-    }
-  },
   component: RecordedIdeasPage,
 });
 

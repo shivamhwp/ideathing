@@ -3,10 +3,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { StarIcon, TrashIcon } from "@phosphor-icons/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useSetAtom } from "jotai";
 import { toast } from "sonner";
-import { isConvexStorageId } from "@/lib/storage";
 import { editIdeaIdAtom, editIdeaOpenAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 import type { Idea } from "./KanbanBoard";
@@ -20,19 +19,10 @@ interface IdeaCardProps {
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
 }
 
-function ThumbnailImage({ thumbnail, alt }: { thumbnail: string; alt: string }) {
-  const storageUrl = useQuery(
-    api.utils.files.getUrl,
-    isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
-  );
-
-  const imageUrl = isConvexStorageId(thumbnail) ? storageUrl : thumbnail;
-
-  if (!imageUrl) return null;
-
+function ThumbnailImage({ src, alt }: { src: string; alt: string }) {
   return (
     <img
-      src={imageUrl}
+      src={src}
       alt={alt}
       loading="lazy"
       className="absolute inset-0 w-full h-full object-cover"
@@ -140,8 +130,8 @@ export function IdeaCard({
               aria-label="Select idea"
             />
           </div>
-          {idea.thumbnail ? (
-            <ThumbnailImage thumbnail={idea.thumbnail} alt={idea.title} />
+          {idea.draftThumbnail ? (
+            <ThumbnailImage src={idea.draftThumbnail} alt={idea.title} />
           ) : (
             <div className="absolute inset-0 bg-muted flex items-center justify-center">
               <span className="text-xs text-muted-foreground">No thumbnail</span>

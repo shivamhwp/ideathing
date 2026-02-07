@@ -1,4 +1,5 @@
 import type { Id } from "convex/_generated/dataModel";
+import type { WritableAtom } from "jotai";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
@@ -22,7 +23,7 @@ export interface IdeaDraft {
   title: string;
   description: string;
   notes: string;
-  thumbnail: string;
+  draftThumbnail: string;
   thumbnailReady: boolean;
   resources: string[];
 
@@ -42,7 +43,7 @@ export type IdeaDraftSource = {
   title: string;
   description?: string;
   notes?: string;
-  thumbnail?: string | null;
+  draftThumbnail?: string | null;
   thumbnailReady?: boolean;
   resources?: string[];
 
@@ -62,7 +63,7 @@ export const defaultIdeaDraft: IdeaDraft = {
   title: "",
   description: "",
   notes: "",
-  thumbnail: "",
+  draftThumbnail: "",
   thumbnailReady: false,
   resources: [""],
 
@@ -88,67 +89,37 @@ export const editIdeaIdAtom = atom<Id<"ideas"> | null>(null);
 export const editIdeaOpenAtom = atom(false);
 export const editIdeaIsEditingAtom = atom(false);
 
-type DraftKey = keyof IdeaDraft;
-const createDraftFieldAtom = <K extends DraftKey>(
+type FieldAtoms = {
+  [K in keyof IdeaDraft]-?: WritableAtom<IdeaDraft[K], [IdeaDraft[K]], void>;
+};
+
+const buildFieldAtoms = (
   baseAtom: typeof newIdeaDraftAtom | typeof editIdeaDraftAtom,
-  key: K,
-) =>
-  atom(
-    (get) => get(baseAtom)[key],
-    (get, set, value: IdeaDraft[K]) => {
-      const prev = get(baseAtom);
-      if (prev[key] === value) return;
-      set(baseAtom, { ...prev, [key]: value });
-    },
-  );
+): FieldAtoms => {
+  const keys = Object.keys(defaultIdeaDraft) as (keyof IdeaDraft)[];
+  const result = {} as Record<string, unknown>;
+  for (const key of keys) {
+    result[key] = atom(
+      (get) => get(baseAtom)[key] ?? defaultIdeaDraft[key],
+      (get, set, value: IdeaDraft[typeof key]) => {
+        const prev = get(baseAtom);
+        if (prev[key] === value) return;
+        set(baseAtom, { ...prev, [key]: value });
+      },
+    );
+  }
+  return result as FieldAtoms;
+};
 
-export const newIdeaTitleAtom = createDraftFieldAtom(newIdeaDraftAtom, "title");
-export const newIdeaDescriptionAtom = createDraftFieldAtom(newIdeaDraftAtom, "description");
-export const newIdeaNotesAtom = createDraftFieldAtom(newIdeaDraftAtom, "notes");
-export const newIdeaThumbnailAtom = createDraftFieldAtom(newIdeaDraftAtom, "thumbnail");
-export const newIdeaThumbnailReadyAtom = createDraftFieldAtom(newIdeaDraftAtom, "thumbnailReady");
-export const newIdeaResourcesAtom = createDraftFieldAtom(newIdeaDraftAtom, "resources");
-
-export const newIdeaVodRecordingDateAtom = createDraftFieldAtom(
-  newIdeaDraftAtom,
-  "vodRecordingDate",
-);
-export const newIdeaReleaseDateAtom = createDraftFieldAtom(newIdeaDraftAtom, "releaseDate");
-export const newIdeaOwnerAtom = createDraftFieldAtom(newIdeaDraftAtom, "owner");
-export const newIdeaChannelAtom = createDraftFieldAtom(newIdeaDraftAtom, "channel");
-export const newIdeaPotentialAtom = createDraftFieldAtom(newIdeaDraftAtom, "potential");
-export const newIdeaLabelAtom = createDraftFieldAtom(newIdeaDraftAtom, "label");
-export const newIdeaStatusAtom = createDraftFieldAtom(newIdeaDraftAtom, "status");
-export const newIdeaAdReadTrackerAtom = createDraftFieldAtom(newIdeaDraftAtom, "adReadTracker");
-export const newIdeaUnsponsoredAtom = createDraftFieldAtom(newIdeaDraftAtom, "unsponsored");
-
-export const editIdeaIdFieldAtom = createDraftFieldAtom(editIdeaDraftAtom, "ideaId");
-export const editIdeaTitleAtom = createDraftFieldAtom(editIdeaDraftAtom, "title");
-export const editIdeaDescriptionAtom = createDraftFieldAtom(editIdeaDraftAtom, "description");
-export const editIdeaNotesAtom = createDraftFieldAtom(editIdeaDraftAtom, "notes");
-export const editIdeaThumbnailAtom = createDraftFieldAtom(editIdeaDraftAtom, "thumbnail");
-export const editIdeaThumbnailReadyAtom = createDraftFieldAtom(editIdeaDraftAtom, "thumbnailReady");
-export const editIdeaResourcesAtom = createDraftFieldAtom(editIdeaDraftAtom, "resources");
-
-export const editIdeaVodRecordingDateAtom = createDraftFieldAtom(
-  editIdeaDraftAtom,
-  "vodRecordingDate",
-);
-export const editIdeaReleaseDateAtom = createDraftFieldAtom(editIdeaDraftAtom, "releaseDate");
-export const editIdeaOwnerAtom = createDraftFieldAtom(editIdeaDraftAtom, "owner");
-export const editIdeaChannelAtom = createDraftFieldAtom(editIdeaDraftAtom, "channel");
-export const editIdeaPotentialAtom = createDraftFieldAtom(editIdeaDraftAtom, "potential");
-export const editIdeaLabelAtom = createDraftFieldAtom(editIdeaDraftAtom, "label");
-export const editIdeaStatusAtom = createDraftFieldAtom(editIdeaDraftAtom, "status");
-export const editIdeaAdReadTrackerAtom = createDraftFieldAtom(editIdeaDraftAtom, "adReadTracker");
-export const editIdeaUnsponsoredAtom = createDraftFieldAtom(editIdeaDraftAtom, "unsponsored");
+export const newIdeaFields = buildFieldAtoms(newIdeaDraftAtom);
+export const editIdeaFields = buildFieldAtoms(editIdeaDraftAtom);
 
 export const createIdeaDraftFromIdea = (idea: IdeaDraftSource): IdeaDraft => ({
   ideaId: idea._id,
   title: idea.title ?? "",
   description: idea.description ?? "",
   notes: idea.notes ?? "",
-  thumbnail: idea.thumbnail ?? "",
+  draftThumbnail: idea.draftThumbnail ?? "",
   thumbnailReady: idea.thumbnailReady ?? false,
   resources: idea.resources?.length ? idea.resources : [""],
 

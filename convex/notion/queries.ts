@@ -133,18 +133,9 @@ export const getConnectionByDatabaseId = internalQuery({
     databaseId: v.string(),
   },
   handler: async (ctx, args) => {
-    const normalizedId = args.databaseId.replace(/-/g, "");
-
-    const connections = await ctx.db.query("notionConnections").collect();
-
-    for (const connection of connections) {
-      if (!connection.databaseId) continue;
-      const connDbId = connection.databaseId.replace(/-/g, "");
-      if (connDbId === normalizedId || connection.databaseId === args.databaseId) {
-        return connection;
-      }
-    }
-
-    return null;
+    return await ctx.db
+      .query("notionConnections")
+      .withIndex("by_database_id", (q) => q.eq("databaseId", args.databaseId))
+      .first();
   },
 });

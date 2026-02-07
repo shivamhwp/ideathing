@@ -8,25 +8,22 @@ if (!CONVEX_URL) {
 }
 
 const convex = new ConvexReactClient(CONVEX_URL);
-const convexQueryClient = new ConvexQueryClient(convex);
+export { convex };
 
-export { convex, convexQueryClient };
-
-let isConnected = false;
-
-export function getContext() {
+const createContext = () => {
+  const convexQueryClient = new ConvexQueryClient(convex);
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
+        staleTime: 2 * 60 * 1000,
         queryKeyHashFn: convexQueryClient.hashFn(),
         queryFn: convexQueryClient.queryFn(),
       },
     },
   });
 
-  if (!isConnected && typeof window !== "undefined") {
+  if (typeof window !== "undefined") {
     convexQueryClient.connect(queryClient);
-    isConnected = true;
   }
 
   return {
@@ -34,6 +31,16 @@ export function getContext() {
     convexQueryClient,
     convex,
   };
+};
+
+let browserContext: ReturnType<typeof createContext> | undefined;
+
+export function getContext() {
+  if (typeof window === "undefined") {
+    return createContext();
+  }
+  browserContext ??= createContext();
+  return browserContext;
 }
 
 export function Provider({

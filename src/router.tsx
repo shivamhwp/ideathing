@@ -16,6 +16,8 @@ export const getRouter = () => {
     },
 
     defaultPreload: "intent",
+    defaultPreloadStaleTime: 2 * 60 * 1000,
+    defaultStaleTime: 2 * 60 * 1000,
   });
 
   setupRouterSsrQueryIntegration({ router, queryClient: rqContext.queryClient });

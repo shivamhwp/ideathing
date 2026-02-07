@@ -16,6 +16,7 @@ function SettingsLayout() {
       <div className="flex items-center justify-between pt-10">
         <Link
           to="/"
+          preload="intent"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="w-4 h-4" />

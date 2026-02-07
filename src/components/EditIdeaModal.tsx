@@ -8,8 +8,6 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
-import type { Id } from "convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 import { format } from "date-fns";
 import { useAtom, useAtomValue } from "jotai";
 import type { ChangeEvent, RefObject } from "react";
@@ -39,27 +37,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { isConvexStorageId } from "@/lib/storage";
-import {
-  editIdeaAdReadTrackerAtom,
-  editIdeaChannelAtom,
-  editIdeaDescriptionAtom,
-  editIdeaIdFieldAtom,
-  editIdeaIsEditingAtom,
-  editIdeaLabelAtom,
-  editIdeaNotesAtom,
-  editIdeaOwnerAtom,
-  editIdeaPotentialAtom,
-  editIdeaReleaseDateAtom,
-  editIdeaResourcesAtom,
-  editIdeaStatusAtom,
-  editIdeaThumbnailAtom,
-  editIdeaThumbnailReadyAtom,
-  editIdeaTitleAtom,
-  editIdeaUnsponsoredAtom,
-  editIdeaVodRecordingDateAtom,
-  streamModeAtom,
-} from "@/store/atoms";
+import { editIdeaFields, editIdeaIsEditingAtom, streamModeAtom } from "@/store/atoms";
 import { IdeaPreview } from "./IdeaPreview";
 import type { Idea } from "./KanbanBoard";
 import { Badge } from "./ui/badge";
@@ -72,7 +50,7 @@ interface EditIdeaModalProps {
 
 // Hook to share update logic across field components
 function useScheduledUpdate() {
-  const ideaId = useAtomValue(editIdeaIdFieldAtom);
+  const ideaId = useAtomValue(editIdeaFields.ideaId);
   const {
     mutate: updateIdea,
     isPending,
@@ -110,7 +88,7 @@ interface FieldProps {
 }
 
 const TitleField = memo(function TitleField({ scheduleUpdate }: FieldProps) {
-  const [title, setTitle] = useAtom(editIdeaTitleAtom);
+  const [title, setTitle] = useAtom(editIdeaFields.title);
   return (
     <IdeaTitleField
       id="edit-title"
@@ -124,7 +102,7 @@ const TitleField = memo(function TitleField({ scheduleUpdate }: FieldProps) {
 });
 
 const DescriptionField = memo(function DescriptionField({ scheduleUpdate }: FieldProps) {
-  const [description, setDescription] = useAtom(editIdeaDescriptionAtom);
+  const [description, setDescription] = useAtom(editIdeaFields.description);
   return (
     <IdeaDescriptionField
       id="edit-description"
@@ -138,7 +116,7 @@ const DescriptionField = memo(function DescriptionField({ scheduleUpdate }: Fiel
 });
 
 const ResourcesSection = memo(function ResourcesSection({ scheduleUpdate }: FieldProps) {
-  const [resources, setResources] = useAtom(editIdeaResourcesAtom);
+  const [resources, setResources] = useAtom(editIdeaFields.resources);
   return (
     <IdeaResourcesSection
       id="edit-resources"
@@ -167,28 +145,24 @@ const ThumbnailSection = memo(function ThumbnailSection({
   onClear,
   uploadFile,
 }: ThumbnailSectionProps) {
-  const [thumbnail, setThumbnail] = useAtom(editIdeaThumbnailAtom);
-  const [thumbnailReady, setThumbnailReady] = useAtom(editIdeaThumbnailReadyAtom);
-  const storageUrl = useQuery(
-    api.utils.files.getUrl,
-    isConvexStorageId(thumbnail) ? { storageId: thumbnail as Id<"_storage"> } : "skip",
-  );
+  const [thumbnail, setThumbnail] = useAtom(editIdeaFields.draftThumbnail);
+  const [thumbnailReady, setThumbnailReady] = useAtom(editIdeaFields.thumbnailReady);
 
   const hasThumbnail = Boolean(thumbnailPreview || thumbnail);
-  const previewUrl = thumbnailPreview || (isConvexStorageId(thumbnail) ? storageUrl : thumbnail);
+  const previewUrl = thumbnailPreview || thumbnail || null;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFileSelect(e);
     setThumbnail("");
     setThumbnailReady(true);
-    scheduleUpdate({ thumbnail: "", thumbnailReady: true });
+    scheduleUpdate({ draftThumbnail: "", thumbnailReady: true });
     void (async () => {
       try {
         const storageId = await uploadFile();
         if (!storageId) return;
         setThumbnail(storageId);
         setThumbnailReady(true);
-        scheduleUpdate({ thumbnail: storageId, thumbnailReady: true });
+        scheduleUpdate({ draftThumbnail: storageId, thumbnailReady: true });
       } catch (error) {
         void error;
       }
@@ -199,7 +173,7 @@ const ThumbnailSection = memo(function ThumbnailSection({
     onClear();
     setThumbnail("");
     setThumbnailReady(false);
-    scheduleUpdate({ thumbnail: "", thumbnailReady: false });
+    scheduleUpdate({ draftThumbnail: "", thumbnailReady: false });
   };
 
   return (
@@ -208,13 +182,13 @@ const ThumbnailSection = memo(function ThumbnailSection({
       thumbnail={thumbnail}
       thumbnailReady={thumbnailReady}
       showPreview={hasThumbnail}
-      previewUrl={previewUrl ?? null}
+      previewUrl={previewUrl}
       fileInputRef={fileInputRef}
       onFileSelect={handleFileSelect}
       onClear={clearThumbnail}
       onThumbnailChange={(next) => {
         setThumbnail(next);
-        scheduleUpdate({ thumbnail: next });
+        scheduleUpdate({ draftThumbnail: next });
       }}
       onThumbnailReadyChange={(next) => {
         setThumbnailReady(next);
@@ -225,8 +199,8 @@ const ThumbnailSection = memo(function ThumbnailSection({
 });
 
 const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) {
-  const [vodRecordingDate, setVodRecordingDate] = useAtom(editIdeaVodRecordingDateAtom);
-  const [releaseDate, setReleaseDate] = useAtom(editIdeaReleaseDateAtom);
+  const [vodRecordingDate, setVodRecordingDate] = useAtom(editIdeaFields.vodRecordingDate);
+  const [releaseDate, setReleaseDate] = useAtom(editIdeaFields.releaseDate);
 
   return (
     <div className="space-y-4">
@@ -295,7 +269,7 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
 });
 
 const UnsponsoredSection = memo(function UnsponsoredSection({ scheduleUpdate }: FieldProps) {
-  const [unsponsored, setUnsponsored] = useAtom(editIdeaUnsponsoredAtom);
+  const [unsponsored, setUnsponsored] = useAtom(editIdeaFields.unsponsored);
   const streamMode = useAtomValue(streamModeAtom);
 
   if (streamMode) return null;
@@ -318,8 +292,8 @@ const UnsponsoredSection = memo(function UnsponsoredSection({ scheduleUpdate }: 
 });
 
 const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }: FieldProps) {
-  const [owner, setOwner] = useAtom(editIdeaOwnerAtom);
-  const [channel, setChannel] = useAtom(editIdeaChannelAtom);
+  const [owner, setOwner] = useAtom(editIdeaFields.owner);
+  const [channel, setChannel] = useAtom(editIdeaFields.channel);
 
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -379,8 +353,8 @@ const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }
 });
 
 const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: FieldProps) {
-  const [label, setLabel] = useAtom(editIdeaLabelAtom);
-  const [status, setStatus] = useAtom(editIdeaStatusAtom);
+  const [label, setLabel] = useAtom(editIdeaFields.label);
+  const [status, setStatus] = useAtom(editIdeaFields.status);
 
   const handleStatusChange = (value: string) => {
     const nextValue = (value || "") as typeof status;
@@ -435,8 +409,8 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
 const PotentialAdReadSection = memo(function PotentialAdReadSection({
   scheduleUpdate,
 }: FieldProps) {
-  const [potential, setPotential] = useAtom(editIdeaPotentialAtom);
-  const [adReadTracker, setAdReadTracker] = useAtom(editIdeaAdReadTrackerAtom);
+  const [potential, setPotential] = useAtom(editIdeaFields.potential);
+  const [adReadTracker, setAdReadTracker] = useAtom(editIdeaFields.adReadTracker);
   const streamMode = useAtomValue(streamModeAtom);
 
   return (
@@ -487,7 +461,7 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection({
 });
 
 const NotesField = memo(function NotesField({ scheduleUpdate }: FieldProps) {
-  const [notes, setNotes] = useAtom(editIdeaNotesAtom);
+  const [notes, setNotes] = useAtom(editIdeaFields.notes);
 
   return (
     <div className="space-y-1.5">
@@ -510,21 +484,21 @@ const NotesField = memo(function NotesField({ scheduleUpdate }: FieldProps) {
 
 export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
   const [isEditing, setIsEditing] = useAtom(editIdeaIsEditingAtom);
-  const title = useAtomValue(editIdeaTitleAtom);
-  const description = useAtomValue(editIdeaDescriptionAtom);
-  const notes = useAtomValue(editIdeaNotesAtom);
-  const thumbnail = useAtomValue(editIdeaThumbnailAtom);
-  const thumbnailReady = useAtomValue(editIdeaThumbnailReadyAtom);
-  const resources = useAtomValue(editIdeaResourcesAtom);
-  const vodRecordingDate = useAtomValue(editIdeaVodRecordingDateAtom);
-  const releaseDate = useAtomValue(editIdeaReleaseDateAtom);
-  const owner = useAtomValue(editIdeaOwnerAtom);
-  const channel = useAtomValue(editIdeaChannelAtom);
-  const potential = useAtomValue(editIdeaPotentialAtom);
-  const label = useAtomValue(editIdeaLabelAtom);
-  const status = useAtomValue(editIdeaStatusAtom);
-  const adReadTracker = useAtomValue(editIdeaAdReadTrackerAtom);
-  const unsponsored = useAtomValue(editIdeaUnsponsoredAtom);
+  const title = useAtomValue(editIdeaFields.title);
+  const description = useAtomValue(editIdeaFields.description);
+  const notes = useAtomValue(editIdeaFields.notes);
+  const thumbnail = useAtomValue(editIdeaFields.draftThumbnail);
+  const thumbnailReady = useAtomValue(editIdeaFields.thumbnailReady);
+  const resources = useAtomValue(editIdeaFields.resources);
+  const vodRecordingDate = useAtomValue(editIdeaFields.vodRecordingDate);
+  const releaseDate = useAtomValue(editIdeaFields.releaseDate);
+  const owner = useAtomValue(editIdeaFields.owner);
+  const channel = useAtomValue(editIdeaFields.channel);
+  const potential = useAtomValue(editIdeaFields.potential);
+  const label = useAtomValue(editIdeaFields.label);
+  const status = useAtomValue(editIdeaFields.status);
+  const adReadTracker = useAtomValue(editIdeaFields.adReadTracker);
+  const unsponsored = useAtomValue(editIdeaFields.unsponsored);
   const streamMode = useAtomValue(streamModeAtom);
   const resourceList = resources.length ? resources : [""];
 

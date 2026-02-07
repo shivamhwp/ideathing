@@ -8,8 +8,9 @@ export const Route = createFileRoute("/_authenticated/notion/webhook")({
 });
 
 function NotionWebhooksPage() {
-  const convexUrl = env.VITE_CONVEX_SITE_URL;
-  const webhookUrl = convexUrl ? `${convexUrl}/notion/webhook` : null;
+  const convexSiteUrl =
+    env.VITE_CONVEX_SITE_URL || env.VITE_CONVEX_URL.replace(".convex.cloud", ".convex.site");
+  const webhookUrl = convexSiteUrl ? `${convexSiteUrl}/notion/webhook` : null;
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
@@ -33,7 +34,8 @@ function NotionWebhooksPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-lg border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground break-all">
-              {webhookUrl ?? "Set VITE_CONVEX_URL to see the full webhook URL here."}
+              {webhookUrl ??
+                "Set VITE_CONVEX_URL (or VITE_CONVEX_SITE_URL) to see the full webhook URL here."}
             </div>
             <p className="text-xs text-muted-foreground">
               If your Convex URL ends in{" "}

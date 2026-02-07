@@ -6,13 +6,11 @@ import { TopNav } from "@/components/TopNav";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
-    if (typeof window === "undefined") {
-      await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.list, {}));
-      await context.queryClient.ensureQueryData(convexQuery(api.notion.queries.getConnection, {}));
-      await context.queryClient.ensureQueryData(
-        convexQuery(api.notion.queries.getConnectionStatus, {}),
-      );
-    }
+    await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.list, {}));
+    await context.queryClient.ensureQueryData(convexQuery(api.notion.queries.getConnection, {}));
+    await context.queryClient.ensureQueryData(
+      convexQuery(api.notion.queries.getConnectionStatus, {}),
+    );
   },
   component: App,
 });

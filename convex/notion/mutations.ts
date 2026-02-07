@@ -191,10 +191,20 @@ export const updateIdeaFromNotion = internalMutation({
     }
 
     if (nextColumn) {
-      const columnIdeas = await ctx.db
-        .query("ideas")
-        .withIndex("by_user_column", (q) => q.eq("userId", idea.userId).eq("column", nextColumn))
-        .collect();
+      const columnIdeas = idea.organizationId
+        ? await ctx.db
+            .query("ideas")
+            .withIndex("by_organization_column", (q) =>
+              q.eq("organizationId", idea.organizationId).eq("column", nextColumn),
+            )
+            .collect()
+        : await ctx.db
+            .query("ideas")
+            .withIndex("by_user_column", (q) =>
+              q.eq("userId", idea.userId).eq("column", nextColumn),
+            )
+            .filter((q) => q.eq(q.field("organizationId"), undefined))
+            .collect();
       const maxOrder = columnIdeas.reduce((max, entry) => Math.max(max, entry.order), -1);
       nextOrder = maxOrder + 1;
     }

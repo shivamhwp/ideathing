@@ -5,6 +5,7 @@
 
 ### about sharing ideas
 
+- [ ] keyboard shortcuts for everything.
 - [ ] have an organisation selector for the user.
 
 ### edge cases i might encounter

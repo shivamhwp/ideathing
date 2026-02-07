@@ -5,56 +5,27 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { action } from "../_generated/server";
 import { requireAuth } from "../helper";
 import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
+import type { OwnerValue, ChannelValue, LabelValue, StatusValue } from "../../shared/idea-values";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const internalApiPromise = import("../_generated/api") as Promise<any>;
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
-const isStorageId = (value: string | null | undefined): value is string =>
-  !!value && value.startsWith("k") && !value.includes("://");
-
 type ExportPayload = {
   title: string;
   description?: string;
   notes?: string;
-  thumbnail?: string | null;
+  draftThumbnail?: string | null;
   thumbnailReady?: boolean;
   resources?: string[];
   vodRecordingDate?: string;
   releaseDate?: string;
-  owner?: "Theo" | "Phase" | "Mir" | "flip" | "melkey" | "gabriel" | "ben" | "shivam";
-  channel?: "C:Main" | "C:Rants" | "C:Throwaways" | "C:Other" | "C:Main(SHORT)";
+  owner?: OwnerValue;
+  channel?: ChannelValue;
   potential?: number;
-  label?: (
-    | "Requires Planning"
-    | "Priority"
-    | "Mid Priority"
-    | "Strict deadline"
-    | "Sponsored"
-    | "High Effort"
-    | "Worth it?"
-    | "Evergreen"
-    | "Database Week"
-  )[];
-  status?:
-    | "To Record(Off stream)"
-    | "To Stream"
-    | "Recorded"
-    | "Editing"
-    | "Done Editing"
-    | "NEEDS THUMBNAIL"
-    | "Ready To Publish"
-    | "Scheduled"
-    | "Published"
-    | "Concept"
-    | "Commited"
-    | "dead"
-    | "Shorts"
-    | "2nd & 3rd Channel"
-    | "Needs sponsor spot"
-    | "Theo's Problem"
-    | "archived";
+  label?: LabelValue[];
+  status?: StatusValue;
   adReadTracker?: string;
   unsponsored?: boolean;
   column: "Concept" | "To Stream";
@@ -155,7 +126,7 @@ export const create = action({
         title: idea.title,
         description: idea.description,
         notes: idea.notes,
-        thumbnail: (idea.thumbnail ?? null) as ExportPayload["thumbnail"],
+        draftThumbnail: idea.draftThumbnail as ExportPayload["draftThumbnail"],
         thumbnailReady: idea.thumbnailReady,
         resources: idea.resources,
         vodRecordingDate: idea.vodRecordingDate,
@@ -174,7 +145,6 @@ export const create = action({
 
     await runMutation(internalApi.ideas.mutations.createExportInternal, {
       tokenHash,
-      token,
       shareUrl,
       sourceOrganizationId: orgId,
       createdBy: identity.subject,
@@ -242,34 +212,14 @@ export const importIdeas = action({
 
     const mappedItems: { sourceIdeaId: Id<"ideas">; payload: ExportPayload }[] = [];
     for (const item of items) {
-      let nextThumbnail = item.payload.thumbnail ?? null;
-      if (isStorageId(nextThumbnail)) {
-        try {
-          const storageUrl = await ctx.storage.getUrl(nextThumbnail as Id<"_storage">);
-          if (storageUrl) {
-            const response = await fetch(storageUrl);
-            if (response.ok) {
-              const buffer = await response.arrayBuffer();
-              const storageId = await ctx.storage.store(new Blob([buffer]));
-              nextThumbnail = storageId;
-            } else {
-              nextThumbnail = null;
-            }
-          } else {
-            nextThumbnail = null;
-          }
-        } catch (error) {
-          void error;
-          nextThumbnail = null;
-        }
-      }
-
       mappedItems.push({
         sourceIdeaId: item.ideaId,
         payload: {
           ...item.payload,
+          owner: item.payload.owner as ExportPayload["owner"],
+          channel: item.payload.channel as ExportPayload["channel"],
           label: item.payload.label as ExportPayload["label"],
-          thumbnail: nextThumbnail,
+          status: item.payload.status as ExportPayload["status"],
         },
       });
     }

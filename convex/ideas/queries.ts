@@ -141,7 +141,10 @@ export const list = query({
 export const listExportsForUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
+    const identity = await requireAuth(ctx).catch(() => null);
+    if (!identity) {
+      return [];
+    }
     const orgId = identity.org_id;
     if (!orgId) {
       return [];

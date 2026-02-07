@@ -33,6 +33,7 @@ export function TopNav() {
         </Link>
         <Link
           to="/recorded"
+          preload="intent"
           activeOptions={{ exact: true }}
           className={recordedLink}
           activeProps={{ className: recordedLinkActive }}
@@ -71,7 +72,7 @@ export function TopNav() {
               <div className="flex items-center bg-primary/10 rounded-md ">
                 <ThemeToggle className="bg-transparent" />
                 <Button asChild variant="ghost" size="icon">
-                  <Link to="/settings/profile">
+                  <Link to="/settings/profile" preload="intent">
                     <GearSixIcon className="w-5 h-5" />
                   </Link>
                 </Button>

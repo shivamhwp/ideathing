@@ -1,4 +1,4 @@
-import { useOrganization } from "@clerk/tanstack-react-start";
+import { useOrganization, useUser } from "@clerk/tanstack-react-start";
 import { convexQuery } from "@convex-dev/react-query";
 import { CopyIcon, LinkIcon, TrashIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,17 +11,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const exportsQuery = convexQuery(api.ideas.queries.listExportsForUser, {});
 
 export const Route = createFileRoute("/_authenticated/settings/shared")({
-  loader: async ({ context }) => {
-    if (typeof window === "undefined") {
-      await context.queryClient.ensureQueryData(exportsQuery);
-    }
-  },
   component: SharedLinksSettings,
 });
 
 function SharedLinksSettings() {
+  const { isSignedIn } = useUser();
   const { organization, isLoaded } = useOrganization();
-  const { data: exports, isLoading } = useQuery(exportsQuery);
+  const canQueryExports = isLoaded && isSignedIn && Boolean(organization);
+  const { data: exports, isLoading } = useQuery({
+    ...exportsQuery,
+    enabled: canQueryExports,
+  });
   const queryClient = useQueryClient();
   const revokeExport = useMutation(api.ideas.mutations.revokeExport);
 

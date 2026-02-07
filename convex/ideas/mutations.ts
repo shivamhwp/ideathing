@@ -13,55 +13,16 @@ const payloadSchema = v.object({
   title: v.string(),
   description: v.optional(v.string()),
   notes: v.optional(v.string()),
-  thumbnail: v.optional(v.union(v.string(), v.null())),
+  draftThumbnail: v.optional(v.union(v.string(), v.null())),
   thumbnailReady: v.optional(v.boolean()),
   resources: v.optional(v.array(v.string())),
   vodRecordingDate: v.optional(v.string()),
   releaseDate: v.optional(v.string()),
-  owner: v.optional(
-    v.union(
-      v.literal("Theo"),
-      v.literal("Phase"),
-      v.literal("Mir"),
-      v.literal("flip"),
-      v.literal("melkey"),
-      v.literal("gabriel"),
-      v.literal("ben"),
-      v.literal("shivam"),
-    ),
-  ),
-  channel: v.optional(
-    v.union(
-      v.literal("C:Main"),
-      v.literal("C:Rants"),
-      v.literal("C:Throwaways"),
-      v.literal("C:Other"),
-      v.literal("C:Main(SHORT)"),
-    ),
-  ),
+  owner: v.optional(literalUnion(ownerValues)),
+  channel: v.optional(literalUnion(channelValues)),
   potential: v.optional(v.number()),
   label: v.optional(v.array(literalUnion(labelValues))),
-  status: v.optional(
-    v.union(
-      v.literal("To Record(Off stream)"),
-      v.literal("To Stream"),
-      v.literal("Recorded"),
-      v.literal("Editing"),
-      v.literal("Done Editing"),
-      v.literal("NEEDS THUMBNAIL"),
-      v.literal("Ready To Publish"),
-      v.literal("Scheduled"),
-      v.literal("Published"),
-      v.literal("Concept"),
-      v.literal("Commited"),
-      v.literal("dead"),
-      v.literal("Shorts"),
-      v.literal("2nd & 3rd Channel"),
-      v.literal("Needs sponsor spot"),
-      v.literal("Theo's Problem"),
-      v.literal("archived"),
-    ),
-  ),
+  status: v.optional(literalUnion(statusValues)),
   adReadTracker: v.optional(v.string()),
   unsponsored: v.optional(v.boolean()),
   column: v.union(v.literal("Concept"), v.literal("To Stream")),
@@ -71,10 +32,21 @@ const payloadSchema = v.object({
 const isStorageId = (value: string | null | undefined): value is string =>
   !!value && value.startsWith("k") && !value.includes("://");
 
+const resolveToUrl = async (
+  ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
+  value?: string | null,
+): Promise<string | null | undefined> => {
+  if (!value) return value;
+  if (isStorageId(value)) {
+    const url = await ctx.storage.getUrl(value as Id<"_storage">);
+    return url;
+  }
+  return value;
+};
+
 export const createExportInternal = internalMutation({
   args: {
     tokenHash: v.string(),
-    token: v.string(),
     shareUrl: v.optional(v.string()),
     sourceOrganizationId: v.string(),
     createdBy: v.string(),
@@ -90,7 +62,6 @@ export const createExportInternal = internalMutation({
   handler: async (ctx, args) => {
     const exportId = await ctx.db.insert("ideaExports", {
       tokenHash: args.tokenHash,
-      token: args.token,
       shareUrl: args.shareUrl,
       sourceOrganizationId: args.sourceOrganizationId,
       createdBy: args.createdBy,
@@ -218,7 +189,7 @@ export const insertImportedIdeasInternal = internalMutation({
         title: item.payload.title,
         description: item.payload.description,
         notes: item.payload.notes,
-        thumbnail: item.payload.thumbnail ?? null,
+        draftThumbnail: item.payload.draftThumbnail,
         thumbnailReady: item.payload.thumbnailReady,
         resources: item.payload.resources,
         vodRecordingDate: item.payload.vodRecordingDate,
@@ -256,7 +227,7 @@ export const create = mutation({
     title: v.string(),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
-    thumbnail: v.optional(v.string()),
+    draftThumbnail: v.optional(v.string()),
     thumbnailReady: v.optional(v.boolean()),
     resources: v.optional(v.array(v.string())),
     vodRecordingDate: v.optional(v.string()),
@@ -293,6 +264,7 @@ export const create = mutation({
     }
 
     const maxOrder = existingIdeas.reduce((max, idea) => Math.max(max, idea.order), -1);
+    const resolvedThumbnail = await resolveToUrl(ctx, args.draftThumbnail);
 
     const ideaId = await ctx.db.insert("ideas", {
       userId: identity.subject,
@@ -300,7 +272,7 @@ export const create = mutation({
       title: args.title,
       description: args.description,
       notes: args.notes,
-      thumbnail: args.thumbnail,
+      draftThumbnail: resolvedThumbnail,
       thumbnailReady: args.thumbnailReady ?? false,
       resources: args.resources,
 
@@ -369,6 +341,7 @@ export const move = mutation({
         .withIndex("by_user_column", (q) =>
           q.eq("userId", identity.subject).eq("column", args.column),
         )
+        .filter((q) => q.eq(q.field("organizationId"), undefined))
         .collect();
     }
 
@@ -403,7 +376,7 @@ export const update = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
-    thumbnail: v.optional(v.union(v.string(), v.null())),
+    draftThumbnail: v.optional(v.union(v.string(), v.null())),
     clearThumbnail: v.optional(v.boolean()),
     thumbnailReady: v.optional(v.boolean()),
     resources: v.optional(v.array(v.string())),
@@ -438,16 +411,15 @@ export const update = mutation({
       Object.entries(updates).filter(([_, v]) => v !== undefined),
     );
 
-    const wantsThumbnailChange = args.thumbnail !== undefined || clearThumbnail === true;
+    const wantsThumbnailChange = args.draftThumbnail !== undefined || clearThumbnail === true;
     if (wantsThumbnailChange) {
-      const nextThumbnail = clearThumbnail ? null : (args.thumbnail ?? null);
-      if (isStorageId(idea.thumbnail)) {
-        const nextStorageId = typeof nextThumbnail === "string" ? nextThumbnail : null;
-        if (nextStorageId !== idea.thumbnail) {
-          await ctx.storage.delete(idea.thumbnail as Id<"_storage">);
-        }
+      if (clearThumbnail) {
+        filteredUpdates.draftThumbnail = null;
+      } else if (typeof args.draftThumbnail === "string") {
+        filteredUpdates.draftThumbnail = (await resolveToUrl(ctx, args.draftThumbnail)) ?? null;
+      } else {
+        filteredUpdates.draftThumbnail = args.draftThumbnail ?? null;
       }
-      filteredUpdates.thumbnail = nextThumbnail;
     }
 
     await ctx.db.patch(id, filteredUpdates);
@@ -475,7 +447,7 @@ export const update = mutation({
     // If already in To Stream and has notionPageId, sync updates
     const shouldSyncToNotion = idea.column === "To Stream" && !!idea.notionPageId;
     if (shouldSyncToNotion) {
-      const contentFields = ["description", "notes", "thumbnail", "resources"] as const;
+      const contentFields = ["description", "notes", "draftThumbnail", "resources"] as const;
       const contentChanged = contentFields.some(
         (field) => args[field] !== undefined && args[field] !== idea[field],
       );
@@ -507,12 +479,8 @@ export const remove = mutation({
       throw new Error("Idea not found");
     }
 
-    if (isStorageId(idea.thumbnail)) {
-      await ctx.storage.delete(idea.thumbnail as Id<"_storage">);
-    }
-
     const shouldDeleteFromNotion = idea.column === "To Stream" && !!idea.notionPageId;
-    const notionPageId = idea.notionPageId ?? null;
+    const notionPageId = idea.notionPageId;
     const organizationId = idea.organizationId;
 
     await ctx.db.delete(args.id);

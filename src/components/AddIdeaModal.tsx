@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { format } from "date-fns";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { memo, useState } from "react";
+import { channelValues, ownerValues } from "shared/idea-values";
 import { toast } from "sonner";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
 import {
@@ -22,8 +23,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -35,25 +36,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import {
-  defaultIdeaDraft,
-  newIdeaAdReadTrackerAtom,
-  newIdeaChannelAtom,
-  newIdeaDescriptionAtom,
-  newIdeaDraftAtom,
-  newIdeaLabelAtom,
-  newIdeaNotesAtom,
-  newIdeaOwnerAtom,
-  newIdeaPotentialAtom,
-  newIdeaReleaseDateAtom,
-  newIdeaResourcesAtom,
-  newIdeaThumbnailAtom,
-  newIdeaThumbnailReadyAtom,
-  newIdeaTitleAtom,
-  newIdeaUnsponsoredAtom,
-  newIdeaVodRecordingDateAtom,
-  streamModeAtom,
-} from "@/store/atoms";
+import { defaultIdeaDraft, newIdeaDraftAtom, newIdeaFields, streamModeAtom } from "@/store/atoms";
 
 interface AddIdeaModalProps {
   open: boolean;
@@ -61,8 +44,8 @@ interface AddIdeaModalProps {
 }
 
 const DatesSection = memo(function DatesSection() {
-  const [vodRecordingDate, setVodRecordingDate] = useAtom(newIdeaVodRecordingDateAtom);
-  const [releaseDate, setReleaseDate] = useAtom(newIdeaReleaseDateAtom);
+  const [vodRecordingDate, setVodRecordingDate] = useAtom(newIdeaFields.vodRecordingDate);
+  const [releaseDate, setReleaseDate] = useAtom(newIdeaFields.releaseDate);
 
   return (
     <div className="space-y-4">
@@ -123,8 +106,8 @@ const DatesSection = memo(function DatesSection() {
 });
 
 const OwnerChannelSection = memo(function OwnerChannelSection() {
-  const [owner, setOwner] = useAtom(newIdeaOwnerAtom);
-  const [channel, setChannel] = useAtom(newIdeaChannelAtom);
+  const [owner, setOwner] = useAtom(newIdeaFields.owner);
+  const [channel, setChannel] = useAtom(newIdeaFields.channel);
 
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -176,7 +159,7 @@ const OwnerChannelSection = memo(function OwnerChannelSection() {
 });
 
 const LabelSection = memo(function LabelSection() {
-  const [label, setLabel] = useAtom(newIdeaLabelAtom);
+  const [label, setLabel] = useAtom(newIdeaFields.label);
 
   return (
     <div className="space-y-1.5">
@@ -189,8 +172,8 @@ const LabelSection = memo(function LabelSection() {
 });
 
 const PotentialAdReadSection = memo(function PotentialAdReadSection() {
-  const [potential, setPotential] = useAtom(newIdeaPotentialAtom);
-  const [adReadTracker, setAdReadTracker] = useAtom(newIdeaAdReadTrackerAtom);
+  const [potential, setPotential] = useAtom(newIdeaFields.potential);
+  const [adReadTracker, setAdReadTracker] = useAtom(newIdeaFields.adReadTracker);
   const streamMode = useAtomValue(streamModeAtom);
 
   return (
@@ -234,7 +217,7 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection() {
 });
 
 const UnsponsoredToggle = memo(function UnsponsoredToggle() {
-  const [unsponsored, setUnsponsored] = useAtom(newIdeaUnsponsoredAtom);
+  const [unsponsored, setUnsponsored] = useAtom(newIdeaFields.unsponsored);
   const streamMode = useAtomValue(streamModeAtom);
 
   if (streamMode) return null;
@@ -254,7 +237,7 @@ const UnsponsoredToggle = memo(function UnsponsoredToggle() {
 });
 
 const NotesField = memo(function NotesField({ autoFocus = false }: { autoFocus?: boolean }) {
-  const [notes, setNotes] = useAtom(newIdeaNotesAtom);
+  const [notes, setNotes] = useAtom(newIdeaFields.notes);
 
   return (
     <div className="space-y-1.5">
@@ -274,20 +257,20 @@ const NotesField = memo(function NotesField({ autoFocus = false }: { autoFocus?:
 });
 
 export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
-  const [title, setTitle] = useAtom(newIdeaTitleAtom);
-  const [description, setDescription] = useAtom(newIdeaDescriptionAtom);
-  const notes = useAtomValue(newIdeaNotesAtom);
-  const [thumbnail, setThumbnail] = useAtom(newIdeaThumbnailAtom);
-  const [thumbnailReady, setThumbnailReady] = useAtom(newIdeaThumbnailReadyAtom);
-  const [resources, setResources] = useAtom(newIdeaResourcesAtom);
-  const vodRecordingDate = useAtomValue(newIdeaVodRecordingDateAtom);
-  const releaseDate = useAtomValue(newIdeaReleaseDateAtom);
-  const owner = useAtomValue(newIdeaOwnerAtom);
-  const channel = useAtomValue(newIdeaChannelAtom);
-  const potential = useAtomValue(newIdeaPotentialAtom);
-  const label = useAtomValue(newIdeaLabelAtom);
-  const adReadTracker = useAtomValue(newIdeaAdReadTrackerAtom);
-  const unsponsored = useAtomValue(newIdeaUnsponsoredAtom);
+  const [title, setTitle] = useAtom(newIdeaFields.title);
+  const [description, setDescription] = useAtom(newIdeaFields.description);
+  const notes = useAtomValue(newIdeaFields.notes);
+  const [thumbnail, setThumbnail] = useAtom(newIdeaFields.draftThumbnail);
+  const [thumbnailReady, setThumbnailReady] = useAtom(newIdeaFields.thumbnailReady);
+  const [resources, setResources] = useAtom(newIdeaFields.resources);
+  const vodRecordingDate = useAtomValue(newIdeaFields.vodRecordingDate);
+  const releaseDate = useAtomValue(newIdeaFields.releaseDate);
+  const owner = useAtomValue(newIdeaFields.owner);
+  const channel = useAtomValue(newIdeaFields.channel);
+  const potential = useAtomValue(newIdeaFields.potential);
+  const label = useAtomValue(newIdeaFields.label);
+  const adReadTracker = useAtomValue(newIdeaFields.adReadTracker);
+  const unsponsored = useAtomValue(newIdeaFields.unsponsored);
   const setNewDraft = useSetAtom(newIdeaDraftAtom);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const resourceList = resources.length ? resources : [""];
@@ -330,15 +313,15 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
       await createIdea({
         title: trimmedTitle,
-        description: trimmedDescription || undefined,
-        notes: trimmedNotes || undefined,
-        thumbnail: finalThumbnail,
+        description: trimmedDescription || "",
+        notes: trimmedNotes || "",
+        draftThumbnail: finalThumbnail,
         thumbnailReady: thumbnailReady || Boolean(finalThumbnail),
         resources: cleanedResources,
         vodRecordingDate: vodRecordingDate || undefined,
         releaseDate: releaseDate || undefined,
-        owner: owner || undefined,
-        channel: channel || undefined,
+        owner: owner || ownerValues[7],
+        channel: channel || channelValues[0],
         potential: typeof potential === "number" ? potential : undefined,
         label: label.length ? label : undefined,
         adReadTracker: adReadTracker || undefined,
@@ -349,7 +332,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
       clearAll();
       onOpenChange(false);
     } catch (error) {
-      void error;
+      console.error(error);
       toast.error("Failed to add idea. Please try again.");
     } finally {
       setIsSubmitting(false);

@@ -1,29 +1,50 @@
-import { useUser } from "@clerk/tanstack-react-start";
-import { convexQuery } from "@convex-dev/react-query";
+import { useOrganization, useUser } from "@clerk/tanstack-react-start";
 import { SpinnerIcon } from "@phosphor-icons/react";
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { api } from "convex/_generated/api";
-import { getClerkAuth } from "../lib/server/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated")({
-  loader: async ({ context }) => {
-    const { isSignedIn } = await getClerkAuth();
-    if (!isSignedIn) {
-      throw redirect({ to: "/" });
-    }
-    if (typeof window === "undefined") {
-      await context.queryClient.ensureQueryData(
-        convexQuery(api.notion.queries.getConnectionStatus, {}),
-      );
-      await context.queryClient.ensureQueryData(convexQuery(api.notion.queries.getConnection, {}));
-    }
-    return null;
-  },
+  ssr: false,
   component: AuthenticatedLayout,
+  errorComponent: ({ error, reset }) => (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center space-y-4">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="text-muted-foreground">{error.message}</p>
+        <button
+          type="button"
+          onClick={reset}
+          className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  ),
 });
 
 function AuthenticatedLayout() {
   const { isSignedIn, isLoaded } = useUser();
+  const { organization } = useOrganization();
+  const queryClient = useQueryClient();
+  const prevOrgId = useRef<string | null>(organization?.id ?? null);
+  const prevSignedIn = useRef(isSignedIn);
+
+  useEffect(() => {
+    if (prevSignedIn.current && !isSignedIn) {
+      queryClient.clear();
+    }
+    prevSignedIn.current = isSignedIn;
+  }, [isSignedIn, queryClient]);
+
+  useEffect(() => {
+    const orgId = organization?.id ?? null;
+    if (prevOrgId.current !== orgId) {
+      void queryClient.invalidateQueries();
+      prevOrgId.current = orgId;
+    }
+  }, [organization?.id, queryClient]);
 
   if (!isLoaded) {
     return (
@@ -33,7 +54,9 @@ function AuthenticatedLayout() {
     );
   }
 
-  if (!isSignedIn) return null;
+  if (!isSignedIn) {
+    return <Navigate to="/" replace />;
+  }
 
   return <Outlet />;
 }
