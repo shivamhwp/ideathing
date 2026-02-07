@@ -27,13 +27,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
 import {
+  addIdeaModalOpenAtom,
   createIdeaDraftFromIdea,
-  defaultIdeaDraft,
   editIdeaDraftAtom,
   editIdeaIdAtom,
   editIdeaOpenAtom,
   ideaSelectionModeAtom,
-  newIdeaDraftAtom,
+  openAddIdeaModalAtom,
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
@@ -45,13 +45,13 @@ export type Idea = Doc<"ideas">;
 export function KanbanBoard() {
   const { isSignedIn } = useUser();
 
-  const setNewDraft = useSetAtom(newIdeaDraftAtom);
+  const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
   const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
+  const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const [selectionMode, setSelectionMode] = useAtom(ideaSelectionModeAtom);
   const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
@@ -95,10 +95,7 @@ export function KanbanBoard() {
   const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
 
   const handleAddIdea = () => {
-    setNewDraft((prev) => (prev.ideaId ? defaultIdeaDraft : prev));
-    setIsEditOpen(false);
-    setEditIdeaId(null);
-    setShowAddModal(true);
+    openAddIdeaModal();
   };
 
   const handleEditIdea = (idea: Idea) => {
@@ -263,7 +260,7 @@ export function KanbanBoard() {
         </DragOverlay>
       </DndContext>
 
-      <AddIdeaModal open={showAddModal} onOpenChange={setShowAddModal} />
+      <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} />
       <EditIdeaModal
         key={editIdeaId ?? "edit-idea"}
         idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}
