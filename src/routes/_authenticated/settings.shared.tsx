@@ -1,6 +1,6 @@
 import { useOrganization, useUser } from "@clerk/tanstack-react-start";
 import { convexQuery } from "@convex-dev/react-query";
-import { CopyIcon, LinkIcon, TrashIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { CopyIcon, InfoIcon, LinkIcon, TrashIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
@@ -92,9 +92,22 @@ function SharedLinksSettings() {
                           if (!record.shareUrl) return;
                           await navigator.clipboard.writeText(link);
                         }}
-                        title="Copy link"
+                        aria-label="Copy link"
                       >
                         <CopyIcon className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy link</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        className="h-9 w-9 cursor-pointer text-muted-foreground hover:text-primary"
+                        aria-label="Share link details"
+                      >
+                        <InfoIcon className="size-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent className="space-y-1">
@@ -109,7 +122,7 @@ function SharedLinksSettings() {
                         size="icon"
                         variant="secondary"
                         className="h-9 w-9 cursor-pointer text-muted-foreground hover:text-red-500"
-                        title="Delete link"
+                        aria-label="Delete link"
                         onClick={async () => {
                           await revokeExport({ exportId: record._id });
                           await queryClient.invalidateQueries(exportsQuery);
@@ -118,11 +131,7 @@ function SharedLinksSettings() {
                         <TrashIcon className="size-4" weight="bold" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent className="space-y-1">
-                      <div>Created {createdLabel}</div>
-                      <div>Expires {expiresLabel}</div>
-                      <div>{usageLabel}</div>
-                    </TooltipContent>
+                    <TooltipContent>Delete link</TooltipContent>
                   </Tooltip>
                 </div>
               </div>
