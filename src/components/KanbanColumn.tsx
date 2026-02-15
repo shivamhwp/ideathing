@@ -1,8 +1,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import {
+  ArrowClockwiseIcon,
   LightbulbIcon,
-  LockIcon,
-  NotionLogoIcon,
   PlusIcon,
   VideoCameraIcon,
 } from "@phosphor-icons/react";
@@ -12,6 +11,8 @@ import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
 
+export type ToStreamSyncState = "disconnected" | "pending" | "synced";
+
 interface KanbanColumnProps {
   id: "concept" | "to-stream";
   title: string;
@@ -19,8 +20,8 @@ interface KanbanColumnProps {
   items: Idea[];
   onAddClick?: () => void;
   onItemClick?: (idea: Idea) => void;
-  isSignedIn?: boolean;
-  isNotionConnected?: boolean;
+  interactive?: boolean;
+  toStreamSyncState?: ToStreamSyncState;
   selectionMode?: boolean;
   selectedIds?: Set<Id<"ideas">>;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
@@ -33,25 +34,35 @@ export function KanbanColumn({
   items,
   onAddClick,
   onItemClick,
-  isSignedIn = true,
-  isNotionConnected = true,
+  interactive = true,
+  toStreamSyncState,
   selectionMode = false,
   selectedIds,
   onToggleSelect,
 }: KanbanColumnProps) {
-  const isDisabled = id === "to-stream" && (!isSignedIn || !isNotionConnected);
   const { setNodeRef, isOver } = useDroppable({
     id,
-    disabled: isDisabled || selectionMode,
+    disabled: !interactive || selectionMode,
   });
+  const shouldShowSyncState = id === "to-stream" && !!toStreamSyncState;
+  const syncStateLabel = {
+    disconnected: "Disconnected",
+    pending: "Sync pending",
+    synced: "Synced",
+  } as const;
+  const syncStateClassName = {
+    disconnected: "border-border/60 bg-muted/20 text-muted-foreground",
+    pending: "border-amber-500/40 bg-amber-500/15 text-amber-700",
+    synced: "border-emerald-500/40 bg-emerald-500/15 text-emerald-700",
+  } as const;
+  const showAddButton = !!onAddClick && interactive;
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
         "flex flex-col h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
-        isOver && !isDisabled && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
-        isDisabled && "opacity-60",
+        isOver && interactive && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
       )}
     >
       {/* Column Header */}
@@ -61,22 +72,27 @@ export function KanbanColumn({
             className={cn(
               "w-2 h-2 rounded-full",
               color === "concept" ? "bg-amber-500" : "bg-pink-500",
-              isDisabled && "opacity-50",
             )}
           />
-          <span
-            className={cn(
-              "text-sm font-medium text-foreground",
-              isDisabled && "text-muted-foreground",
-            )}
-          >
-            {title}
-          </span>
-          <span className="text- text-muted-foreground/50">{items.length}</span>
-          {isDisabled && <LockIcon className="w-3.5 h-3.5 text-muted-foreground" weight="fill" />}
+          <span className="text-sm font-medium text-foreground">{title}</span>
+          <span className="text-xs text-muted-foreground/50">{items.length}</span>
         </div>
-        <div className="flex items-center justify-end">
-          {onAddClick && isSignedIn ? (
+        <div className="flex items-center justify-end gap-2">
+          {shouldShowSyncState && toStreamSyncState && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
+                syncStateClassName[toStreamSyncState],
+              )}
+            >
+              <ArrowClockwiseIcon
+                className={cn("w-3.5 h-3.5", toStreamSyncState === "pending" && "animate-spin")}
+                weight="bold"
+              />
+              {syncStateLabel[toStreamSyncState]}
+            </span>
+          )}
+          {showAddButton ? (
             <Button
               onClick={onAddClick}
               variant="secondary"
@@ -86,25 +102,14 @@ export function KanbanColumn({
             >
               <PlusIcon className="w-4 h-4" weight="bold" />
             </Button>
-          ) : (
+          ) : onAddClick ? (
             <div className="h-9 w-9" aria-hidden="true" />
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Disabled message for to-stream column */}
-      {isDisabled && items.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/70 gap-3 px-4">
-          <div className="flex items-center gap-2">
-            <NotionLogoIcon className="w-6 h-6" weight="fill" />
-            <LockIcon className="w-4 h-4" weight="fill" />
-          </div>
-          <p className="text-xs text-center">Connect Notion to move ideas to "To Stream"</p>
-        </div>
-      )}
-
       {/* Grid of cards */}
-      {!isDisabled && items.length === 0 ? (
+      {items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-xl text-muted-foreground/25">
           {id === "concept" ? (
             <LightbulbIcon className="w-8 h-8 mb-2" weight="duotone" />
@@ -121,6 +126,7 @@ export function KanbanColumn({
                 key={idea._id}
                 idea={idea}
                 onClick={() => onItemClick?.(idea)}
+                interactive={interactive}
                 selectionMode={selectionMode}
                 selected={selectedIds?.has(idea._id) ?? false}
                 onToggleSelect={onToggleSelect}

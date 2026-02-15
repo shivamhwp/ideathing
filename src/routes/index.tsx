@@ -18,8 +18,8 @@ export const Route = createFileRoute("/")({
 
 function App() {
   return (
-    <div className="min-h-dvh flex flex-col bg-background">
-      <div className="px-4 py-4 flex flex-col flex-1 min-h-0 gap-4">
+    <div className="h-dvh flex flex-col bg-background">
+      <div className="px-4 py-4 flex h-full flex-col flex-1 min-h-0 gap-4">
         <AppCommandCenter />
         <TopNav />
         <KanbanBoard />

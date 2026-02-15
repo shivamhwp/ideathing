@@ -83,6 +83,17 @@ export const disconnect = mutation({
     if (connection) {
       await ctx.db.delete(connection._id);
     }
+
+    const orgIdeas = await ctx.db
+      .query("ideas")
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+      .collect();
+
+    for (const idea of orgIdeas) {
+      await ctx.db.patch(idea._id, {
+        notionSynced: false,
+      });
+    }
   },
 });
 
@@ -94,6 +105,7 @@ export const updateIdeaSynced = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.ideaId, {
       notionPageId: args.notionPageId,
+      notionSynced: true,
       syncedAt: Date.now(),
     });
   },
@@ -134,6 +146,7 @@ export const clearIdeaSynced = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.ideaId, {
       notionPageId: undefined,
+      notionSynced: false,
       syncedAt: undefined,
     });
   },
@@ -282,6 +295,7 @@ export const createIdeaFromWebhook = internalMutation({
       vodRecordingDate: args.vodRecordingDate,
       releaseDate: args.releaseDate,
       notionPageId: args.notionPageId,
+      notionSynced: true,
       syncedAt: Date.now(),
     });
 
@@ -302,6 +316,7 @@ export const archiveIdeaFromNotion = internalMutation({
     await ctx.db.patch(args.ideaId, {
       status: "archived",
       notionPageId: undefined,
+      notionSynced: false,
       syncedAt: undefined,
     });
   },

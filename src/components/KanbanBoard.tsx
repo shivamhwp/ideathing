@@ -23,7 +23,6 @@ import type { Doc, Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
 import {
@@ -37,13 +36,13 @@ import {
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
-import { KanbanColumn } from "./KanbanColumn";
+import { KanbanColumn, type ToStreamSyncState } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
 
 export type Idea = Doc<"ideas">;
 
 export function KanbanBoard() {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
 
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
@@ -61,6 +60,9 @@ export function KanbanBoard() {
   const { data: notionConnection } = useQuery(convexQuery(api.notion.queries.getConnection, {}));
   const isNotionConnected = !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.mutations.move);
+  const isAuthResolved = isLoaded && typeof isSignedIn === "boolean";
+  const isAuthLoading = !isAuthResolved;
+  const isInteractionLocked = isAuthResolved && isSignedIn === false;
 
   useNotionSyncToast(ideas);
 
@@ -75,9 +77,9 @@ export function KanbanBoard() {
     }),
   );
 
-  if (isIdeasLoading || ideas === undefined) {
+  if (isAuthLoading || isIdeasLoading || ideas === undefined) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
+      <div className="flex h-full min-h-[50vh] w-full items-center justify-center">
         <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
       </div>
     );
@@ -93,12 +95,19 @@ export function KanbanBoard() {
     .sort((a, b) => a.order - b.order);
 
   const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
+  const toStreamSyncState: ToStreamSyncState = !isNotionConnected
+    ? "disconnected"
+    : toStreamColumn.some((idea) => !(idea.notionSynced ?? Boolean(idea.notionPageId)))
+      ? "pending"
+      : "synced";
 
   const handleAddIdea = () => {
+    if (isInteractionLocked) return;
     openAddIdeaModal();
   };
 
   const handleEditIdea = (idea: Idea) => {
+    if (isInteractionLocked) return;
     setEditDraft(createIdeaDraftFromIdea(idea));
     setEditIdeaId(idea._id);
     setIsEditOpen(true);
@@ -114,6 +123,7 @@ export function KanbanBoard() {
   };
 
   const handleSelectIdea = (ideaId: Id<"ideas">) => {
+    if (isInteractionLocked) return;
     if (!selectionMode) {
       setSelectionMode(true);
       setSelectedIds([ideaId]);
@@ -133,10 +143,16 @@ export function KanbanBoard() {
   };
 
   function handleDragStart(event: DragStartEvent) {
+    if (isInteractionLocked) return;
     setActiveId(event.active.id as Id<"ideas">);
   }
 
   async function handleDragEnd(event: DragEndEvent) {
+    if (isInteractionLocked) {
+      setActiveId(null);
+      return;
+    }
+
     const { active, over } = event;
 
     if (!over) {
@@ -166,14 +182,6 @@ export function KanbanBoard() {
       }
     }
 
-    if (newColumn === "To Stream" && (!isSignedIn || !isNotionConnected)) {
-      if (isSignedIn && !isNotionConnected) {
-        toast.error("Finish the Notion connection setup to move ideas here");
-      }
-      setActiveId(null);
-      return;
-    }
-
     const activeColumn = activeIdea.column === "To Stream" ? "To Stream" : "Concept";
     if (activeColumn !== newColumn || activeIdea.order !== newOrder) {
       await moveIdea({
@@ -194,77 +202,93 @@ export function KanbanBoard() {
   const selectedIdSet = new Set(selectedIds);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 gap-4">
+    <div className="flex h-full flex-col flex-1 min-h-0 gap-4 select-none">
       {/* Kanban Columns */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={rectIntersection}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="grid grid-cols-2 grid-rows-[1fr] items-stretch gap-4 flex-1 min-h-0">
-          <SortableContext items={conceptColumn.map((i) => i._id)} strategy={rectSortingStrategy}>
-            <KanbanColumn
-              id="concept"
-              title="Concept"
-              color="concept"
-              items={conceptColumn}
-              onAddClick={handleAddIdea}
-              onItemClick={handleEditIdea}
-              isSignedIn={isSignedIn}
-              selectionMode={selectionMode}
-              selectedIds={selectedIdSet}
-              onToggleSelect={handleSelectIdea}
-            />
-          </SortableContext>
-
-          <SortableContext items={toStreamColumn.map((i) => i._id)} strategy={rectSortingStrategy}>
-            <KanbanColumn
-              id="to-stream"
-              title="To Stream"
-              color="to-stream"
-              items={toStreamColumn}
-              onItemClick={handleEditIdea}
-              isSignedIn={isSignedIn}
-              isNotionConnected={isNotionConnected}
-              selectionMode={selectionMode}
-              selectedIds={selectedIdSet}
-              onToggleSelect={handleSelectIdea}
-            />
-          </SortableContext>
-        </div>
-
-        <DragOverlay
-          dropAnimation={{
-            duration: 250,
-            easing: "cubic-bezier(0.25, 1, 0.5, 1)",
-          }}
+      <div className="relative h-full flex-1 min-h-0">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={rectIntersection}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
         >
-          {activeIdea ? (
-            <div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
-              <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
-                {activeIdea.draftThumbnail && (
-                  <img
-                    src={activeIdea.draftThumbnail}
-                    alt={activeIdea.title}
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
-              <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
-                {activeIdea.title}
-              </h3>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          <div className="grid h-full grid-cols-2 grid-rows-[1fr] items-stretch gap-4 flex-1 min-h-0">
+            <SortableContext
+              items={conceptColumn.map((idea) => idea._id)}
+              strategy={rectSortingStrategy}
+            >
+              <KanbanColumn
+                id="concept"
+                title="Concept"
+                color="concept"
+                items={conceptColumn}
+                onAddClick={handleAddIdea}
+                onItemClick={handleEditIdea}
+                interactive={!isInteractionLocked}
+                selectionMode={selectionMode}
+                selectedIds={selectedIdSet}
+                onToggleSelect={handleSelectIdea}
+              />
+            </SortableContext>
 
-      <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} />
+            <SortableContext
+              items={toStreamColumn.map((idea) => idea._id)}
+              strategy={rectSortingStrategy}
+            >
+              <KanbanColumn
+                id="to-stream"
+                title="To Stream"
+                color="to-stream"
+                items={toStreamColumn}
+                onItemClick={handleEditIdea}
+                interactive={!isInteractionLocked}
+                toStreamSyncState={toStreamSyncState}
+                selectionMode={selectionMode}
+                selectedIds={selectedIdSet}
+                onToggleSelect={handleSelectIdea}
+              />
+            </SortableContext>
+          </div>
+
+          <DragOverlay
+            dropAnimation={{
+              duration: 250,
+              easing: "cubic-bezier(0.25, 1, 0.5, 1)",
+            }}
+          >
+            {activeIdea ? (
+              <div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
+                <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
+                  {activeIdea.draftThumbnail && (
+                    <img
+                      src={activeIdea.draftThumbnail}
+                      alt={activeIdea.title}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+                <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
+                  {activeIdea.title}
+                </h3>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+
+        {isInteractionLocked && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl border border-border/70 bg-background/75 backdrop-blur-sm">
+            <div className="mx-6 flex max-w-sm flex-col items-center gap-3 rounded-xl  backdrop-blur-lg  px-5 py-6 text-center">
+              <h3 className="text-xl font-medium text-foreground">Sign in to use ideathing</h3>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <AddIdeaModal open={!isInteractionLocked && isAddModalOpen} onOpenChange={setAddModalOpen} />
       <EditIdeaModal
         key={editIdeaId ?? "edit-idea"}
         idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}
-        open={isEditOpen}
+        open={!isInteractionLocked && isEditOpen}
         onOpenChange={(open) => {
           setIsEditOpen(open);
           if (!open) {
@@ -273,15 +297,13 @@ export function KanbanBoard() {
         }}
       />
 
-      {selectionMode && selectedIds.length > 0 && (
+      {!isInteractionLocked && selectionMode && selectedIds.length > 0 && (
         <div className="fixed bottom-8 z-40 right-8 animate-in fade-in duration-150">
           <div className="w-[280px] rounded-3xl border border-border/70 bg-popover/95 p-4 shadow-2xl backdrop-blur-xl">
             <div className="flex items-center justify-between px-1 pb-3 text-xs text-muted-foreground">
               <div className="flex items-center ">
                 <span>ideas selected</span>
-                <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px]">
-                  {selectedIds.length}
-                </span>
+                <span className=" px-3  text-xs">{selectedIds.length}</span>
               </div>
               <Button
                 size="sm"
@@ -297,15 +319,15 @@ export function KanbanBoard() {
               <Button
                 onClick={() => setShareModalOpen(true)}
                 variant="secondary"
-                className="h-10 w-full justify-start gap-2 rounded-full cursor-pointer bg-secondary/40 text-secondary-foreground shadow-inner hover:bg-secondary/60"
+                className="h-10 w-full justify-start gap-2 rounded-full cursor-pointer bg-secondary/40 text-secondary-foreground hover:bg-secondary/60"
               >
                 <ShareNetworkIcon className="h-4 w-4" weight="duotone" />
                 Share ideas
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={clearSelection}
-                className="h-10 w-full justify-start border-none cursor-pointer gap-2 rounded-full text-foreground shadow-inner hover:bg-muted/60"
+                className="h-10 w-full justify-start border-none bg-muted/60 hover:bg-muted cursor-pointer gap-2 rounded-full text-foreground "
               >
                 <ClipboardTextIcon className="h-4 w-4" weight="duotone" />
                 Clear selection
@@ -313,7 +335,7 @@ export function KanbanBoard() {
               <Button
                 variant="secondary"
                 onClick={cancelSelection}
-                className="h-10 w-full justify-start gap-2 cursor-pointer rounded-full bg-destructive/10 text-destructive shadow-inner hover:bg-destructive/20"
+                className="h-10 w-full justify-start gap-2 cursor-pointer rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20"
               >
                 <TrashIcon className="h-4 w-4" weight="duotone" />
                 Cancel
@@ -324,7 +346,7 @@ export function KanbanBoard() {
       )}
 
       <ShareIdeasModal
-        open={shareModalOpen}
+        open={!isInteractionLocked && shareModalOpen}
         onOpenChange={setShareModalOpen}
         selectedIdeaIds={selectedIds}
         onClearSelection={clearSelection}

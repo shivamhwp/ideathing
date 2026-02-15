@@ -14,6 +14,7 @@ import { Checkbox } from "./ui/checkbox";
 interface IdeaCardProps {
   idea: Idea;
   onClick?: () => void;
+  interactive?: boolean;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
@@ -47,6 +48,7 @@ const getDisplayStatus = (idea: Idea): DisplayStatus => {
 export function IdeaCard({
   idea,
   onClick,
+  interactive = true,
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -62,7 +64,7 @@ export function IdeaCard({
     transform,
     transition,
     isDragging: isSortableDragging,
-  } = useSortable({ id: idea._id, disabled: selectionMode });
+  } = useSortable({ id: idea._id, disabled: selectionMode || !interactive });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -71,6 +73,7 @@ export function IdeaCard({
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!interactive) return;
     void handleConfirmDelete();
   };
 
@@ -87,6 +90,10 @@ export function IdeaCard({
   };
 
   const handleClick = () => {
+    if (!interactive) {
+      return;
+    }
+
     if (selectionMode) {
       onToggleSelect?.(idea._id);
       return;
@@ -96,15 +103,19 @@ export function IdeaCard({
     }
   };
 
-  const dragAttributes = selectionMode ? {} : attributes;
-  const dragListeners = selectionMode ? {} : listeners;
+  const dragAttributes = selectionMode || !interactive ? {} : attributes;
+  const dragListeners = selectionMode || !interactive ? {} : listeners;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       role="card"
-      className={cn("group cursor-pointer", isSortableDragging && "opacity-40 scale-[0.98]")}
+      className={cn(
+        "group",
+        interactive ? "cursor-pointer" : "cursor-not-allowed",
+        isSortableDragging && "opacity-40 scale-[0.98]",
+      )}
       onClick={handleClick}
     >
       {/* Compact card */}
@@ -126,7 +137,7 @@ export function IdeaCard({
           >
             <Checkbox
               checked={selected}
-              onChange={() => onToggleSelect?.(idea._id)}
+              onChange={() => interactive && onToggleSelect?.(idea._id)}
               aria-label="Select idea"
             />
           </div>
@@ -139,18 +150,20 @@ export function IdeaCard({
           )}
 
           {/* Delete button on hover */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            <button
-              type="button"
-              onClick={handleDeleteClick}
-              onPointerDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="hover:bg-red-600/60 text-red-400 hover:text-white/70 cursor-pointer rounded-md p-1.5 "
-              title="Delete"
-            >
-              <TrashIcon className="w-3.5 h-3.5" weight="bold" />
-            </button>
-          </div>
+          {interactive && (
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="hover:bg-red-600/60 text-red-400 hover:text-white/70 cursor-pointer rounded-md p-1.5 "
+                title="Delete"
+              >
+                <TrashIcon className="w-3.5 h-3.5" weight="bold" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Content - minimal */}

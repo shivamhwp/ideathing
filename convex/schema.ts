@@ -27,6 +27,7 @@ export default defineSchema({
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
     notionPageId: v.optional(v.string()),
+    notionSynced: v.optional(v.boolean()),
     syncedAt: v.optional(v.number()),
     importedFromExportId: v.optional(v.id("ideaExports")),
     importedFromOrganizationId: v.optional(v.string()),

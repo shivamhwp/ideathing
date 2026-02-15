@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton } from "@clerk/tanstack-react-start";
+import { SignInButton } from "@clerk/tanstack-react-start";
 import { GearSixIcon, TwitchLogoIcon } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
@@ -21,25 +21,45 @@ export function TopNav() {
   const recordedLinkActive = cn(recordedLink, "font-semibold text-foreground text-primary");
 
   return (
-    <div className="flex h-12 w-full items-center justify-between gap-3">
+    <div className="flex h-12 w-full items-center justify-between gap-3 select-none">
       <div className="flex items-center gap-4">
-        <Link
-          to="/"
-          activeOptions={{ exact: true }}
-          className={boardLink}
-          activeProps={{ className: boardLinkActive }}
-        >
-          ideathing
-        </Link>
-        <Link
-          to="/recorded"
-          preload="intent"
-          activeOptions={{ exact: true }}
-          className={recordedLink}
-          activeProps={{ className: recordedLinkActive }}
-        >
-          recorded vids
-        </Link>
+        <Authenticated>
+          <Link
+            to="/"
+            activeOptions={{ exact: true }}
+            className={boardLink}
+            activeProps={{ className: boardLinkActive }}
+          >
+            ideathing
+          </Link>
+          <Link
+            to="/recorded"
+            preload="intent"
+            activeOptions={{ exact: true }}
+            className={recordedLink}
+            activeProps={{ className: recordedLinkActive }}
+          >
+            recorded vids
+          </Link>
+        </Authenticated>
+        <Unauthenticated>
+          <span
+            className={cn(
+              boardLink,
+              "cursor-not-allowed text-foreground/30 hover:text-foreground/30",
+            )}
+          >
+            ideathing
+          </span>
+          <span
+            className={cn(
+              recordedLink,
+              "cursor-not-allowed text-foreground/30 hover:text-foreground/30",
+            )}
+          >
+            recorded vids
+          </span>
+        </Unauthenticated>
       </div>
 
       <div className="flex items-center gap-2">
@@ -58,24 +78,19 @@ export function TopNav() {
           </div>
           <NotionConnect />
           <div className="flex items-center">
-            <SignedIn>
-              <div className="flex items-center bg-primary/10 rounded-md ">
-                <ThemeToggle className="bg-transparent" />
-                <Button asChild variant="ghost" size="icon">
-                  <Link to="/settings/profile" preload="intent">
-                    <GearSixIcon className="w-5 h-5" />
-                  </Link>
-                </Button>
-              </div>
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">sign in with github</SignInButton>
-            </SignedOut>
+            <div className="flex items-center bg-primary/10 rounded-md ">
+              <ThemeToggle className="bg-transparent" />
+              <Button asChild variant="ghost" size="icon">
+                <Link to="/settings/profile" preload="intent">
+                  <GearSixIcon className="w-5 h-5" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </Authenticated>
         <Unauthenticated>
           <ThemeToggle />
-          <Button asChild size="sm" variant="default" className="font-mono">
+          <Button asChild variant="default" className="font-mono cursor-pointer">
             <SignInButton mode="modal">sign in </SignInButton>
           </Button>
         </Unauthenticated>

@@ -6,6 +6,7 @@ import {
   PlusIcon,
   ShareNetworkIcon,
 } from "@phosphor-icons/react";
+import { useUser } from "@clerk/tanstack-react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -34,6 +35,7 @@ const shortcutMatches = (combo: string, key: string) => {
 };
 
 export function AppCommandCenter() {
+  const { isSignedIn } = useUser();
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const navigate = useNavigate();
@@ -43,6 +45,10 @@ export function AppCommandCenter() {
 
   const runCommand = useCallback(
     (id: string) => {
+      if (!isSignedIn) {
+        return;
+      }
+
       setOpen(false);
       if (id === "add") {
         openAddIdeaModal();
@@ -69,7 +75,7 @@ export function AppCommandCenter() {
         void navigate({ to: "/" });
       }
     },
-    [navigate, openAddIdeaModal, pathname, setOpen],
+    [isSignedIn, navigate, openAddIdeaModal, pathname, setOpen],
   );
 
   const commands = useMemo(
@@ -143,6 +149,16 @@ export function AppCommandCenter() {
   );
 
   useEffect(() => {
+    if (!isSignedIn && open) {
+      setOpen(false);
+    }
+  }, [isSignedIn, open, setOpen]);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      return;
+    }
+
     const clearChord = () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -221,7 +237,11 @@ export function AppCommandCenter() {
       window.removeEventListener("keydown", onKeyDown);
       clearChord();
     };
-  }, [open, runCommand, setOpen]);
+  }, [isSignedIn, open, runCommand, setOpen]);
+
+  if (!isSignedIn) {
+    return null;
+  }
 
   return (
     <CommandDialog

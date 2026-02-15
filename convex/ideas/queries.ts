@@ -26,6 +26,12 @@ const applyListOptions = (ideas: IdeaDoc[], options: ListOptions): IdeaDoc[] => 
   return nextIdeas;
 };
 
+const applyNotionSyncFallback = (ideas: IdeaDoc[]) =>
+  ideas.map((idea) => ({
+    ...idea,
+    notionSynced: idea.notionSynced ?? Boolean(idea.notionPageId),
+  }));
+
 const listIdeasForOrg = async (
   ctx: QueryCtx,
   organizationId: string,
@@ -128,7 +134,8 @@ export const list = query({
       if (!identity) {
         return [];
       }
-      return await listIdeasForIdentity(ctx, identity);
+      const ideas = await listIdeasForIdentity(ctx, identity);
+      return applyNotionSyncFallback(ideas);
     } catch (error) {
       console.error("ideas.list failed", {
         error,
@@ -176,7 +183,8 @@ export const listRecorded = query({
       if (!identity) {
         return [];
       }
-      return await listIdeasForIdentity(ctx, identity, { status: "Recorded" });
+      const ideas = await listIdeasForIdentity(ctx, identity, { status: "Recorded" });
+      return applyNotionSyncFallback(ideas);
     } catch (error) {
       console.error("ideas.listRecorded failed", {
         error,
