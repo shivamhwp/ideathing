@@ -6,6 +6,7 @@ import type { Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useSetAtom } from "jotai";
 import { toast } from "sonner";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { editIdeaIdAtom, editIdeaOpenAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 import type { Idea } from "./KanbanBoard";
@@ -53,6 +54,7 @@ export function IdeaCard({
   selected = false,
   onToggleSelect,
 }: IdeaCardProps) {
+  const { isTheoMode } = useTheoMode();
   const deleteIdea = useMutation(api.ideas.mutations.remove);
   const setEditIdeaId = useSetAtom(editIdeaIdAtom);
   const setEditIdeaOpen = useSetAtom(editIdeaOpenAtom);
@@ -185,10 +187,10 @@ export function IdeaCard({
                 </span>
               );
             })()}
-            {idea.channel && (
+            {isTheoMode && idea.channel && (
               <span className="text-muted-foreground">{idea.channel.replace("C:", "")}</span>
             )}
-            {typeof idea.potential === "number" && (
+            {isTheoMode && typeof idea.potential === "number" && (
               <span className="flex items-center gap-0.5 text-primary ml-auto font-medium">
                 <StarIcon className="w-3 h-3" weight="fill" />
                 {idea.potential}

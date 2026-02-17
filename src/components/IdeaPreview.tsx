@@ -29,7 +29,7 @@ interface IdeaPreviewProps {
   status: string;
   adReadTracker: string;
   unsponsored: boolean;
-  streamMode?: boolean;
+  theoMode?: boolean;
 }
 
 const formatDateValue = (value: string) => {
@@ -83,7 +83,7 @@ export function IdeaPreview({
   status,
   adReadTracker,
   unsponsored,
-  streamMode = false,
+  theoMode = false,
 }: IdeaPreviewProps) {
   const recorded = status === "Recorded";
   const currentThumbnail = thumbnailPreview || thumbnail;
@@ -178,37 +178,38 @@ export function IdeaPreview({
 
         {/* Tags Grid */}
         <div className="flex flex-wrap gap-1.5">
-          {owner && (
+          {theoMode && owner && (
             <Tag>
               <UserIcon weight="bold" className="w-3 h-3" />
               {owner}
             </Tag>
           )}
-          {channel && (
+          {theoMode && channel && (
             <Tag>
               <YoutubeLogoIcon weight="bold" className="w-3 h-3" />
               {channel.replace("C:", "")}
             </Tag>
           )}
-          {labels.map((label) => (
-            <Tag key={label} variant={labelVariant(label)}>
-              {label}
-            </Tag>
-          ))}
+          {theoMode &&
+            labels.map((label) => (
+              <Tag key={label} variant={labelVariant(label)}>
+                {label}
+              </Tag>
+            ))}
           {status && <Tag variant={getStatusVariant(status)}>{status}</Tag>}
-          {potential !== "" && (
+          {theoMode && potential !== "" && (
             <Tag variant="secondary">
               <ArrowFatUpIcon weight="fill" className="w-3 h-3" />
               {potential}/10
             </Tag>
           )}
-          {vodDate && (
+          {theoMode && vodDate && (
             <Tag>
               <ClockIcon weight="bold" className="w-3 h-3" />
               VOD {vodDate}
             </Tag>
           )}
-          {relDate && (
+          {theoMode && relDate && (
             <Tag>
               <CalendarCheckIcon weight="bold" className="w-3 h-3" />
               Release {relDate}
@@ -218,13 +219,13 @@ export function IdeaPreview({
             <CheckCircleIcon weight={recorded ? "fill" : "regular"} className="w-3 h-3" />
             {recorded ? "Recorded" : "Not recorded"}
           </Tag>
-          {!streamMode && (
+          {theoMode && (
             <Tag variant={unsponsored ? "muted" : "primary"}>
               <CurrencyDollarIcon weight={unsponsored ? "regular" : "fill"} className="w-3 h-3" />
               {unsponsored ? "Unsponsored" : "Sponsored"}
             </Tag>
           )}
-          {!streamMode && adReadTracker && (
+          {theoMode && adReadTracker && (
             <span className="opacity-50">
               <Tag variant="secondary">Ad Read Tracker •••••</Tag>
             </span>

@@ -19,6 +19,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { commandMenuOpenAtom, openAddIdeaModalAtom } from "@/store/atoms";
 
 const CHORD_RESET_MS = 700;
@@ -36,6 +37,7 @@ const shortcutMatches = (combo: string, key: string) => {
 
 export function AppCommandCenter() {
   const { isSignedIn } = useUser();
+  const { isTheoMode } = useTheoMode();
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const navigate = useNavigate();
@@ -78,8 +80,8 @@ export function AppCommandCenter() {
     [isSignedIn, navigate, openAddIdeaModal, pathname, setOpen],
   );
 
-  const commands = useMemo(
-    () => [
+  const commands = useMemo(() => {
+    const list = [
       {
         id: "add",
         label: "Add Idea",
@@ -100,17 +102,6 @@ export function AppCommandCenter() {
           </KbdGroup>
         ),
         icon: GearSixIcon,
-      },
-      {
-        id: "settings-notion",
-        label: "Go to Notion Settings",
-        hint: (
-          <KbdGroup>
-            <Kbd>n</Kbd>
-            <Kbd>c</Kbd>
-          </KbdGroup>
-        ),
-        icon: NotionLogoIcon,
       },
       {
         id: "settings-shared",
@@ -144,9 +135,24 @@ export function AppCommandCenter() {
         ),
         icon: CassetteTapeIcon,
       },
-    ],
-    [],
-  );
+    ];
+
+    if (isTheoMode) {
+      list.splice(2, 0, {
+        id: "settings-notion",
+        label: "Go to Notion Settings",
+        hint: (
+          <KbdGroup>
+            <Kbd>n</Kbd>
+            <Kbd>c</Kbd>
+          </KbdGroup>
+        ),
+        icon: NotionLogoIcon,
+      });
+    }
+
+    return list;
+  }, [isTheoMode]);
 
   useEffect(() => {
     if (!isSignedIn && open) {
@@ -170,14 +176,16 @@ export function AppCommandCenter() {
       timeoutRef.current = setTimeout(clearChord, CHORD_RESET_MS);
     };
 
-    const chordToCommand = new Map([
+    const chordToCommand = new Map<string, string>([
       ["a", "add"],
       ["gs", "settings-profile"],
-      ["nc", "settings-notion"],
       ["sl", "settings-shared"],
       ["rv", "recorded"],
       ["h", "home"],
     ]);
+    if (isTheoMode) {
+      chordToCommand.set("nc", "settings-notion");
+    }
     const sequences = [...chordToCommand.keys()];
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -237,7 +245,7 @@ export function AppCommandCenter() {
       window.removeEventListener("keydown", onKeyDown);
       clearChord();
     };
-  }, [isSignedIn, open, runCommand, setOpen]);
+  }, [isSignedIn, isTheoMode, open, runCommand, setOpen]);
 
   if (!isSignedIn) {
     return null;

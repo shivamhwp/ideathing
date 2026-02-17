@@ -7,6 +7,7 @@ import { api } from "convex/_generated/api";
 import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,14 +35,21 @@ type DatabaseOption = {
 
 export function NotionConnect() {
   const { membership } = useOrganization();
+  const { isTheoMode } = useTheoMode();
   const isAdmin = membership?.role === "org:admin";
 
-  const { data: connection, isLoading: isConnectionLoading } = useQuery(
-    convexQuery(api.notion.queries.getConnection, {}),
-  );
-  const { data: connectionStatus, isLoading: isStatusLoading } = useQuery(
-    convexQuery(api.notion.queries.getConnectionStatus, {}),
-  );
+  const { data: connection, isLoading: isConnectionLoading } = useQuery({
+    ...convexQuery(api.notion.queries.getConnection, {}),
+    enabled: isTheoMode,
+  });
+  const { data: connectionStatus, isLoading: isStatusLoading } = useQuery({
+    ...convexQuery(api.notion.queries.getConnectionStatus, {}),
+    enabled: isTheoMode,
+  });
+
+  if (!isTheoMode) {
+    return null;
+  }
 
   // Not connected - show button to go to settings
   if (isConnectionLoading || isStatusLoading) {

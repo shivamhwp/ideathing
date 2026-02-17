@@ -37,7 +37,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { editIdeaFields, editIdeaIsEditingAtom, streamModeAtom } from "@/store/atoms";
+import { useTheoMode } from "@/hooks/useTheoMode";
+import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
 import { IdeaPreview } from "./IdeaPreview";
 import type { Idea } from "./KanbanBoard";
 import { Badge } from "./ui/badge";
@@ -270,9 +271,6 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
 
 const UnsponsoredSection = memo(function UnsponsoredSection({ scheduleUpdate }: FieldProps) {
   const [unsponsored, setUnsponsored] = useAtom(editIdeaFields.unsponsored);
-  const streamMode = useAtomValue(streamModeAtom);
-
-  if (streamMode) return null;
 
   return (
     <div className="flex items-center gap-2 pt-1">
@@ -352,7 +350,10 @@ const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }
   );
 });
 
-const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: FieldProps) {
+const LabelStatusSection = memo(function LabelStatusSection({
+  scheduleUpdate,
+  showLabel,
+}: FieldProps & { showLabel: boolean }) {
   const [label, setLabel] = useAtom(editIdeaFields.label);
   const [status, setStatus] = useAtom(editIdeaFields.status);
 
@@ -373,20 +374,22 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
   };
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="edit-label" className="text-sm">
-          Label
-        </Label>
-        <LabelSelect
-          id="edit-label"
-          labels={label}
-          onChange={(next) => {
-            setLabel(next);
-            scheduleUpdate({ label: next });
-          }}
-        />
-      </div>
+    <div className={showLabel ? "grid grid-cols-2 gap-4" : "space-y-1.5"}>
+      {showLabel && (
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-label" className="text-sm">
+            Label
+          </Label>
+          <LabelSelect
+            id="edit-label"
+            labels={label}
+            onChange={(next) => {
+              setLabel(next);
+              scheduleUpdate({ label: next });
+            }}
+          />
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor="edit-status" className="text-sm">
           Status
@@ -411,10 +414,9 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection({
 }: FieldProps) {
   const [potential, setPotential] = useAtom(editIdeaFields.potential);
   const [adReadTracker, setAdReadTracker] = useAtom(editIdeaFields.adReadTracker);
-  const streamMode = useAtomValue(streamModeAtom);
 
   return (
-    <div className={`grid gap-4 ${streamMode ? "grid-cols-1" : "grid-cols-2"}`}>
+    <div className="grid gap-4 grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor="edit-potential" className="text-sm">
           Potential
@@ -439,23 +441,21 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection({
           </SelectContent>
         </Select>
       </div>
-      {!streamMode && (
-        <div className="space-y-1.5 opacity-50">
-          <Label htmlFor="edit-ad-read-tracker" className="text-sm">
-            Ad Read Tracker
-          </Label>
-          <Input
-            id="edit-ad-read-tracker"
-            value={adReadTracker ? "•••••" : ""}
-            placeholder="Not set"
-            disabled
-            onChange={(event) => {
-              setAdReadTracker(event.target.value);
-              scheduleUpdate({ adReadTracker: event.target.value });
-            }}
-          />
-        </div>
-      )}
+      <div className="space-y-1.5 opacity-50">
+        <Label htmlFor="edit-ad-read-tracker" className="text-sm">
+          Ad Read Tracker
+        </Label>
+        <Input
+          id="edit-ad-read-tracker"
+          value={adReadTracker ? "•••••" : ""}
+          placeholder="Not set"
+          disabled
+          onChange={(event) => {
+            setAdReadTracker(event.target.value);
+            scheduleUpdate({ adReadTracker: event.target.value });
+          }}
+        />
+      </div>
     </div>
   );
 });
@@ -499,7 +499,7 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
   const status = useAtomValue(editIdeaFields.status);
   const adReadTracker = useAtomValue(editIdeaFields.adReadTracker);
   const unsponsored = useAtomValue(editIdeaFields.unsponsored);
-  const streamMode = useAtomValue(streamModeAtom);
+  const { isTheoMode } = useTheoMode();
   const resourceList = resources.length ? resources : [""];
 
   const { scheduleUpdate, isPending, isSuccess } = useScheduledUpdate();
@@ -580,7 +580,7 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
               <DescriptionField scheduleUpdate={scheduleUpdate} />
             </div>
             <ResourcesSection scheduleUpdate={scheduleUpdate} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className={isTheoMode ? "grid grid-cols-2 gap-4" : "space-y-4"}>
               <ThumbnailSection
                 scheduleUpdate={scheduleUpdate}
                 thumbnailPreview={thumbnailPreview}
@@ -589,14 +589,16 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
                 onClear={clearFileUpload}
                 uploadFile={uploadFile}
               />
-              <div className="space-y-4">
-                <DatesSection scheduleUpdate={scheduleUpdate} />
-                <UnsponsoredSection scheduleUpdate={scheduleUpdate} />
-              </div>
+              {isTheoMode ? (
+                <div className="space-y-4">
+                  <DatesSection scheduleUpdate={scheduleUpdate} />
+                  <UnsponsoredSection scheduleUpdate={scheduleUpdate} />
+                </div>
+              ) : null}
             </div>
-            <OwnerChannelSection scheduleUpdate={scheduleUpdate} />
-            <LabelStatusSection scheduleUpdate={scheduleUpdate} />
-            <PotentialAdReadSection scheduleUpdate={scheduleUpdate} />
+            {isTheoMode ? <OwnerChannelSection scheduleUpdate={scheduleUpdate} /> : null}
+            <LabelStatusSection scheduleUpdate={scheduleUpdate} showLabel={isTheoMode} />
+            {isTheoMode ? <PotentialAdReadSection scheduleUpdate={scheduleUpdate} /> : null}
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
         ) : (
@@ -617,7 +619,7 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
             status={status}
             adReadTracker={adReadTracker}
             unsponsored={unsponsored}
-            streamMode={streamMode}
+            theoMode={isTheoMode}
           />
         )}
       </DialogContent>

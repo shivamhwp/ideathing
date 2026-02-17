@@ -65,11 +65,30 @@ export const getSummary = action({
       return null;
     }
 
+    const exportItems = (await runQuery(internalApi.ideas.queries.listExportItemsInternal, {
+      exportId: exportRecord._id,
+    })) as Doc<"ideaExportItems">[];
+
+    const previewIdeas = exportItems
+      .map((item) => ({
+        sourceIdeaId: item.ideaId,
+        ...item.payload,
+        resources: item.payload.resources ?? [],
+        label: item.payload.label ?? [],
+      }))
+      .sort((a, b) => {
+        if (a.column === b.column) {
+          return a.order - b.order;
+        }
+        return a.column === "Concept" ? -1 : 1;
+      });
+
     return {
       itemCount: exportRecord.itemCount,
       createdAt: exportRecord.createdAt,
       expiresAt: exportRecord.expiresAt,
       sourceOrganizationId: exportRecord.sourceOrganizationId,
+      previewIdeas,
     };
   },
 });

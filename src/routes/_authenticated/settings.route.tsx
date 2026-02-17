@@ -2,6 +2,7 @@ import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { List, Root, Trigger } from "@radix-ui/react-tabs";
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { cn } from "@/utils/utils";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -10,6 +11,31 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsLayout() {
   const current = useLocation().pathname.split("/")[2] || "profile";
+  const { isTheoMode } = useTheoMode();
+  const tabs: Array<{
+    key: string;
+    label: string;
+    to: "/settings/profile" | "/settings/shared" | "/settings/notion";
+  }> = [
+    {
+      key: "profile",
+      label: "Profile",
+      to: "/settings/profile" as const,
+    },
+    {
+      key: "shared",
+      label: "Shared",
+      to: "/settings/shared" as const,
+    },
+  ];
+
+  if (isTheoMode) {
+    tabs.splice(1, 0, {
+      key: "notion",
+      label: "Notion",
+      to: "/settings/notion",
+    });
+  }
 
   return (
     <div className="container mx-auto w-full max-w-3xl">
@@ -25,26 +51,8 @@ function SettingsLayout() {
         <ThemeToggle />
       </div>
       <Root value={current}>
-        <List className="mt-6 flex h-10 items-end gap-6 border-b">
-          {(
-            [
-              {
-                key: "profile",
-                label: "Profile",
-                to: "/settings/profile" as const,
-              },
-              {
-                key: "notion",
-                label: "Notion",
-                to: "/settings/notion" as const,
-              },
-              {
-                key: "shared",
-                label: "Shared",
-                to: "/settings/shared" as const,
-              },
-            ] as const
-          ).map((t) => (
+        <List className="mt-6 flex h-10 items-end gap-6 ">
+          {tabs.map((t) => (
             <Trigger
               asChild
               className={cn(

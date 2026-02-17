@@ -1,8 +1,10 @@
 import { v } from "convex/values";
 import { mutation, internalMutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { ownerValues, channelValues, labelValues, statusValues } from "../utils/types";
 import { requireAuth } from "../helper";
 import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
+import { isTheoModeForIdea, isTheoModeForScope, sanitizeStatusForMode } from "../utils/mode";
 
 // Create case-insensitive lookup maps
 const createLookup = <T extends readonly string[]>(values: T) => {
@@ -15,7 +17,9 @@ const createLookup = <T extends readonly string[]>(values: T) => {
 
 const normalizeOwner = createLookup(ownerValues);
 const normalizeChannel = createLookup(channelValues);
-const normalizeStatus = createLookup(statusValues);
+const normalizeTheoStatus = createLookup(statusValues);
+const normalizeStatus = (value: string | null | undefined, isTheoMode: boolean) =>
+  sanitizeStatusForMode(normalizeTheoStatus(value), isTheoMode);
 const normalizeLabels = (values?: string[] | null) => {
   if (!values?.length) return [];
   const map = new Map(labelValues.map((label) => [label.toLowerCase(), label]));
@@ -42,6 +46,13 @@ export const saveDatabaseSettings = mutation({
       throw new Error("No organization context");
     }
     assertOrgAdmin(identity, "Only organization admins can configure Notion");
+    const theoModeEnabled = await isTheoModeForScope(ctx, {
+      kind: "organization",
+      id: orgId,
+    });
+    if (!theoModeEnabled) {
+      throw new Error("Theo mode is disabled for this workspace");
+    }
 
     const connection = await ctx.db
       .query("notionConnections")
@@ -52,6 +63,7 @@ export const saveDatabaseSettings = mutation({
       throw new Error("Notion is not connected.");
     }
 
+    const databaseId = args.databaseId;
     await ctx.db.patch(connection._id, {
       databaseId: args.databaseId,
       databaseName: args.databaseName?.trim() || undefined,
@@ -61,6 +73,27 @@ export const saveDatabaseSettings = mutation({
       statusPropertyType: args.statusPropertyType ?? "status",
       descriptionPropertyName: args.descriptionPropertyName?.trim() || "Description",
     });
+
+    const now = Date.now();
+    const isReady = connection.isActive !== false && Boolean(connection.accessToken && databaseId);
+    const isBackfillStale =
+      connection.syncBackfillRunning &&
+      Boolean(
+        connection.syncBackfillRequestedAt &&
+        now - connection.syncBackfillRequestedAt > 10 * 60 * 1000,
+      );
+
+    if (isReady && (!connection.syncBackfillRunning || isBackfillStale)) {
+      await ctx.db.patch(connection._id, {
+        syncBackfillRunning: true,
+        syncBackfillRequestedAt: now,
+        syncBackfillLastError: undefined,
+      });
+
+      await ctx.scheduler.runAfter(0, internal.notion.actions.backfillToStreamIdeas, {
+        organizationId: orgId,
+      });
+    }
   },
 });
 
@@ -175,10 +208,14 @@ export const updateIdeaFromNotion = internalMutation({
     if (!idea) {
       return;
     }
+    const theoModeEnabled = await isTheoModeForIdea(ctx, idea);
+    if (!theoModeEnabled) {
+      return;
+    }
 
     const updates = Object.fromEntries(
       Object.entries({
-        status: normalizeStatus(args.status),
+        status: normalizeStatus(args.status, theoModeEnabled),
         title: args.title,
         description: args.description,
         notes: args.notes,
@@ -259,6 +296,14 @@ export const createIdeaFromWebhook = internalMutation({
     releaseDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const theoModeEnabled = await isTheoModeForScope(ctx, {
+      kind: "organization",
+      id: args.organizationId,
+    });
+    if (!theoModeEnabled) {
+      return null;
+    }
+
     const existingIdea = await ctx.db
       .query("ideas")
       .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
@@ -282,7 +327,7 @@ export const createIdeaFromWebhook = internalMutation({
       title: args.title,
       description: args.description,
       notes: args.notes,
-      status: normalizeStatus(args.status),
+      status: normalizeStatus(args.status, theoModeEnabled),
       column: args.column,
       order: maxOrder + 1,
       owner: normalizeOwner(args.owner),
@@ -310,6 +355,10 @@ export const archiveIdeaFromNotion = internalMutation({
   handler: async (ctx, args) => {
     const idea = await ctx.db.get(args.ideaId);
     if (!idea) {
+      return;
+    }
+    const theoModeEnabled = await isTheoModeForIdea(ctx, idea);
+    if (!theoModeEnabled) {
       return;
     }
 
@@ -358,6 +407,14 @@ export const saveOAuthConnection = internalMutation({
       connectedAt: now,
       lastRefreshedAt: now,
       expiresAt: expiresAt,
+      isActive: true,
+      lastCheckedAt: now,
+      lastError: undefined,
+      disconnectedAt: undefined,
+      syncBackfillRunning: false,
+      syncBackfillRequestedAt: undefined,
+      syncBackfillCompletedAt: undefined,
+      syncBackfillLastError: undefined,
     };
 
     if (existing) {
@@ -386,8 +443,93 @@ export const updateConnectionTokens = internalMutation({
       refreshToken: args.refreshToken,
       lastRefreshedAt: now,
       expiresAt: expiresAt,
+      isActive: true,
+      lastCheckedAt: now,
+      lastError: undefined,
+      disconnectedAt: undefined,
     });
 
     return { success: true };
+  },
+});
+
+export const updateConnectionHealth = internalMutation({
+  args: {
+    connectionId: v.id("notionConnections"),
+    isActive: v.boolean(),
+    checkedAt: v.number(),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.connectionId, {
+      isActive: args.isActive,
+      lastCheckedAt: args.checkedAt,
+      lastError: args.error,
+      disconnectedAt: args.isActive ? undefined : args.checkedAt,
+      ...(args.isActive ? {} : { syncBackfillRunning: false }),
+    });
+  },
+});
+
+export const beginBackfillSync = internalMutation({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .first();
+
+    if (!connection) {
+      return { shouldSchedule: false };
+    }
+
+    const now = Date.now();
+    const isBackfillStale =
+      connection.syncBackfillRunning &&
+      Boolean(
+        connection.syncBackfillRequestedAt &&
+        now - connection.syncBackfillRequestedAt > 10 * 60 * 1000,
+      );
+    const isReady =
+      connection.isActive !== false &&
+      Boolean(connection.accessToken && connection.databaseId) &&
+      (!connection.syncBackfillRunning || isBackfillStale);
+
+    if (!isReady) {
+      return { shouldSchedule: false };
+    }
+
+    await ctx.db.patch(connection._id, {
+      syncBackfillRunning: true,
+      syncBackfillRequestedAt: now,
+      syncBackfillLastError: undefined,
+    });
+
+    return { shouldSchedule: true };
+  },
+});
+
+export const finishBackfillSync = internalMutation({
+  args: {
+    organizationId: v.string(),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
+      .first();
+
+    if (!connection) {
+      return;
+    }
+
+    await ctx.db.patch(connection._id, {
+      syncBackfillRunning: false,
+      syncBackfillCompletedAt: Date.now(),
+      syncBackfillLastError: args.error,
+    });
   },
 });

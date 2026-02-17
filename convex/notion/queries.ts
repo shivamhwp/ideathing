@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query, internalQuery, type QueryCtx } from "../_generated/server";
+import { getModeForScope } from "../utils/mode";
 
 const fetchOrgConnection = async (
   ctx: QueryCtx,
@@ -20,9 +21,13 @@ export const getConnection = query({
     if (!orgId) {
       return null;
     }
+    const mode = await getModeForScope(ctx, { kind: "organization", id: orgId });
+    if (mode !== "theo") {
+      return null;
+    }
 
     const connection = await fetchOrgConnection(ctx, orgId);
-    if (!connection || !connection.accessToken) {
+    if (!connection || !connection.accessToken || connection.isActive === false) {
       return null;
     }
 
@@ -77,18 +82,27 @@ export const getConnectionStatus = query({
     if (!orgId) {
       return null;
     }
+    const mode = await getModeForScope(ctx, { kind: "organization", id: orgId });
+    if (mode !== "theo") {
+      return null;
+    }
 
     const connection = await fetchOrgConnection(ctx, orgId);
     if (!connection) {
       return null;
     }
 
+    const isConnected = connection.isActive !== false && Boolean(connection.accessToken);
+
     return {
-      isConnected: true,
+      isConnected,
       connectedAt: connection.connectedAt,
       databaseId: connection.databaseId,
       databaseName: connection.databaseName,
       workspaceName: connection.workspaceName,
+      lastCheckedAt: connection.lastCheckedAt,
+      lastError: connection.lastError,
+      disconnectedAt: connection.disconnectedAt,
     };
   },
 });
@@ -104,6 +118,22 @@ export const listIdeasWithNotion = internalQuery({
       .collect();
 
     return ideas.filter((idea) => Boolean(idea.notionPageId));
+  },
+});
+
+export const listToStreamIdeasNeedingSync = internalQuery({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const ideas = await ctx.db
+      .query("ideas")
+      .withIndex("by_organization_column", (q) =>
+        q.eq("organizationId", args.organizationId).eq("column", "To Stream"),
+      )
+      .collect();
+
+    return ideas.filter((idea) => !(idea.notionSynced ?? Boolean(idea.notionPageId)));
   },
 });
 

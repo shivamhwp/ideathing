@@ -45,16 +45,6 @@ export function KanbanColumn({
     disabled: !interactive || selectionMode,
   });
   const shouldShowSyncState = id === "to-stream" && !!toStreamSyncState;
-  const syncStateLabel = {
-    disconnected: "Disconnected",
-    pending: "Sync pending",
-    synced: "Synced",
-  } as const;
-  const syncStateClassName = {
-    disconnected: "border-border/60 bg-muted/20 text-muted-foreground",
-    pending: "border-amber-500/40 bg-amber-500/15 text-amber-700",
-    synced: "border-emerald-500/40 bg-emerald-500/15 text-emerald-700",
-  } as const;
   const showAddButton = !!onAddClick && interactive;
 
   return (
@@ -79,18 +69,13 @@ export function KanbanColumn({
         </div>
         <div className="flex items-center justify-end gap-2">
           {shouldShowSyncState && toStreamSyncState && (
-            <span
+            <ArrowClockwiseIcon
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
-                syncStateClassName[toStreamSyncState],
+                "w-3.5 h-3.5 text-primary/50",
+                toStreamSyncState === "pending" ? "animate-spin" : "",
               )}
-            >
-              <ArrowClockwiseIcon
-                className={cn("w-3.5 h-3.5", toStreamSyncState === "pending" && "animate-spin")}
-                weight="bold"
-              />
-              {syncStateLabel[toStreamSyncState]}
-            </span>
+              weight="bold"
+            />
           )}
           {showAddButton ? (
             <Button

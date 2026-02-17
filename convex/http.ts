@@ -128,6 +128,15 @@ http.route({
         notionPageId: normalizedPageId,
       });
     }
+    if (idea) {
+      const mode = await ctx.runQuery(internal.mode.queries.getModeForScopeInternal, {
+        organizationId: idea.organizationId,
+        userId: idea.userId,
+      });
+      if (mode !== "theo") {
+        return new Response("ok", { status: 200 });
+      }
+    }
 
     switch (eventType) {
       case "page.properties_updated":

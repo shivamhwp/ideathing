@@ -13,6 +13,7 @@ import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useTheoMode } from "@/hooks/useTheoMode";
 
 export const Route = createFileRoute("/_authenticated/settings/notion")({
   component: NotionSettings,
@@ -25,9 +26,11 @@ type DatabaseOption = {
 
 function NotionSettings() {
   const { organization, membership, isLoaded: isOrgLoaded } = useOrganization();
-  const { data: connectionStatus } = useQuery(
-    convexQuery(api.notion.queries.getConnectionStatus, {}),
-  );
+  const { isTheoMode } = useTheoMode();
+  const { data: connectionStatus } = useQuery({
+    ...convexQuery(api.notion.queries.getConnectionStatus, {}),
+    enabled: isTheoMode,
+  });
 
   const isAdmin = membership?.role === "org:admin";
 
@@ -46,6 +49,17 @@ function NotionSettings() {
     return (
       <div className="flex items-center justify-center py-20">
         <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isTheoMode) {
+    return (
+      <div className="rounded-xl border border-border/50 bg-card/50 p-6">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <WarningCircleIcon className="w-5 h-5" />
+          <p>Enable Theo mode in Profile settings to use Notion integration.</p>
+        </div>
       </div>
     );
   }

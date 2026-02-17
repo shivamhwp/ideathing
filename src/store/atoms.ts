@@ -78,7 +78,6 @@ export const defaultIdeaDraft: IdeaDraft = {
   unsponsored: true,
 };
 
-export const streamModeAtom = atomWithStorage("streamMode", false);
 export const ideaSelectionModeAtom = atom(false);
 export const commandMenuOpenAtom = atom(false);
 export const addIdeaModalOpenAtom = atom(false);

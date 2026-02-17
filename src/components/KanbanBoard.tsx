@@ -25,6 +25,7 @@ import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import {
   addIdeaModalOpenAtom,
   createIdeaDraftFromIdea,
@@ -43,6 +44,7 @@ export type Idea = Doc<"ideas">;
 
 export function KanbanBoard() {
   const { isLoaded, isSignedIn } = useUser();
+  const { isTheoMode } = useTheoMode();
 
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
@@ -57,14 +59,17 @@ export function KanbanBoard() {
   const { data: ideas, isLoading: isIdeasLoading } = useQuery(
     convexQuery(api.ideas.queries.list, {}),
   );
-  const { data: notionConnection } = useQuery(convexQuery(api.notion.queries.getConnection, {}));
-  const isNotionConnected = !!notionConnection?.databaseId;
+  const { data: notionConnection } = useQuery({
+    ...convexQuery(api.notion.queries.getConnection, {}),
+    enabled: isTheoMode,
+  });
+  const isNotionConnected = isTheoMode && !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.mutations.move);
   const isAuthResolved = isLoaded && typeof isSignedIn === "boolean";
   const isAuthLoading = !isAuthResolved;
   const isInteractionLocked = isAuthResolved && isSignedIn === false;
 
-  useNotionSyncToast(ideas);
+  useNotionSyncToast(isTheoMode ? ideas : undefined);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -95,11 +100,13 @@ export function KanbanBoard() {
     .sort((a, b) => a.order - b.order);
 
   const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
-  const toStreamSyncState: ToStreamSyncState = !isNotionConnected
-    ? "disconnected"
-    : toStreamColumn.some((idea) => !(idea.notionSynced ?? Boolean(idea.notionPageId)))
-      ? "pending"
-      : "synced";
+  const toStreamSyncState: ToStreamSyncState | undefined = isTheoMode
+    ? !isNotionConnected
+      ? "disconnected"
+      : toStreamColumn.some((idea) => !(idea.notionSynced ?? Boolean(idea.notionPageId)))
+        ? "pending"
+        : "synced"
+    : undefined;
 
   const handleAddIdea = () => {
     if (isInteractionLocked) return;

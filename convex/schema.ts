@@ -40,6 +40,24 @@ export default defineSchema({
     .index("by_organization_column", ["organizationId", "column"])
     .index("by_notion_page", ["notionPageId"]),
 
+  modeSettings: defineTable({
+    scope: v.union(v.literal("user"), v.literal("organization")),
+    userId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
+    theoMode: v.boolean(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  })
+    .index("by_user_scope", ["userId", "scope"])
+    .index("by_organization_scope", ["organizationId", "scope"]),
+
+  userFlags: defineTable({
+    userId: v.string(),
+    canManageTheoMode: v.optional(v.boolean()),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  }).index("by_user", ["userId"]),
+
   notionOauthStates: defineTable({
     state: v.string(),
     userId: v.string(),
@@ -64,6 +82,15 @@ export default defineSchema({
     workspaceId: v.string(),
     workspaceName: v.optional(v.string()),
     workspaceIcon: v.optional(v.string()),
+    // Health status for revoked/removed integrations
+    isActive: v.optional(v.boolean()),
+    lastCheckedAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    disconnectedAt: v.optional(v.number()),
+    syncBackfillRunning: v.optional(v.boolean()),
+    syncBackfillRequestedAt: v.optional(v.number()),
+    syncBackfillCompletedAt: v.optional(v.number()),
+    syncBackfillLastError: v.optional(v.string()),
     // Connection metadata
     createdBy: v.string(), // userId of admin who set it
     connectedAt: v.number(),

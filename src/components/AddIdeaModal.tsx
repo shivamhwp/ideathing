@@ -36,7 +36,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { defaultIdeaDraft, newIdeaDraftAtom, newIdeaFields, streamModeAtom } from "@/store/atoms";
+import { useTheoMode } from "@/hooks/useTheoMode";
+import { defaultIdeaDraft, newIdeaDraftAtom, newIdeaFields } from "@/store/atoms";
 
 interface AddIdeaModalProps {
   open: boolean;
@@ -174,10 +175,9 @@ const LabelSection = memo(function LabelSection() {
 const PotentialAdReadSection = memo(function PotentialAdReadSection() {
   const [potential, setPotential] = useAtom(newIdeaFields.potential);
   const [adReadTracker, setAdReadTracker] = useAtom(newIdeaFields.adReadTracker);
-  const streamMode = useAtomValue(streamModeAtom);
 
   return (
-    <div className={`grid gap-4 ${streamMode ? "grid-cols-1" : "grid-cols-2"}`}>
+    <div className="grid gap-4 grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor="potential" className="text-sm">
           Potential
@@ -198,29 +198,24 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection() {
           </SelectContent>
         </Select>
       </div>
-      {!streamMode && (
-        <div className="space-y-1.5 opacity-50">
-          <Label htmlFor="ad-read-tracker" className="text-sm">
-            Ad Read Tracker
-          </Label>
-          <Input
-            id="ad-read-tracker"
-            value={adReadTracker ? "•••••" : ""}
-            placeholder="Not set"
-            disabled
-            onChange={(event) => setAdReadTracker(event.target.value)}
-          />
-        </div>
-      )}
+      <div className="space-y-1.5 opacity-50">
+        <Label htmlFor="ad-read-tracker" className="text-sm">
+          Ad Read Tracker
+        </Label>
+        <Input
+          id="ad-read-tracker"
+          value={adReadTracker ? "•••••" : ""}
+          placeholder="Not set"
+          disabled
+          onChange={(event) => setAdReadTracker(event.target.value)}
+        />
+      </div>
     </div>
   );
 });
 
 const UnsponsoredToggle = memo(function UnsponsoredToggle() {
   const [unsponsored, setUnsponsored] = useAtom(newIdeaFields.unsponsored);
-  const streamMode = useAtomValue(streamModeAtom);
-
-  if (streamMode) return null;
 
   return (
     <div className="flex items-center gap-2">
@@ -271,6 +266,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
   const label = useAtomValue(newIdeaFields.label);
   const adReadTracker = useAtomValue(newIdeaFields.adReadTracker);
   const unsponsored = useAtomValue(newIdeaFields.unsponsored);
+  const { isTheoMode } = useTheoMode();
   const setNewDraft = useSetAtom(newIdeaDraftAtom);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const resourceList = resources.length ? resources : [""];
@@ -318,14 +314,16 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         draftThumbnail: finalThumbnail,
         thumbnailReady: thumbnailReady || Boolean(finalThumbnail),
         resources: cleanedResources,
-        vodRecordingDate: vodRecordingDate || undefined,
-        releaseDate: releaseDate || undefined,
-        owner: owner || ownerValues[7],
-        channel: channel || channelValues[0],
-        potential: typeof potential === "number" ? potential : undefined,
-        label: label.length ? label : undefined,
-        adReadTracker: adReadTracker || undefined,
-        unsponsored,
+        ...(isTheoMode && {
+          vodRecordingDate: vodRecordingDate || undefined,
+          releaseDate: releaseDate || undefined,
+          owner: owner || ownerValues[7],
+          channel: channel || channelValues[0],
+          potential: typeof potential === "number" ? potential : undefined,
+          label: label.length ? label : undefined,
+          adReadTracker: adReadTracker || undefined,
+          unsponsored,
+        }),
       });
 
       toast.success("Idea added successfully");
@@ -357,7 +355,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           <ResourcesSection id="resources" resources={resources} onChange={setResources} />
 
           {/* Thumbnail + Dates */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className={isTheoMode ? "grid grid-cols-2 gap-4" : "space-y-4"}>
             <ThumbnailField
               thumbnail={thumbnail}
               thumbnailReady={thumbnailReady}
@@ -378,13 +376,17 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
               onThumbnailReadyChange={setThumbnailReady}
               labelId="thumbnail-ready"
             />
-            <DatesSection />
+            {isTheoMode && <DatesSection />}
           </div>
 
-          <OwnerChannelSection />
-          <LabelSection />
-          <PotentialAdReadSection />
-          <UnsponsoredToggle />
+          {isTheoMode && (
+            <>
+              <OwnerChannelSection />
+              <LabelSection />
+              <PotentialAdReadSection />
+              <UnsponsoredToggle />
+            </>
+          )}
           <NotesField />
         </form>
 

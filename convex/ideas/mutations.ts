@@ -4,6 +4,12 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { requireAuth } from "../helper";
 import { assertOrgAccess } from "../utils/auth";
+import {
+  isTheoModeForIdentity,
+  isTheoModeForIdea,
+  isTheoModeForScope,
+  sanitizeModeSensitiveIdeaFields,
+} from "../utils/mode";
 import { channelValues, labelValues, ownerValues, statusValues } from "../utils/types";
 
 const literalUnion = <T extends readonly string[]>(values: T) =>
@@ -48,13 +54,20 @@ const canSyncToNotion = async (ctx: MutationCtx, organizationId?: string) => {
   if (!organizationId) {
     return false;
   }
+  const theoModeEnabled = await isTheoModeForScope(ctx, {
+    kind: "organization",
+    id: organizationId,
+  });
+  if (!theoModeEnabled) {
+    return false;
+  }
 
   const connection = await ctx.db
     .query("notionConnections")
     .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
     .first();
 
-  return Boolean(connection?.accessToken && connection.databaseId);
+  return Boolean(connection?.accessToken && connection.databaseId && connection.isActive !== false);
 };
 
 export const createExportInternal = internalMutation({
@@ -166,11 +179,21 @@ export const insertImportedIdeasInternal = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    const theoModeEnabled = await isTheoModeForScope(ctx, {
+      kind: "organization",
+      id: args.targetOrganizationId,
+    });
     const notionConnection = await ctx.db
       .query("notionConnections")
       .withIndex("by_organization", (q) => q.eq("organizationId", args.targetOrganizationId))
       .first();
-    const canSync = Boolean(notionConnection?.accessToken && notionConnection.databaseId);
+    const canSync =
+      theoModeEnabled &&
+      Boolean(
+        notionConnection?.accessToken &&
+        notionConnection.databaseId &&
+        notionConnection.isActive !== false,
+      );
 
     const columns = ["Concept", "To Stream"] as const;
     const nextOrderByColumn = new Map<(typeof columns)[number], number>();
@@ -196,6 +219,20 @@ export const insertImportedIdeasInternal = internalMutation({
     for (const item of sortedItems) {
       const nextOrder = nextOrderByColumn.get(item.payload.column) ?? 0;
       nextOrderByColumn.set(item.payload.column, nextOrder + 1);
+      const modeFields = sanitizeModeSensitiveIdeaFields(
+        {
+          vodRecordingDate: item.payload.vodRecordingDate,
+          releaseDate: item.payload.releaseDate,
+          owner: item.payload.owner,
+          channel: item.payload.channel,
+          potential: item.payload.potential,
+          label: item.payload.label,
+          status: item.payload.status,
+          adReadTracker: item.payload.adReadTracker,
+          unsponsored: item.payload.unsponsored,
+        },
+        theoModeEnabled,
+      );
 
       const ideaId = await ctx.db.insert("ideas", {
         userId: args.userId,
@@ -206,15 +243,15 @@ export const insertImportedIdeasInternal = internalMutation({
         draftThumbnail: item.payload.draftThumbnail,
         thumbnailReady: item.payload.thumbnailReady,
         resources: item.payload.resources,
-        vodRecordingDate: item.payload.vodRecordingDate,
-        releaseDate: item.payload.releaseDate,
-        owner: item.payload.owner,
-        channel: item.payload.channel,
-        potential: item.payload.potential,
-        label: item.payload.label,
-        status: item.payload.status,
-        adReadTracker: item.payload.adReadTracker,
-        unsponsored: item.payload.unsponsored,
+        vodRecordingDate: modeFields.vodRecordingDate,
+        releaseDate: modeFields.releaseDate,
+        owner: modeFields.owner,
+        channel: modeFields.channel,
+        potential: modeFields.potential,
+        label: modeFields.label,
+        status: modeFields.status,
+        adReadTracker: modeFields.adReadTracker,
+        unsponsored: modeFields.unsponsored,
         column: item.payload.column,
         order: nextOrder,
         notionPageId: undefined,
@@ -257,6 +294,21 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
+    const theoModeEnabled = await isTheoModeForIdentity(ctx, identity);
+    const modeFields = sanitizeModeSensitiveIdeaFields(
+      {
+        vodRecordingDate: args.vodRecordingDate,
+        releaseDate: args.releaseDate,
+        owner: args.owner,
+        channel: args.channel,
+        potential: args.potential,
+        label: args.label,
+        status: args.status,
+        adReadTracker: args.adReadTracker,
+        unsponsored: args.unsponsored,
+      },
+      theoModeEnabled,
+    );
 
     // Get existing ideas for order calculation based on org or personal
     let existingIdeas;
@@ -291,15 +343,15 @@ export const create = mutation({
       thumbnailReady: args.thumbnailReady ?? false,
       resources: args.resources,
 
-      vodRecordingDate: args.vodRecordingDate,
-      releaseDate: args.releaseDate,
-      owner: args.owner,
-      channel: args.channel,
-      potential: args.potential,
-      label: args.label,
-      status: args.status,
-      adReadTracker: args.adReadTracker,
-      unsponsored: args.unsponsored ?? true,
+      vodRecordingDate: modeFields.vodRecordingDate,
+      releaseDate: modeFields.releaseDate,
+      owner: modeFields.owner,
+      channel: modeFields.channel,
+      potential: modeFields.potential,
+      label: modeFields.label,
+      status: modeFields.status,
+      adReadTracker: modeFields.adReadTracker,
+      unsponsored: modeFields.unsponsored,
       column: "Concept",
       order: maxOrder + 1,
       notionSynced: false,
@@ -429,6 +481,21 @@ export const update = mutation({
     } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
+    const theoModeEnabled = await isTheoModeForIdea(ctx, idea);
+    const modeSensitiveUpdates = sanitizeModeSensitiveIdeaFields(
+      {
+        vodRecordingDate: args.vodRecordingDate,
+        releaseDate: args.releaseDate,
+        owner: args.owner,
+        channel: args.channel,
+        potential: args.potential,
+        label: args.label,
+        status: args.status,
+        adReadTracker: args.adReadTracker,
+        unsponsored: args.unsponsored,
+      },
+      theoModeEnabled,
+    );
 
     const { id, clearThumbnail, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
@@ -446,7 +513,14 @@ export const update = mutation({
       }
     }
 
-    await ctx.db.patch(id, filteredUpdates);
+    const finalUpdates = Object.fromEntries(
+      Object.entries({
+        ...filteredUpdates,
+        ...modeSensitiveUpdates,
+      }).filter(([_, value]) => value !== undefined),
+    );
+
+    await ctx.db.patch(id, finalUpdates);
 
     // Handle column change sync logic
     const wasInConcept = idea.column === "Concept";
