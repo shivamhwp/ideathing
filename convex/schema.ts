@@ -28,7 +28,16 @@ export default defineSchema({
     order: v.number(),
     notionPageId: v.optional(v.string()),
     notionSynced: v.optional(v.boolean()),
+    notionSyncInFlight: v.optional(v.boolean()),
+    notionSyncInFlightAt: v.optional(v.number()),
     syncedAt: v.optional(v.number()),
+    inNotion: v.optional(v.boolean()),
+    notionSentAt: v.optional(v.number()),
+    notionSendBy: v.optional(v.string()),
+    notionSendState: v.optional(
+      v.union(v.literal("idle"), v.literal("sending"), v.literal("sent"), v.literal("error")),
+    ),
+    notionSendError: v.optional(v.string()),
     importedFromExportId: v.optional(v.id("ideaExports")),
     importedFromOrganizationId: v.optional(v.string()),
     importedFromIdeaId: v.optional(v.id("ideas")),
@@ -41,15 +50,11 @@ export default defineSchema({
     .index("by_notion_page", ["notionPageId"]),
 
   modeSettings: defineTable({
-    scope: v.union(v.literal("user"), v.literal("organization")),
-    userId: v.optional(v.string()),
-    organizationId: v.optional(v.string()),
+    organizationId: v.string(),
     theoMode: v.boolean(),
     updatedAt: v.number(),
     updatedBy: v.string(),
-  })
-    .index("by_user_scope", ["userId", "scope"])
-    .index("by_organization_scope", ["organizationId", "scope"]),
+  }).index("by_organization", ["organizationId"]),
 
   userFlags: defineTable({
     userId: v.string(),
@@ -105,6 +110,15 @@ export default defineSchema({
   })
     .index("by_organization", ["organizationId"])
     .index("by_database_id", ["databaseId"]),
+
+  notionPageTombstones: defineTable({
+    organizationId: v.string(),
+    notionPageId: v.string(),
+    deletedAt: v.number(),
+    source: v.union(v.literal("app_delete"), v.literal("app_unlink")),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_org_page", ["organizationId", "notionPageId"]),
 
   ideaExports: defineTable({
     tokenHash: v.string(),

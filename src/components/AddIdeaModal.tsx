@@ -49,7 +49,7 @@ const DatesSection = memo(function DatesSection() {
   const [releaseDate, setReleaseDate] = useAtom(newIdeaFields.releaseDate);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="space-y-1.5">
         <Label htmlFor="vod-date" className="text-sm">
           VOD Date
@@ -314,9 +314,9 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         draftThumbnail: finalThumbnail,
         thumbnailReady: thumbnailReady || Boolean(finalThumbnail),
         resources: cleanedResources,
+        vodRecordingDate: vodRecordingDate || undefined,
+        releaseDate: releaseDate || undefined,
         ...(isTheoMode && {
-          vodRecordingDate: vodRecordingDate || undefined,
-          releaseDate: releaseDate || undefined,
           owner: owner || ownerValues[7],
           channel: channel || channelValues[0],
           potential: typeof potential === "number" ? potential : undefined,
@@ -376,7 +376,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
               onThumbnailReadyChange={setThumbnailReady}
               labelId="thumbnail-ready"
             />
-            {isTheoMode && <DatesSection />}
+            <DatesSection />
           </div>
 
           {isTheoMode && (

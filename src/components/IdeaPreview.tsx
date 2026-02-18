@@ -203,13 +203,13 @@ export function IdeaPreview({
               {potential}/10
             </Tag>
           )}
-          {theoMode && vodDate && (
+          {vodDate && (
             <Tag>
               <ClockIcon weight="bold" className="w-3 h-3" />
               VOD {vodDate}
             </Tag>
           )}
-          {theoMode && relDate && (
+          {relDate && (
             <Tag>
               <CalendarCheckIcon weight="bold" className="w-3 h-3" />
               Release {relDate}

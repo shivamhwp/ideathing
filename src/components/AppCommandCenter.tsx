@@ -124,7 +124,10 @@ export function AppCommandCenter() {
         ),
         icon: HouseIcon,
       },
-      {
+    ];
+
+    if (!isTheoMode) {
+      list.push({
         id: "recorded",
         label: "Go to Recorded Videos",
         hint: (
@@ -134,8 +137,8 @@ export function AppCommandCenter() {
           </KbdGroup>
         ),
         icon: CassetteTapeIcon,
-      },
-    ];
+      });
+    }
 
     if (isTheoMode) {
       list.splice(2, 0, {
@@ -180,9 +183,11 @@ export function AppCommandCenter() {
       ["a", "add"],
       ["gs", "settings-profile"],
       ["sl", "settings-shared"],
-      ["rv", "recorded"],
       ["h", "home"],
     ]);
+    if (!isTheoMode) {
+      chordToCommand.set("rv", "recorded");
+    }
     if (isTheoMode) {
       chordToCommand.set("nc", "settings-notion");
     }

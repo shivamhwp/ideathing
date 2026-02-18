@@ -34,9 +34,7 @@ const getModeSettingForScope = async (ctx: ModeReaderCtx, scope: ModeScope) => {
   if (scope.kind === "organization") {
     return await ctx.db
       .query("modeSettings")
-      .withIndex("by_organization_scope", (q) =>
-        q.eq("organizationId", scope.id).eq("scope", "organization"),
-      )
+      .withIndex("by_organization", (q) => q.eq("organizationId", scope.id))
       .first();
   }
 
@@ -169,8 +167,8 @@ export const sanitizeModeSensitiveIdeaFields = (
     potential: undefined,
     adReadTracker: undefined,
     unsponsored: undefined,
-    vodRecordingDate: undefined,
-    releaseDate: undefined,
+    vodRecordingDate: fields.vodRecordingDate,
+    releaseDate: fields.releaseDate,
     status: sanitizeStatusForMode(fields.status, false),
   };
 };

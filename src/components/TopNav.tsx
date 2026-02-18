@@ -31,15 +31,17 @@ export function TopNav() {
           >
             ideathing
           </Link>
-          <Link
-            to="/recorded"
-            preload="intent"
-            activeOptions={{ exact: true }}
-            className={recordedLink}
-            activeProps={{ className: recordedLinkActive }}
-          >
-            recorded vids
-          </Link>
+          {!isTheoMode ? (
+            <Link
+              to="/recorded"
+              preload="intent"
+              activeOptions={{ exact: true }}
+              className={recordedLink}
+              activeProps={{ className: recordedLinkActive }}
+            >
+              recorded vids
+            </Link>
+          ) : null}
         </Authenticated>
         <Unauthenticated>
           <span

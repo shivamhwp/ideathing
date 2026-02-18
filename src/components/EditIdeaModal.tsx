@@ -1,17 +1,20 @@
-import { useConvexMutation } from "@convex-dev/react-query";
+import { useConvexAction, useConvexMutation } from "@convex-dev/react-query";
 import {
   CaretDownIcon,
   CheckIcon,
+  PaperPlaneTiltIcon,
   PencilSimpleIcon,
   SpinnerIcon,
+  TrashIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import { format } from "date-fns";
 import { useAtom, useAtomValue } from "jotai";
 import type { ChangeEvent, RefObject } from "react";
 import { memo, useRef } from "react";
+import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
 import {
@@ -204,7 +207,7 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
   const [releaseDate, setReleaseDate] = useAtom(editIdeaFields.releaseDate);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="space-y-1.5">
         <Label htmlFor="edit-vod-date" className="text-sm">
           VOD Date
@@ -482,7 +485,8 @@ const NotesField = memo(function NotesField({ scheduleUpdate }: FieldProps) {
   );
 });
 
-export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
+export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) {
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useAtom(editIdeaIsEditingAtom);
   const title = useAtomValue(editIdeaFields.title);
   const description = useAtomValue(editIdeaFields.description);
@@ -511,6 +515,31 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
     upload: uploadFile,
     clear: clearFileUpload,
   } = useFileUpload();
+  const sendIdeaToNotionAction = useConvexAction(api.notion.actions.sendIdeaToNotion) as (args: {
+    ideaId: Idea["_id"];
+  }) => Promise<{
+    success: true;
+    status: "queued" | "already_sent" | "already_sending";
+  }>;
+  const { mutate: sendIdeaToNotion, isPending: isSendingToNotion } = useMutation({
+    mutationFn: sendIdeaToNotionAction,
+    onSuccess: async (result) => {
+      if (result.status === "already_sent") {
+        toast.info("Idea already sent to Notion.");
+      } else if (result.status === "already_sending") {
+        toast.info("Idea is already being sent to Notion.");
+      } else {
+        toast.success("Sending to Notion in background.");
+      }
+      await queryClient.invalidateQueries();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to send idea to Notion");
+    },
+  });
+  const { mutateAsync: deleteIdea, isPending: isDeletingIdea } = useMutation({
+    mutationFn: useConvexMutation(api.ideas.mutations.remove),
+  });
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -522,6 +551,29 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
 
   const handleEditToggle = () => {
     setIsEditing(true);
+  };
+
+  const handleSendToNotion = () => {
+    if (!idea) {
+      return;
+    }
+    handleOpenChange(false);
+    sendIdeaToNotion({ ideaId: idea._id });
+  };
+
+  const handleDeleteIdea = async () => {
+    if (!idea) {
+      return;
+    }
+
+    try {
+      await deleteIdea({ id: idea._id });
+      toast.success("Idea deleted");
+      await queryClient.invalidateQueries();
+      handleOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete idea");
+    }
   };
 
   return (
@@ -589,12 +641,10 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
                 onClear={clearFileUpload}
                 uploadFile={uploadFile}
               />
-              {isTheoMode ? (
-                <div className="space-y-4">
-                  <DatesSection scheduleUpdate={scheduleUpdate} />
-                  <UnsponsoredSection scheduleUpdate={scheduleUpdate} />
-                </div>
-              ) : null}
+              <div className="space-y-4">
+                <DatesSection scheduleUpdate={scheduleUpdate} />
+                {isTheoMode ? <UnsponsoredSection scheduleUpdate={scheduleUpdate} /> : null}
+              </div>
             </div>
             {isTheoMode ? <OwnerChannelSection scheduleUpdate={scheduleUpdate} /> : null}
             <LabelStatusSection scheduleUpdate={scheduleUpdate} showLabel={isTheoMode} />
@@ -602,25 +652,58 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
         ) : (
-          <IdeaPreview
-            title={title}
-            description={description}
-            notes={notes}
-            thumbnail={thumbnail}
-            thumbnailPreview={thumbnailPreview}
-            thumbnailReady={thumbnailReady}
-            resources={resourceList}
-            vodRecordingDate={vodRecordingDate}
-            releaseDate={releaseDate}
-            owner={owner}
-            channel={channel}
-            potential={potential}
-            labels={label}
-            status={status}
-            adReadTracker={adReadTracker}
-            unsponsored={unsponsored}
-            theoMode={isTheoMode}
-          />
+          <div className="flex flex-col">
+            <IdeaPreview
+              title={title}
+              description={description}
+              notes={notes}
+              thumbnail={thumbnail}
+              thumbnailPreview={thumbnailPreview}
+              thumbnailReady={thumbnailReady}
+              resources={resourceList}
+              vodRecordingDate={vodRecordingDate}
+              releaseDate={releaseDate}
+              owner={owner}
+              channel={channel}
+              potential={potential}
+              labels={label}
+              status={status}
+              adReadTracker={adReadTracker}
+              unsponsored={unsponsored}
+              theoMode={isTheoMode}
+            />
+            {isTheoMode ? (
+              <div className="border-t border-border/40 px-6 py-4 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeleteIdea}
+                  disabled={!idea || isDeletingIdea || isSendingToNotion}
+                  className="cursor-pointer"
+                >
+                  {isDeletingIdea ? (
+                    <SpinnerIcon className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <TrashIcon className="w-4 h-4" />
+                  )}
+                  Delete
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSendToNotion}
+                  disabled={!idea || idea.inNotion || isDeletingIdea || isSendingToNotion}
+                  className="cursor-pointer"
+                >
+                  {isSendingToNotion ? (
+                    <SpinnerIcon className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <PaperPlaneTiltIcon className="w-4 h-4" />
+                  )}
+                  {idea?.inNotion ? "Sent to Notion" : "Send to Notion"}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         )}
       </DialogContent>
     </Dialog>

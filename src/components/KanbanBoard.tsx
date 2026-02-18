@@ -18,14 +18,11 @@ import {
 } from "@dnd-kit/sortable";
 import { ClipboardTextIcon, ShareNetworkIcon, SpinnerIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "convex/_generated/api";
 import type { Doc, Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
-import { useTheoMode } from "@/hooks/useTheoMode";
 import {
   addIdeaModalOpenAtom,
   createIdeaDraftFromIdea,
@@ -37,14 +34,14 @@ import {
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
-import { KanbanColumn, type ToStreamSyncState } from "./KanbanColumn";
+import { KanbanColumn } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
+import { api } from "convex/_generated/api";
 
 export type Idea = Doc<"ideas">;
 
 export function KanbanBoard() {
   const { isLoaded, isSignedIn } = useUser();
-  const { isTheoMode } = useTheoMode();
 
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
@@ -59,17 +56,10 @@ export function KanbanBoard() {
   const { data: ideas, isLoading: isIdeasLoading } = useQuery(
     convexQuery(api.ideas.queries.list, {}),
   );
-  const { data: notionConnection } = useQuery({
-    ...convexQuery(api.notion.queries.getConnection, {}),
-    enabled: isTheoMode,
-  });
-  const isNotionConnected = isTheoMode && !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.mutations.move);
   const isAuthResolved = isLoaded && typeof isSignedIn === "boolean";
   const isAuthLoading = !isAuthResolved;
   const isInteractionLocked = isAuthResolved && isSignedIn === false;
-
-  useNotionSyncToast(isTheoMode ? ideas : undefined);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -100,14 +90,6 @@ export function KanbanBoard() {
     .sort((a, b) => a.order - b.order);
 
   const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
-  const toStreamSyncState: ToStreamSyncState | undefined = isTheoMode
-    ? !isNotionConnected
-      ? "disconnected"
-      : toStreamColumn.some((idea) => !(idea.notionSynced ?? Boolean(idea.notionPageId)))
-        ? "pending"
-        : "synced"
-    : undefined;
-
   const handleAddIdea = () => {
     if (isInteractionLocked) return;
     openAddIdeaModal();
@@ -249,7 +231,6 @@ export function KanbanBoard() {
                 items={toStreamColumn}
                 onItemClick={handleEditIdea}
                 interactive={!isInteractionLocked}
-                toStreamSyncState={toStreamSyncState}
                 selectionMode={selectionMode}
                 selectedIds={selectedIdSet}
                 onToggleSelect={handleSelectIdea}

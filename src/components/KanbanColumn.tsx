@@ -1,17 +1,10 @@
 import { useDroppable } from "@dnd-kit/core";
-import {
-  ArrowClockwiseIcon,
-  LightbulbIcon,
-  PlusIcon,
-  VideoCameraIcon,
-} from "@phosphor-icons/react";
+import { LightbulbIcon, PlusIcon, VideoCameraIcon } from "@phosphor-icons/react";
 import type { Id } from "convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
-
-export type ToStreamSyncState = "disconnected" | "pending" | "synced";
 
 interface KanbanColumnProps {
   id: "concept" | "to-stream";
@@ -21,7 +14,6 @@ interface KanbanColumnProps {
   onAddClick?: () => void;
   onItemClick?: (idea: Idea) => void;
   interactive?: boolean;
-  toStreamSyncState?: ToStreamSyncState;
   selectionMode?: boolean;
   selectedIds?: Set<Id<"ideas">>;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
@@ -35,7 +27,6 @@ export function KanbanColumn({
   onAddClick,
   onItemClick,
   interactive = true,
-  toStreamSyncState,
   selectionMode = false,
   selectedIds,
   onToggleSelect,
@@ -44,7 +35,6 @@ export function KanbanColumn({
     id,
     disabled: !interactive || selectionMode,
   });
-  const shouldShowSyncState = id === "to-stream" && !!toStreamSyncState;
   const showAddButton = !!onAddClick && interactive;
 
   return (
@@ -68,15 +58,6 @@ export function KanbanColumn({
           <span className="text-xs text-muted-foreground/50">{items.length}</span>
         </div>
         <div className="flex items-center justify-end gap-2">
-          {shouldShowSyncState && toStreamSyncState && (
-            <ArrowClockwiseIcon
-              className={cn(
-                "w-3.5 h-3.5 text-primary/50",
-                toStreamSyncState === "pending" ? "animate-spin" : "",
-              )}
-              weight="bold"
-            />
-          )}
           {showAddButton ? (
             <Button
               onClick={onAddClick}
