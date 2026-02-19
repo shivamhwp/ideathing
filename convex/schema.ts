@@ -28,6 +28,7 @@ export default defineSchema({
     order: v.number(),
     notionPageId: v.optional(v.string()),
     inNotion: v.optional(v.boolean()),
+    notionSynced: v.optional(v.boolean()),
     notionSentAt: v.optional(v.number()),
     notionSendBy: v.optional(v.string()),
     notionSendState: v.optional(

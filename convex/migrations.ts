@@ -10,15 +10,34 @@ const migrations = new Migrations<DataModel>(components.migrations, {
 export const backfillIdeaSendFields = migrations.define({
   table: "ideas",
   migrateOne: (_ctx, idea) => {
-    const inNotion = idea.inNotion ?? Boolean(idea.notionPageId);
+    const inNotion = idea.inNotion ?? idea.notionSynced ?? Boolean(idea.notionPageId);
     const notionSendState = inNotion ? ("sent" as const) : ("idle" as const);
 
     return {
       inNotion,
+      notionSynced: undefined,
       notionSentAt: inNotion ? (idea.notionSentAt ?? Date.now()) : undefined,
       notionSendBy: inNotion ? (idea.notionSendBy ?? idea.userId) : undefined,
       notionSendState,
       notionSendError: undefined,
+    };
+  },
+});
+
+export const cleanupLegacyNotionSynced = migrations.define({
+  table: "ideas",
+  migrateOne: (_ctx, idea) => {
+    if (idea.notionSynced === undefined) {
+      return;
+    }
+
+    const inNotion = idea.inNotion ?? idea.notionSynced ?? Boolean(idea.notionPageId);
+    return {
+      inNotion,
+      notionSynced: undefined,
+      notionSentAt: inNotion ? (idea.notionSentAt ?? Date.now()) : undefined,
+      notionSendBy: inNotion ? (idea.notionSendBy ?? idea.userId) : undefined,
+      notionSendState: idea.notionSendState ?? (inNotion ? "sent" : "idle"),
     };
   },
 });
