@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Micro+5&display=swap");
 @import "tailwindcss";
+@import '@clerk/themes/shadcn.css';
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -197,9 +198,6 @@ code {
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
