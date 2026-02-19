@@ -102,20 +102,6 @@ export const saveDatabaseSettings = mutation({
   },
 });
 
-export const disconnect = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
-    const orgId = getIdentityOrgId(identity);
-    if (!orgId) {
-      throw new Error("No organization context");
-    }
-
-    assertOrgAdmin(identity, "Only organization admins can disconnect Notion");
-    await disconnectNotionConnectionForOrg(ctx, orgId);
-  },
-});
-
 export const disconnectLocal = internalMutation({
   args: {
     organizationId: v.string(),

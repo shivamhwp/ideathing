@@ -25,5 +25,3 @@ export const useTheoMode = () => {
     capabilities: query.data?.capabilities,
   };
 };
-
-export { theoModeQuery };

@@ -13,12 +13,12 @@ import {
   statusValues,
 } from "../../shared/idea-values";
 
-export type OwnerType = OwnerValue | "";
-export type ChannelType = ChannelValue | "";
-export type LabelType = LabelValue[];
-export type StatusType = StatusValue | "";
+type OwnerType = OwnerValue | "";
+type ChannelType = ChannelValue | "";
+type LabelType = LabelValue[];
+type StatusType = StatusValue | "";
 
-export interface IdeaDraft {
+interface IdeaDraft {
   ideaId?: Id<"ideas"> | null;
   title: string;
   description: string;
@@ -38,7 +38,7 @@ export interface IdeaDraft {
   unsponsored: boolean;
 }
 
-export type IdeaDraftSource = {
+type IdeaDraftSource = {
   _id: Id<"ideas">;
   title: string;
   description?: string;

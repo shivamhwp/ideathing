@@ -18,36 +18,6 @@ const fetchOrgConnection = async (
   return active ?? sorted[0] ?? null;
 };
 
-export const getConnection = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const orgId = identity?.org_id;
-    if (!orgId) {
-      return null;
-    }
-    const mode = await getModeForScope(ctx, { kind: "organization", id: orgId });
-    if (mode !== "theo") {
-      return null;
-    }
-
-    const connection = await fetchOrgConnection(ctx, orgId);
-    if (!connection || !connection.accessToken || connection.isActive === false) {
-      return null;
-    }
-
-    return {
-      databaseId: connection.databaseId,
-      databaseName: connection.databaseName,
-      targetSection: connection.targetSection,
-      titlePropertyName: connection.titlePropertyName,
-      statusPropertyName: connection.statusPropertyName,
-      statusPropertyType: connection.statusPropertyType,
-      descriptionPropertyName: connection.descriptionPropertyName,
-    };
-  },
-});
-
 export const getConnectionInternal = internalQuery({
   args: {
     organizationId: v.string(),

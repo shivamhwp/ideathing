@@ -229,10 +229,9 @@ export const importIdeas = action({
       exportId: exportRecord._id,
     })) as Doc<"ideaExportItems">[];
 
-    const mappedItems: { sourceIdeaId: Id<"ideas">; payload: ExportPayload }[] = [];
+    const mappedItems: { payload: ExportPayload }[] = [];
     for (const item of items) {
       mappedItems.push({
-        sourceIdeaId: item.ideaId,
         payload: {
           ...item.payload,
           owner: item.payload.owner as ExportPayload["owner"],
@@ -248,8 +247,6 @@ export const importIdeas = action({
       {
         targetOrganizationId,
         userId: identity.subject,
-        exportId: exportRecord._id,
-        sourceOrganizationId: exportRecord.sourceOrganizationId,
         items: mappedItems,
       },
     );

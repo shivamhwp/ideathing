@@ -148,11 +148,8 @@ export const insertImportedIdeasInternal = internalMutation({
   args: {
     targetOrganizationId: v.string(),
     userId: v.string(),
-    exportId: v.id("ideaExports"),
-    sourceOrganizationId: v.string(),
     items: v.array(
       v.object({
-        sourceIdeaId: v.id("ideas"),
         payload: payloadSchema,
       }),
     ),
@@ -228,10 +225,6 @@ export const insertImportedIdeasInternal = internalMutation({
         notionSendBy: undefined,
         notionSendState: "idle",
         notionSendError: undefined,
-        importedFromExportId: args.exportId,
-        importedFromOrganizationId: args.sourceOrganizationId,
-        importedFromIdeaId: item.sourceIdeaId,
-        importedAt: Date.now(),
       });
 
       importedIdeaIds.push(ideaId);

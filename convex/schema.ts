@@ -27,10 +27,6 @@ export default defineSchema({
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
     notionPageId: v.optional(v.string()),
-    notionSynced: v.optional(v.boolean()),
-    notionSyncInFlight: v.optional(v.boolean()),
-    notionSyncInFlightAt: v.optional(v.number()),
-    syncedAt: v.optional(v.number()),
     inNotion: v.optional(v.boolean()),
     notionSentAt: v.optional(v.number()),
     notionSendBy: v.optional(v.string()),
@@ -38,10 +34,6 @@ export default defineSchema({
       v.union(v.literal("idle"), v.literal("sending"), v.literal("sent"), v.literal("error")),
     ),
     notionSendError: v.optional(v.string()),
-    importedFromExportId: v.optional(v.id("ideaExports")),
-    importedFromOrganizationId: v.optional(v.string()),
-    importedFromIdeaId: v.optional(v.id("ideas")),
-    importedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_user_column", ["userId", "column"])
@@ -92,10 +84,6 @@ export default defineSchema({
     lastCheckedAt: v.optional(v.number()),
     lastError: v.optional(v.string()),
     disconnectedAt: v.optional(v.number()),
-    syncBackfillRunning: v.optional(v.boolean()),
-    syncBackfillRequestedAt: v.optional(v.number()),
-    syncBackfillCompletedAt: v.optional(v.number()),
-    syncBackfillLastError: v.optional(v.string()),
     // Connection metadata
     createdBy: v.string(), // userId of admin who set it
     connectedAt: v.number(),
@@ -110,15 +98,6 @@ export default defineSchema({
   })
     .index("by_organization", ["organizationId"])
     .index("by_database_id", ["databaseId"]),
-
-  notionPageTombstones: defineTable({
-    organizationId: v.string(),
-    notionPageId: v.string(),
-    deletedAt: v.number(),
-    source: v.union(v.literal("app_delete"), v.literal("app_unlink")),
-  })
-    .index("by_organization", ["organizationId"])
-    .index("by_org_page", ["organizationId", "notionPageId"]),
 
   ideaExports: defineTable({
     tokenHash: v.string(),
