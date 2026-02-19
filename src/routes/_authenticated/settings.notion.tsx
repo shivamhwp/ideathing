@@ -187,23 +187,34 @@ function NotionSettings() {
             )}
           </div>
         </div>
-        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+        <div className="flex w-full gap-2 sm:w-auto sm:flex-row">
           {connectionStatus?.isConnected ? (
             <>
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 onClick={handleLoadDatabases}
                 disabled={isLoadingDatabases}
+                className="flex-1 sm:flex-none"
               >
                 {isLoadingDatabases ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : "Change"}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDisconnect}>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleDisconnect}
+                className="flex-1 sm:flex-none"
+              >
                 Disconnect
               </Button>
             </>
           ) : (
-            <Button onClick={handleConnectOAuth} disabled={isConnecting} size="sm">
+            <Button
+              onClick={handleConnectOAuth}
+              disabled={isConnecting}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
               {isConnecting ? (
                 <>
                   <SpinnerIcon className="w-4 h-4 animate-spin mr-2" />

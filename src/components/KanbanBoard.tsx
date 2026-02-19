@@ -19,6 +19,7 @@ import {
 import { ClipboardTextIcon, ShareNetworkIcon, SpinnerIcon, TrashIcon } from "@phosphor-icons/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "@tanstack/react-query";
+import { api } from "convex/_generated/api";
 import type { Doc, Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -38,7 +39,6 @@ import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
-import { api } from "convex/_generated/api";
 
 export type Idea = Doc<"ideas">;
 
@@ -101,9 +101,11 @@ export function KanbanBoard() {
     setFocusedIdeaId(ideaId);
     if (!ideaId) return;
     requestAnimationFrame(() => {
-      document
-        .getElementById(getIdeaDomId(ideaId))
-        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+      document.getElementById(getIdeaDomId(ideaId))?.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "smooth",
+      });
     });
   };
 
@@ -314,7 +316,7 @@ export function KanbanBoard() {
   return (
     <div className="flex h-full flex-col flex-1 min-h-0 gap-4 select-none">
       {/* Kanban Columns */}
-      <div className="relative h-full flex-1 min-h-0">
+      <div className="relative h-full flex-1 min-h-0 ">
         <DndContext
           sensors={sensors}
           collisionDetection={rectIntersection}
@@ -323,7 +325,7 @@ export function KanbanBoard() {
           onDragCancel={handleDragCancel}
         >
           <div
-            className="grid h-full min-h-0 flex-1 grid-flow-col auto-cols-[minmax(17rem,92%)] grid-rows-[1fr] items-stretch gap-3 overflow-x-auto pb-1 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-2 md:gap-4 md:overflow-x-visible md:pb-0"
+            className="grid h-full min-h-0 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] grid-flow-col auto-cols-[minmax(20rem,92%)] grid-rows-[1fr] items-stretch gap-3 overflow-x-auto pb-1 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-2 md:gap-4 md:overflow-x-visible md:pb-0"
             onPointerDown={handleBoardPointerDown}
           >
             <SortableContext
