@@ -714,20 +714,20 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
                 variant="secondary"
                 onClick={handleEditToggle}
                 aria-label="Edit idea"
-                className="cursor-pointer"
+                className="w-full cursor-pointer sm:w-auto"
               >
                 <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
                 Edit Idea
                 <Kbd className="ml-2 hidden sm:inline-flex">e</Kbd>
               </Button>
               {isTheoMode ? (
-                <div className="flex w-full items-center gap-2 sm:w-auto">
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                   <Button
                     type="button"
                     variant="destructive"
                     onClick={handleDeleteIdea}
                     disabled={!idea || isDeletingIdea || isSendingToNotion}
-                    className="cursor-pointer"
+                    className="w-full cursor-pointer sm:w-auto"
                   >
                     {isDeletingIdea ? (
                       <SpinnerIcon className="w-4 h-4 animate-spin" />
@@ -741,7 +741,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
                     type="button"
                     onClick={handleSendToNotion}
                     disabled={!idea || idea.inNotion || isDeletingIdea || isSendingToNotion}
-                    className="cursor-pointer"
+                    className="w-full cursor-pointer sm:w-auto"
                   >
                     {isSendingToNotion ? (
                       <SpinnerIcon className="w-4 h-4 animate-spin" />

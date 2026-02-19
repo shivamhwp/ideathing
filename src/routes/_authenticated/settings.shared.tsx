@@ -80,7 +80,7 @@ function SharedLinksSettings() {
               <div className="min-w-0 overflow-x-auto whitespace-nowrap font-mono text-sm text-muted-foreground/70">
                 {link}
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 opacity-100 transition-opacity sm:absolute sm:inset-y-0 sm:right-1 sm:mt-0 sm:flex-nowrap sm:opacity-0 sm:group-hover:opacity-100">
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2 opacity-100 transition-opacity sm:absolute sm:inset-y-0 sm:right-1 sm:mt-0 sm:flex-nowrap sm:opacity-0 sm:group-hover:opacity-100">
                 <div className="flex items-center gap-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
