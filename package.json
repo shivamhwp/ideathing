@@ -46,7 +46,6 @@
     "jotai": "^2.18.0",
     "next-themes": "^0.4.6",
     "nitro": "npm:nitro-nightly@3.0.1-20260218-223755-775e512e",
-    "onedollarstats": "^0.0.14",
     "radix-ui": "^1.4.3",
     "react": "^19.2.4",
     "react-day-picker": "^9.13.2",

@@ -1,7 +1,6 @@
 import type { ConvexQueryClient } from "@convex-dev/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
-import { configure } from "onedollarstats";
 import { NotFound } from "@/components/not-found";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
@@ -15,35 +14,19 @@ interface MyRouterContext {
   convexQueryClient: ConvexQueryClient;
 }
 
-let hasConfiguredOneDollarStats = false;
-
-function configureOneDollarStats() {
-  if (hasConfiguredOneDollarStats || typeof window === "undefined") {
-    return;
-  }
-
-  if (import.meta.env.VITE_ENABLE_ANALYTICS !== "true") {
-    hasConfiguredOneDollarStats = true;
-    return;
-  }
-
-  const hostname = import.meta.env.VITE_ONEDOLLARSTATS_HOSTNAME?.trim();
-  const collectorUrl = import.meta.env.VITE_ONEDOLLARSTATS_COLLECTOR_URL?.trim();
-  if (import.meta.env.DEV && hostname) {
-    configure({
-      hostname,
-      collectorUrl,
-      devmode: true,
-    });
-  } else {
-    configure({
-      hostname,
-      collectorUrl,
-    });
-  }
-
-  hasConfiguredOneDollarStats = true;
-}
+const oneDollarStatsCollectorUrl = import.meta.env.VITE_ONEDOLLARSTATS_COLLECTOR_URL?.trim();
+const oneDollarStatsHostname = import.meta.env.VITE_ONEDOLLARSTATS_HOSTNAME?.trim();
+const oneDollarStatsScript = {
+  defer: true,
+  src: "https://assets.onedollarstats.com/stonks.js",
+  ...(oneDollarStatsCollectorUrl ? { "data-url": oneDollarStatsCollectorUrl } : {}),
+  ...(import.meta.env.DEV && oneDollarStatsHostname
+    ? {
+        "data-hostname": oneDollarStatsHostname,
+        "data-devmode": "true",
+      }
+    : {}),
+};
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   head: () => ({
@@ -82,6 +65,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         href: "https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&display=swap",
       },
     ],
+    scripts: [oneDollarStatsScript],
   }),
 
   shellComponent: RootDocument,
@@ -105,7 +89,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
-  configureOneDollarStats();
 
   return (
     <html lang="en" suppressHydrationWarning>
