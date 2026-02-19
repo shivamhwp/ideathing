@@ -1,28 +1,40 @@
 import { v } from "convex/values";
-import { mutation, internalMutation } from "../_generated/server";
-import { ownerValues, channelValues, labelValues, statusValues } from "../utils/types";
+import { internal } from "../_generated/api";
+import { internalMutation, mutation, type MutationCtx } from "../_generated/server";
 import { requireAuth } from "../helper";
 import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
+import { isTheoModeForScope } from "../utils/mode";
+import { normalizeNotionId } from "./utils/ids";
 
-// Create case-insensitive lookup maps
-const createLookup = <T extends readonly string[]>(values: T) => {
-  const map = new Map(values.map((v) => [v.toLowerCase(), v]));
-  return (value?: string | null): T[number] | undefined => {
-    if (!value) return undefined;
-    return map.get(value.toLowerCase()) as T[number] | undefined;
-  };
-};
+const disconnectNotionConnectionForOrg = async (
+  ctx: Pick<MutationCtx, "db">,
+  organizationId: string,
+) => {
+  const connections = await ctx.db
+    .query("notionConnections")
+    .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
+    .collect();
+  const [connection, ...duplicates] = connections.sort((a, b) => b.connectedAt - a.connectedAt);
 
-const normalizeOwner = createLookup(ownerValues);
-const normalizeChannel = createLookup(channelValues);
-const normalizeStatus = createLookup(statusValues);
-const normalizeLabels = (values?: string[] | null) => {
-  if (!values?.length) return [];
-  const map = new Map(labelValues.map((label) => [label.toLowerCase(), label]));
-  const normalized = values
-    .map((value) => map.get(value.toLowerCase()))
-    .filter(Boolean) as (typeof labelValues)[number][];
-  return labelValues.filter((label) => normalized.includes(label));
+  if (!connection) {
+    return;
+  }
+
+  const now = Date.now();
+  await ctx.db.patch(connection._id, {
+    isActive: false,
+    disconnectedAt: now,
+    lastCheckedAt: now,
+    lastError: undefined,
+    accessToken: "",
+    refreshToken: undefined,
+    expiresAt: undefined,
+    lastRefreshedAt: undefined,
+  });
+
+  for (const duplicate of duplicates) {
+    await ctx.db.delete(duplicate._id);
+  }
 };
 
 export const saveDatabaseSettings = mutation({
@@ -43,13 +55,39 @@ export const saveDatabaseSettings = mutation({
     }
     assertOrgAdmin(identity, "Only organization admins can configure Notion");
 
-    const connection = await ctx.db
+    const theoModeEnabled = await isTheoModeForScope(ctx, {
+      kind: "organization",
+      id: orgId,
+    });
+    if (!theoModeEnabled) {
+      throw new Error("Theo mode is disabled for this workspace");
+    }
+
+    const connections = await ctx.db
       .query("notionConnections")
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-      .first();
+      .collect();
+    const [connection, ...duplicates] = connections.sort((a, b) => b.connectedAt - a.connectedAt);
 
     if (!connection) {
       throw new Error("Notion is not connected.");
+    }
+
+    for (const duplicate of duplicates) {
+      await ctx.db.delete(duplicate._id);
+    }
+
+    const conflictingConnections = await ctx.db
+      .query("notionConnections")
+      .withIndex("by_database_id", (q) => q.eq("databaseId", args.databaseId))
+      .filter((q) => q.neq(q.field("organizationId"), orgId))
+      .collect();
+
+    const hasActiveConflict = conflictingConnections.some(
+      (record) => record.isActive !== false && Boolean(record.accessToken),
+    );
+    if (hasActiveConflict) {
+      throw new Error("This Notion data source is already connected to another workspace.");
     }
 
     await ctx.db.patch(connection._id, {
@@ -64,49 +102,81 @@ export const saveDatabaseSettings = mutation({
   },
 });
 
-export const disconnect = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
-    const orgId = getIdentityOrgId(identity);
-    if (!orgId) {
-      throw new Error("No organization context");
-    }
-
-    assertOrgAdmin(identity, "Only organization admins can disconnect Notion");
-
-    const connection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-      .first();
-
-    if (connection) {
-      await ctx.db.delete(connection._id);
-    }
-
-    const orgIdeas = await ctx.db
-      .query("ideas")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-      .collect();
-
-    for (const idea of orgIdeas) {
-      await ctx.db.patch(idea._id, {
-        notionSynced: false,
-      });
-    }
+export const disconnectLocal = internalMutation({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await disconnectNotionConnectionForOrg(ctx, args.organizationId);
   },
 });
 
-export const updateIdeaSynced = internalMutation({
+export const enqueueIdeaSend = internalMutation({
   args: {
     ideaId: v.id("ideas"),
-    notionPageId: v.string(),
+    actorUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea) {
+      return { queued: false as const, reason: "missing_idea" as const };
+    }
+
+    if (idea.inNotion) {
+      return { queued: false as const, reason: "already_sent" as const };
+    }
+
+    if (idea.notionSendState === "sending") {
+      return { queued: false as const, reason: "already_sending" as const };
+    }
+
+    await ctx.db.patch(args.ideaId, {
+      notionSendState: "sending",
+      notionSendError: undefined,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.notion.actions.processQueuedIdeaSend, {
+      ideaId: args.ideaId,
+      actorUserId: args.actorUserId,
+      attempt: 0,
+    });
+
+    return { queued: true as const };
+  },
+});
+
+export const markIdeaSendSuccess = internalMutation({
+  args: {
+    ideaId: v.id("ideas"),
+    userId: v.string(),
+    notionPageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.ideaId, {
-      notionPageId: args.notionPageId,
-      notionSynced: true,
-      syncedAt: Date.now(),
+      inNotion: true,
+      notionSentAt: Date.now(),
+      notionSendBy: args.userId,
+      notionSendState: "sent",
+      notionSendError: undefined,
+      notionPageId: args.notionPageId ? normalizeNotionId(args.notionPageId) : undefined,
+    });
+  },
+});
+
+export const markIdeaSendFailure = internalMutation({
+  args: {
+    ideaId: v.id("ideas"),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea || idea.inNotion) {
+      return;
+    }
+
+    await ctx.db.patch(args.ideaId, {
+      notionSendState: "error",
+      notionSendError: args.error?.slice(0, 400) ?? "Failed to send to Notion",
     });
   },
 });
@@ -139,190 +209,6 @@ export const deleteOAuthState = internalMutation({
   },
 });
 
-export const clearIdeaSynced = internalMutation({
-  args: {
-    ideaId: v.id("ideas"),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.ideaId, {
-      notionPageId: undefined,
-      notionSynced: false,
-      syncedAt: undefined,
-    });
-  },
-});
-
-export const updateIdeaFromNotion = internalMutation({
-  args: {
-    ideaId: v.id("ideas"),
-    status: v.optional(v.string()),
-    column: v.optional(v.union(v.literal("Concept"), v.literal("To Stream"))),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    notes: v.optional(v.string()),
-    owner: v.optional(v.string()),
-    channel: v.optional(v.string()),
-    label: v.optional(v.array(v.string())),
-    adReadTracker: v.optional(v.string()),
-    potential: v.optional(v.number()),
-    thumbnailReady: v.optional(v.boolean()),
-    unsponsored: v.optional(v.boolean()),
-    vodRecordingDate: v.optional(v.string()),
-    releaseDate: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const idea = await ctx.db.get(args.ideaId);
-    if (!idea) {
-      return;
-    }
-
-    const updates = Object.fromEntries(
-      Object.entries({
-        status: normalizeStatus(args.status),
-        title: args.title,
-        description: args.description,
-        notes: args.notes,
-        owner: normalizeOwner(args.owner),
-        channel: normalizeChannel(args.channel),
-        label: args.label === undefined ? undefined : normalizeLabels(args.label),
-        adReadTracker:
-          args.adReadTracker === undefined ? undefined : args.adReadTracker.trim() || "",
-        potential: args.potential,
-        thumbnailReady: args.thumbnailReady,
-        unsponsored: args.unsponsored,
-        vodRecordingDate: args.vodRecordingDate,
-        releaseDate: args.releaseDate,
-      }).filter(([_, value]) => value !== undefined),
-    );
-
-    let nextColumn: "Concept" | "To Stream" | undefined;
-    let nextOrder: number | undefined;
-
-    // Handle column change from Notion
-    if (args.column && args.column !== idea.column) {
-      nextColumn = args.column;
-    }
-
-    if (nextColumn) {
-      const columnIdeas = idea.organizationId
-        ? await ctx.db
-            .query("ideas")
-            .withIndex("by_organization_column", (q) =>
-              q.eq("organizationId", idea.organizationId).eq("column", nextColumn),
-            )
-            .collect()
-        : await ctx.db
-            .query("ideas")
-            .withIndex("by_user_column", (q) =>
-              q.eq("userId", idea.userId).eq("column", nextColumn),
-            )
-            .filter((q) => q.eq(q.field("organizationId"), undefined))
-            .collect();
-      const maxOrder = columnIdeas.reduce((max, entry) => Math.max(max, entry.order), -1);
-      nextOrder = maxOrder + 1;
-    }
-
-    const updatesWithColumn = Object.fromEntries(
-      Object.entries({
-        ...updates,
-        column: nextColumn,
-        order: nextOrder,
-      }).filter(([_, value]) => value !== undefined),
-    );
-
-    if (Object.keys(updatesWithColumn).length === 0) {
-      return;
-    }
-
-    await ctx.db.patch(args.ideaId, updatesWithColumn);
-  },
-});
-
-export const createIdeaFromWebhook = internalMutation({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    notionPageId: v.string(),
-    title: v.string(),
-    description: v.optional(v.string()),
-    notes: v.optional(v.string()),
-    status: v.optional(v.string()),
-    column: v.union(v.literal("Concept"), v.literal("To Stream")),
-    owner: v.optional(v.string()),
-    channel: v.optional(v.string()),
-    label: v.optional(v.array(v.string())),
-    adReadTracker: v.optional(v.string()),
-    potential: v.optional(v.number()),
-    thumbnailReady: v.optional(v.boolean()),
-    unsponsored: v.optional(v.boolean()),
-    vodRecordingDate: v.optional(v.string()),
-    releaseDate: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const existingIdea = await ctx.db
-      .query("ideas")
-      .withIndex("by_notion_page", (q) => q.eq("notionPageId", args.notionPageId))
-      .first();
-
-    if (existingIdea) {
-      return existingIdea._id;
-    }
-
-    const columnIdeas = await ctx.db
-      .query("ideas")
-      .withIndex("by_organization_column", (q) =>
-        q.eq("organizationId", args.organizationId).eq("column", args.column),
-      )
-      .collect();
-    const maxOrder = columnIdeas.reduce((max, idea) => Math.max(max, idea.order), -1);
-
-    const ideaId = await ctx.db.insert("ideas", {
-      userId: args.userId,
-      organizationId: args.organizationId,
-      title: args.title,
-      description: args.description,
-      notes: args.notes,
-      status: normalizeStatus(args.status),
-      column: args.column,
-      order: maxOrder + 1,
-      owner: normalizeOwner(args.owner),
-      channel: normalizeChannel(args.channel),
-      label: args.label ? normalizeLabels(args.label) : undefined,
-      adReadTracker: args.adReadTracker?.trim() || "",
-      potential: args.potential,
-      thumbnailReady: args.thumbnailReady ?? false,
-      unsponsored: args.unsponsored,
-      vodRecordingDate: args.vodRecordingDate,
-      releaseDate: args.releaseDate,
-      notionPageId: args.notionPageId,
-      notionSynced: true,
-      syncedAt: Date.now(),
-    });
-
-    return ideaId;
-  },
-});
-
-export const archiveIdeaFromNotion = internalMutation({
-  args: {
-    ideaId: v.id("ideas"),
-  },
-  handler: async (ctx, args) => {
-    const idea = await ctx.db.get(args.ideaId);
-    if (!idea) {
-      return;
-    }
-
-    await ctx.db.patch(args.ideaId, {
-      status: "archived",
-      notionPageId: undefined,
-      notionSynced: false,
-      syncedAt: undefined,
-    });
-  },
-});
-
-// Save OAuth connection to database
 export const saveOAuthConnection = internalMutation({
   args: {
     userId: v.string(),
@@ -336,14 +222,19 @@ export const saveOAuthConnection = internalMutation({
     workspaceIcon: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check if connection already exists for this org
-    const existing = await ctx.db
+    const existingConnections = await ctx.db
       .query("notionConnections")
       .withIndex("by_organization", (q) => q.eq("organizationId", args.organizationId))
-      .first();
+      .collect();
+    const [existing, ...duplicates] = existingConnections.sort(
+      (a, b) => b.connectedAt - a.connectedAt,
+    );
+    const wasDisconnected = Boolean(
+      existing && (existing.isActive === false || existing.disconnectedAt),
+    );
 
     const now = Date.now();
-    const expiresAt = now + 90 * 24 * 60 * 60 * 1000; // 90 days conservative estimate
+    const expiresAt = now + 90 * 24 * 60 * 60 * 1000;
 
     const connectionData = {
       organizationId: args.organizationId,
@@ -357,7 +248,11 @@ export const saveOAuthConnection = internalMutation({
       createdBy: args.userId,
       connectedAt: now,
       lastRefreshedAt: now,
-      expiresAt: expiresAt,
+      expiresAt,
+      isActive: true,
+      lastCheckedAt: now,
+      lastError: undefined,
+      disconnectedAt: undefined,
     };
 
     if (existing) {
@@ -366,11 +261,14 @@ export const saveOAuthConnection = internalMutation({
       await ctx.db.insert("notionConnections", connectionData);
     }
 
-    return { success: true };
+    for (const duplicate of duplicates) {
+      await ctx.db.delete(duplicate._id);
+    }
+
+    return { success: true, wasDisconnected };
   },
 });
 
-// Update connection tokens after refresh
 export const updateConnectionTokens = internalMutation({
   args: {
     connectionId: v.id("notionConnections"),
@@ -379,15 +277,36 @@ export const updateConnectionTokens = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const expiresAt = now + 90 * 24 * 60 * 60 * 1000; // 90 days
+    const expiresAt = now + 90 * 24 * 60 * 60 * 1000;
 
     await ctx.db.patch(args.connectionId, {
       accessToken: args.accessToken,
       refreshToken: args.refreshToken,
       lastRefreshedAt: now,
-      expiresAt: expiresAt,
+      expiresAt,
+      isActive: true,
+      lastCheckedAt: now,
+      lastError: undefined,
+      disconnectedAt: undefined,
     });
 
     return { success: true };
+  },
+});
+
+export const updateConnectionHealth = internalMutation({
+  args: {
+    connectionId: v.id("notionConnections"),
+    isActive: v.boolean(),
+    checkedAt: v.number(),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.connectionId, {
+      isActive: args.isActive,
+      lastCheckedAt: args.checkedAt,
+      lastError: args.error,
+      disconnectedAt: args.isActive ? undefined : args.checkedAt,
+    });
   },
 });

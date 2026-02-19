@@ -1,9 +1,14 @@
-import { internalMutation, mutation, type MutationCtx } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { requireAuth } from "../helper";
 import { assertOrgAccess } from "../utils/auth";
+import {
+  isTheoModeForIdentity,
+  isTheoModeForIdea,
+  isTheoModeForScope,
+  sanitizeModeSensitiveIdeaFields,
+} from "../utils/mode";
 import { channelValues, labelValues, ownerValues, statusValues } from "../utils/types";
 
 const literalUnion = <T extends readonly string[]>(values: T) =>
@@ -42,19 +47,6 @@ const resolveToUrl = async (
     return url;
   }
   return value;
-};
-
-const canSyncToNotion = async (ctx: MutationCtx, organizationId?: string) => {
-  if (!organizationId) {
-    return false;
-  }
-
-  const connection = await ctx.db
-    .query("notionConnections")
-    .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
-    .first();
-
-  return Boolean(connection?.accessToken && connection.databaseId);
 };
 
 export const createExportInternal = internalMutation({
@@ -156,21 +148,17 @@ export const insertImportedIdeasInternal = internalMutation({
   args: {
     targetOrganizationId: v.string(),
     userId: v.string(),
-    exportId: v.id("ideaExports"),
-    sourceOrganizationId: v.string(),
     items: v.array(
       v.object({
-        sourceIdeaId: v.id("ideas"),
         payload: payloadSchema,
       }),
     ),
   },
   handler: async (ctx, args) => {
-    const notionConnection = await ctx.db
-      .query("notionConnections")
-      .withIndex("by_organization", (q) => q.eq("organizationId", args.targetOrganizationId))
-      .first();
-    const canSync = Boolean(notionConnection?.accessToken && notionConnection.databaseId);
+    const theoModeEnabled = await isTheoModeForScope(ctx, {
+      kind: "organization",
+      id: args.targetOrganizationId,
+    });
 
     const columns = ["Concept", "To Stream"] as const;
     const nextOrderByColumn = new Map<(typeof columns)[number], number>();
@@ -196,6 +184,20 @@ export const insertImportedIdeasInternal = internalMutation({
     for (const item of sortedItems) {
       const nextOrder = nextOrderByColumn.get(item.payload.column) ?? 0;
       nextOrderByColumn.set(item.payload.column, nextOrder + 1);
+      const modeFields = sanitizeModeSensitiveIdeaFields(
+        {
+          vodRecordingDate: item.payload.vodRecordingDate,
+          releaseDate: item.payload.releaseDate,
+          owner: item.payload.owner,
+          channel: item.payload.channel,
+          potential: item.payload.potential,
+          label: item.payload.label,
+          status: item.payload.status,
+          adReadTracker: item.payload.adReadTracker,
+          unsponsored: item.payload.unsponsored,
+        },
+        theoModeEnabled,
+      );
 
       const ideaId = await ctx.db.insert("ideas", {
         userId: args.userId,
@@ -206,31 +208,26 @@ export const insertImportedIdeasInternal = internalMutation({
         draftThumbnail: item.payload.draftThumbnail,
         thumbnailReady: item.payload.thumbnailReady,
         resources: item.payload.resources,
-        vodRecordingDate: item.payload.vodRecordingDate,
-        releaseDate: item.payload.releaseDate,
-        owner: item.payload.owner,
-        channel: item.payload.channel,
-        potential: item.payload.potential,
-        label: item.payload.label,
-        status: item.payload.status,
-        adReadTracker: item.payload.adReadTracker,
-        unsponsored: item.payload.unsponsored,
+        vodRecordingDate: modeFields.vodRecordingDate,
+        releaseDate: modeFields.releaseDate,
+        owner: modeFields.owner,
+        channel: modeFields.channel,
+        potential: modeFields.potential,
+        label: modeFields.label,
+        status: modeFields.status,
+        adReadTracker: modeFields.adReadTracker,
+        unsponsored: modeFields.unsponsored,
         column: item.payload.column,
         order: nextOrder,
         notionPageId: undefined,
-        notionSynced: false,
-        syncedAt: undefined,
-        importedFromExportId: args.exportId,
-        importedFromOrganizationId: args.sourceOrganizationId,
-        importedFromIdeaId: item.sourceIdeaId,
-        importedAt: Date.now(),
+        inNotion: false,
+        notionSentAt: undefined,
+        notionSendBy: undefined,
+        notionSendState: "idle",
+        notionSendError: undefined,
       });
 
       importedIdeaIds.push(ideaId);
-
-      if (canSync && item.payload.column === "To Stream") {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.syncToNotion, { ideaId });
-      }
     }
 
     return importedIdeaIds;
@@ -257,6 +254,21 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
+    const theoModeEnabled = await isTheoModeForIdentity(ctx, identity);
+    const modeFields = sanitizeModeSensitiveIdeaFields(
+      {
+        vodRecordingDate: args.vodRecordingDate,
+        releaseDate: args.releaseDate,
+        owner: args.owner,
+        channel: args.channel,
+        potential: args.potential,
+        label: args.label,
+        status: args.status,
+        adReadTracker: args.adReadTracker,
+        unsponsored: args.unsponsored,
+      },
+      theoModeEnabled,
+    );
 
     // Get existing ideas for order calculation based on org or personal
     let existingIdeas;
@@ -291,18 +303,22 @@ export const create = mutation({
       thumbnailReady: args.thumbnailReady ?? false,
       resources: args.resources,
 
-      vodRecordingDate: args.vodRecordingDate,
-      releaseDate: args.releaseDate,
-      owner: args.owner,
-      channel: args.channel,
-      potential: args.potential,
-      label: args.label,
-      status: args.status,
-      adReadTracker: args.adReadTracker,
-      unsponsored: args.unsponsored ?? true,
+      vodRecordingDate: modeFields.vodRecordingDate,
+      releaseDate: modeFields.releaseDate,
+      owner: modeFields.owner,
+      channel: modeFields.channel,
+      potential: modeFields.potential,
+      label: modeFields.label,
+      status: modeFields.status,
+      adReadTracker: modeFields.adReadTracker,
+      unsponsored: modeFields.unsponsored,
       column: "Concept",
       order: maxOrder + 1,
-      notionSynced: false,
+      inNotion: false,
+      notionSentAt: undefined,
+      notionSendBy: undefined,
+      notionSendState: "idle",
+      notionSendError: undefined,
     });
 
     return ideaId;
@@ -330,11 +346,6 @@ export const move = mutation({
     } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
-
-    const wasInConcept = idea.column === "Concept";
-    const wasInToStream = idea.column === "To Stream";
-    const movingToToStream = args.column === "To Stream";
-    const movingToConcept = args.column === "Concept";
 
     await ctx.db.patch(args.id, {
       column: args.column,
@@ -370,25 +381,6 @@ export const move = mutation({
       const newOrder = i >= args.order ? i + 1 : i;
       if (sortedIdeas[i].order !== newOrder) {
         await ctx.db.patch(sortedIdeas[i]._id, { order: newOrder });
-      }
-    }
-
-    // Schedule Notion sync in background
-    if (wasInConcept && movingToToStream) {
-      const shouldSync = await canSyncToNotion(ctx, idea.organizationId);
-      await ctx.db.patch(args.id, { notionSynced: false });
-      if (shouldSync) {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.syncToNotion, { ideaId: args.id });
-      }
-    }
-
-    if (wasInToStream && movingToConcept && idea.notionPageId) {
-      const shouldSync = await canSyncToNotion(ctx, idea.organizationId);
-      await ctx.db.patch(args.id, { notionSynced: false });
-      if (shouldSync) {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.deleteFromNotion, {
-          ideaId: args.id,
-        });
       }
     }
   },
@@ -429,6 +421,21 @@ export const update = mutation({
     } else if (idea.userId !== identity.subject) {
       throw new Error("Idea not found");
     }
+    const theoModeEnabled = await isTheoModeForIdea(ctx, idea);
+    const modeSensitiveUpdates = sanitizeModeSensitiveIdeaFields(
+      {
+        vodRecordingDate: args.vodRecordingDate,
+        releaseDate: args.releaseDate,
+        owner: args.owner,
+        channel: args.channel,
+        potential: args.potential,
+        label: args.label,
+        status: args.status,
+        adReadTracker: args.adReadTracker,
+        unsponsored: args.unsponsored,
+      },
+      theoModeEnabled,
+    );
 
     const { id, clearThumbnail, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
@@ -446,53 +453,14 @@ export const update = mutation({
       }
     }
 
-    await ctx.db.patch(id, filteredUpdates);
+    const finalUpdates = Object.fromEntries(
+      Object.entries({
+        ...filteredUpdates,
+        ...modeSensitiveUpdates,
+      }).filter(([_, value]) => value !== undefined),
+    );
 
-    // Handle column change sync logic
-    const wasInConcept = idea.column === "Concept";
-    const wasInToStream = idea.column === "To Stream";
-    const movingToToStream = args.column === "To Stream";
-    const movingToConcept = args.column === "Concept";
-
-    // If moving from Concept to To Stream, create Notion page
-    if (wasInConcept && movingToToStream && !idea.notionPageId) {
-      const shouldSync = await canSyncToNotion(ctx, idea.organizationId);
-      await ctx.db.patch(args.id, { notionSynced: false });
-      if (shouldSync) {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.syncToNotion, { ideaId: args.id });
-      }
-      return;
-    }
-
-    // If moving from To Stream to Concept, delete from Notion
-    if (wasInToStream && movingToConcept && idea.notionPageId) {
-      const shouldSync = await canSyncToNotion(ctx, idea.organizationId);
-      await ctx.db.patch(args.id, { notionSynced: false });
-      if (shouldSync) {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.deleteFromNotion, {
-          ideaId: args.id,
-        });
-      }
-      return;
-    }
-
-    // If already in To Stream and has notionPageId, sync updates
-    const shouldSyncToNotion = idea.column === "To Stream" && !!idea.notionPageId;
-    if (shouldSyncToNotion) {
-      const contentFields = ["description", "notes", "draftThumbnail", "resources"] as const;
-      const contentChanged = contentFields.some(
-        (field) => args[field] !== undefined && args[field] !== idea[field],
-      );
-
-      const isSyncReady = await canSyncToNotion(ctx, idea.organizationId);
-      await ctx.db.patch(args.id, { notionSynced: false });
-      if (isSyncReady) {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.updateInNotion, {
-          ideaId: args.id,
-          syncContent: contentChanged,
-        });
-      }
-    }
+    await ctx.db.patch(id, finalUpdates);
   },
 });
 
@@ -515,22 +483,6 @@ export const remove = mutation({
       throw new Error("Idea not found");
     }
 
-    const shouldDeleteFromNotion = idea.column === "To Stream" && !!idea.notionPageId;
-    const notionPageId = idea.notionPageId;
-    const organizationId = idea.organizationId;
-
     await ctx.db.delete(args.id);
-
-    // Schedule Notion deletion in background if needed
-    if (shouldDeleteFromNotion && notionPageId && organizationId) {
-      const isSyncReady = await canSyncToNotion(ctx, organizationId);
-      if (isSyncReady) {
-        await ctx.scheduler.runAfter(0, internal.notion.actions.deleteFromNotion, {
-          ideaId: args.id,
-          organizationId,
-          notionPageId,
-        });
-      }
-    }
   },
 });

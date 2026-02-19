@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import type { UserIdentity } from "convex/server";
 import { internalQuery, query, type QueryCtx } from "../_generated/server";
 import { requireAuth } from "../helper";
+import { isTheoModeForIdentity } from "../utils/mode";
 
 type IdeaDoc = Doc<"ideas">;
 type IdeaColumn = IdeaDoc["column"];
@@ -25,12 +26,6 @@ const applyListOptions = (ideas: IdeaDoc[], options: ListOptions): IdeaDoc[] => 
   }
   return nextIdeas;
 };
-
-const applyNotionSyncFallback = (ideas: IdeaDoc[]) =>
-  ideas.map((idea) => ({
-    ...idea,
-    notionSynced: idea.notionSynced ?? Boolean(idea.notionPageId),
-  }));
 
 const listIdeasForOrg = async (
   ctx: QueryCtx,
@@ -135,7 +130,7 @@ export const list = query({
         return [];
       }
       const ideas = await listIdeasForIdentity(ctx, identity);
-      return applyNotionSyncFallback(ideas);
+      return ideas;
     } catch (error) {
       console.error("ideas.list failed", {
         error,
@@ -184,12 +179,33 @@ export const listRecorded = query({
         return [];
       }
       const ideas = await listIdeasForIdentity(ctx, identity, { status: "Recorded" });
-      return applyNotionSyncFallback(ideas);
+      return ideas;
     } catch (error) {
       console.error("ideas.listRecorded failed", {
         error,
       });
       return [];
     }
+  },
+});
+
+export const listTheoQueue = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireAuth(ctx).catch(() => null);
+    if (!identity) {
+      return [];
+    }
+
+    const theoModeEnabled = await isTheoModeForIdentity(ctx, identity);
+    if (!theoModeEnabled) {
+      return [];
+    }
+
+    const ideas = await listIdeasForIdentity(ctx, identity, {
+      sortByOrder: true,
+    });
+
+    return ideas.filter((idea) => !idea.inNotion).sort((a, b) => a.order - b.order);
   },
 });

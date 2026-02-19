@@ -17,16 +17,16 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { ClipboardTextIcon, ShareNetworkIcon, SpinnerIcon, TrashIcon } from "@phosphor-icons/react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "convex/_generated/api";
 import type { Doc, Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useNotionSyncToast } from "@/hooks/useNotionSyncToast";
 import {
   addIdeaModalOpenAtom,
+  commandMenuOpenAtom,
   createIdeaDraftFromIdea,
   editIdeaDraftAtom,
   editIdeaIdAtom,
@@ -36,10 +36,13 @@ import {
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
-import { KanbanColumn, type ToStreamSyncState } from "./KanbanColumn";
+import { KanbanColumn } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
+import { api } from "convex/_generated/api";
 
 export type Idea = Doc<"ideas">;
+
+const getIdeaDomId = (ideaId: Id<"ideas">) => `idea-card-${ideaId}`;
 
 export function KanbanBoard() {
   const { isLoaded, isSignedIn } = useUser();
@@ -51,20 +54,27 @@ export function KanbanBoard() {
   const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const [selectionMode, setSelectionMode] = useAtom(ideaSelectionModeAtom);
   const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
+  const [focusedIdeaId, setFocusedIdeaId] = useState<Id<"ideas"> | null>(null);
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const commandCenterOpen = useAtomValue(commandMenuOpenAtom);
 
   const { data: ideas, isLoading: isIdeasLoading } = useQuery(
     convexQuery(api.ideas.queries.list, {}),
   );
-  const { data: notionConnection } = useQuery(convexQuery(api.notion.queries.getConnection, {}));
-  const isNotionConnected = !!notionConnection?.databaseId;
   const moveIdea = useMutation(api.ideas.mutations.move);
   const isAuthResolved = isLoaded && typeof isSignedIn === "boolean";
   const isAuthLoading = !isAuthResolved;
   const isInteractionLocked = isAuthResolved && isSignedIn === false;
-
-  useNotionSyncToast(ideas);
+  const ideasData = ideas ?? [];
+  const visibleIdeas = ideasData.filter((idea) => idea.status !== "Recorded");
+  const conceptColumn = visibleIdeas
+    .filter((idea) => idea.column === "Concept")
+    .sort((a, b) => a.order - b.order);
+  const toStreamColumn = visibleIdeas
+    .filter((idea) => idea.column === "To Stream")
+    .sort((a, b) => a.order - b.order);
+  const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -77,6 +87,114 @@ export function KanbanBoard() {
     }),
   );
 
+  const canUseMotionHotkeys =
+    !isAuthLoading &&
+    !isIdeasLoading &&
+    ideas !== undefined &&
+    !isInteractionLocked &&
+    !selectionMode &&
+    !isAddModalOpen &&
+    !isEditOpen &&
+    !commandCenterOpen;
+
+  const focusIdea = (ideaId: Id<"ideas"> | null) => {
+    setFocusedIdeaId(ideaId);
+    if (!ideaId) return;
+    requestAnimationFrame(() => {
+      document
+        .getElementById(getIdeaDomId(ideaId))
+        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    });
+  };
+
+  const resolveCurrentPosition = () => {
+    const firstColumnIdea = conceptColumn[0]?._id ?? toStreamColumn[0]?._id ?? null;
+    const currentId = focusedIdeaId ?? firstColumnIdea;
+    if (!currentId) return null;
+
+    const conceptIndex = conceptColumn.findIndex((idea) => idea._id === currentId);
+    if (conceptIndex >= 0) return { column: "concept" as const, index: conceptIndex };
+
+    const toStreamIndex = toStreamColumn.findIndex((idea) => idea._id === currentId);
+    if (toStreamIndex >= 0) return { column: "to-stream" as const, index: toStreamIndex };
+
+    if (conceptColumn.length > 0) return { column: "concept" as const, index: 0 };
+    if (toStreamColumn.length > 0) return { column: "to-stream" as const, index: 0 };
+    return null;
+  };
+
+  const moveVertical = (direction: 1 | -1) => {
+    const position = resolveCurrentPosition();
+    if (!position) return;
+
+    const columnIdeas = position.column === "concept" ? conceptColumn : toStreamColumn;
+    if (columnIdeas.length === 0) return;
+
+    const targetIndex = Math.max(0, Math.min(columnIdeas.length - 1, position.index + direction));
+    focusIdea(columnIdeas[targetIndex]?._id ?? null);
+  };
+
+  const moveHorizontal = (direction: 1 | -1) => {
+    const position = resolveCurrentPosition();
+    if (!position) return;
+
+    const isMovingRight = direction === 1;
+    const targetColumn = isMovingRight ? "to-stream" : "concept";
+    const targetIdeas = targetColumn === "concept" ? conceptColumn : toStreamColumn;
+
+    if (position.column === targetColumn || targetIdeas.length === 0) return;
+
+    const targetIndex = Math.min(position.index, targetIdeas.length - 1);
+    focusIdea(targetIdeas[targetIndex]?._id ?? null);
+  };
+
+  useHotkey(
+    "J",
+    () => {
+      moveVertical(1);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "K",
+    () => {
+      moveVertical(-1);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "L",
+    () => {
+      moveHorizontal(1);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "H",
+    () => {
+      moveHorizontal(-1);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "Enter",
+    () => {
+      if (!focusedIdeaId) return;
+      const focusedIdea = ideasData.find((idea) => idea._id === focusedIdeaId);
+      if (!focusedIdea) return;
+      handleEditIdea(focusedIdea);
+    },
+    {
+      enabled: canUseMotionHotkeys && Boolean(focusedIdeaId),
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
   if (isAuthLoading || isIdeasLoading || ideas === undefined) {
     return (
       <div className="flex h-full min-h-[50vh] w-full items-center justify-center">
@@ -85,22 +203,6 @@ export function KanbanBoard() {
     );
   }
 
-  const ideasData = ideas ?? [];
-  const visibleIdeas = ideasData.filter((idea) => idea.status !== "Recorded");
-  const conceptColumn = visibleIdeas
-    .filter((idea) => idea.column === "Concept")
-    .sort((a, b) => a.order - b.order);
-  const toStreamColumn = visibleIdeas
-    .filter((idea) => idea.column === "To Stream")
-    .sort((a, b) => a.order - b.order);
-
-  const activeIdea = activeId ? ideasData.find((idea) => idea._id === activeId) : null;
-  const toStreamSyncState: ToStreamSyncState = !isNotionConnected
-    ? "disconnected"
-    : toStreamColumn.some((idea) => !(idea.notionSynced ?? Boolean(idea.notionPageId)))
-      ? "pending"
-      : "synced";
-
   const handleAddIdea = () => {
     if (isInteractionLocked) return;
     openAddIdeaModal();
@@ -108,6 +210,7 @@ export function KanbanBoard() {
 
   const handleEditIdea = (idea: Idea) => {
     if (isInteractionLocked) return;
+    focusIdea(idea._id);
     setEditDraft(createIdeaDraftFromIdea(idea));
     setEditIdeaId(idea._id);
     setIsEditOpen(true);
@@ -140,6 +243,13 @@ export function KanbanBoard() {
     setSelectionMode(false);
     setSelectedIds([]);
     setShareModalOpen(false);
+  };
+
+  const handleBoardPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest("[data-idea-id]")) return;
+    focusIdea(null);
   };
 
   function handleDragStart(event: DragStartEvent) {
@@ -212,7 +322,10 @@ export function KanbanBoard() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="grid h-full grid-cols-2 grid-rows-[1fr] items-stretch gap-4 flex-1 min-h-0">
+          <div
+            className="grid h-full grid-cols-2 grid-rows-[1fr] items-stretch gap-4 flex-1 min-h-0"
+            onPointerDown={handleBoardPointerDown}
+          >
             <SortableContext
               items={conceptColumn.map((idea) => idea._id)}
               strategy={rectSortingStrategy}
@@ -228,6 +341,8 @@ export function KanbanBoard() {
                 selectionMode={selectionMode}
                 selectedIds={selectedIdSet}
                 onToggleSelect={handleSelectIdea}
+                focusedIdeaId={focusedIdeaId}
+                getIdeaDomId={getIdeaDomId}
               />
             </SortableContext>
 
@@ -242,10 +357,11 @@ export function KanbanBoard() {
                 items={toStreamColumn}
                 onItemClick={handleEditIdea}
                 interactive={!isInteractionLocked}
-                toStreamSyncState={toStreamSyncState}
                 selectionMode={selectionMode}
                 selectedIds={selectedIdSet}
                 onToggleSelect={handleSelectIdea}
+                focusedIdeaId={focusedIdeaId}
+                getIdeaDomId={getIdeaDomId}
               />
             </SortableContext>
           </div>

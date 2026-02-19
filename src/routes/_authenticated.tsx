@@ -2,8 +2,11 @@ import { useOrganization, useUser } from "@clerk/tanstack-react-start";
 import { SpinnerIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
+import { useAtom } from "jotai";
+import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { useEffect, useRef } from "react";
 import { AppCommandCenter } from "@/components/AppCommandCenter";
+import { addIdeaModalOpenAtom } from "@/store/atoms";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -29,6 +32,7 @@ function AuthenticatedLayout() {
   const { isSignedIn, isLoaded } = useUser();
   const { organization } = useOrganization();
   const queryClient = useQueryClient();
+  const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const prevOrgId = useRef<string | null>(organization?.id ?? null);
   const prevSignedIn = useRef(isSignedIn);
 
@@ -63,6 +67,7 @@ function AuthenticatedLayout() {
     <>
       <AppCommandCenter />
       <Outlet />
+      <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} />
     </>
   );
 }

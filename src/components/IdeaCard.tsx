@@ -6,6 +6,7 @@ import type { Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useSetAtom } from "jotai";
 import { toast } from "sonner";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { editIdeaIdAtom, editIdeaOpenAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 import type { Idea } from "./KanbanBoard";
@@ -18,6 +19,8 @@ interface IdeaCardProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
+  isKeyboardFocused?: boolean;
+  domId?: string;
 }
 
 function ThumbnailImage({ src, alt }: { src: string; alt: string }) {
@@ -52,7 +55,10 @@ export function IdeaCard({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  isKeyboardFocused = false,
+  domId,
 }: IdeaCardProps) {
+  const { isTheoMode } = useTheoMode();
   const deleteIdea = useMutation(api.ideas.mutations.remove);
   const setEditIdeaId = useSetAtom(editIdeaIdAtom);
   const setEditIdeaOpen = useSetAtom(editIdeaOpenAtom);
@@ -108,6 +114,8 @@ export function IdeaCard({
 
   return (
     <div
+      id={domId}
+      data-idea-id={idea._id}
       ref={setNodeRef}
       style={style}
       role="card"
@@ -119,7 +127,12 @@ export function IdeaCard({
       onClick={handleClick}
     >
       {/* Compact card */}
-      <div className="rounded-lg overflow-hidden bg-card border border-border/60 hover:border-border hover:shadow-sm transition-all duration-200">
+      <div
+        className={cn(
+          "rounded-lg overflow-hidden bg-card border hover:border-border hover:shadow-sm transition-all duration-200",
+          isKeyboardFocused ? "border-primary" : "border-border/60",
+        )}
+      >
         {/* Thumbnail - shorter aspect ratio */}
         <div
           className="relative aspect-2/1 overflow-hidden bg-muted"
@@ -185,10 +198,10 @@ export function IdeaCard({
                 </span>
               );
             })()}
-            {idea.channel && (
+            {isTheoMode && idea.channel && (
               <span className="text-muted-foreground">{idea.channel.replace("C:", "")}</span>
             )}
-            {typeof idea.potential === "number" && (
+            {isTheoMode && typeof idea.potential === "number" && (
               <span className="flex items-center gap-0.5 text-primary ml-auto font-medium">
                 <StarIcon className="w-3 h-3" weight="fill" />
                 {idea.potential}

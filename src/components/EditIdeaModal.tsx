@@ -1,31 +1,36 @@
-import { useConvexMutation } from "@convex-dev/react-query";
+import { useConvexAction, useConvexMutation } from "@convex-dev/react-query";
 import {
   CaretDownIcon,
   CheckIcon,
+  PaperPlaneTiltIcon,
   PencilSimpleIcon,
   SpinnerIcon,
+  TrashIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useHotkey, useKeyHold } from "@tanstack/react-hotkeys";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import { format } from "date-fns";
 import { useAtom, useAtomValue } from "jotai";
 import type { ChangeEvent, RefObject } from "react";
 import { memo, useRef } from "react";
+import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
 import {
   DescriptionField as IdeaDescriptionField,
-  LabelSelect,
   ResourcesSection as IdeaResourcesSection,
   ThumbnailField as IdeaThumbnailField,
   TitleField as IdeaTitleField,
+  LabelSelect,
 } from "@/components/idea-form/fields";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -37,7 +42,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { editIdeaFields, editIdeaIsEditingAtom, streamModeAtom } from "@/store/atoms";
+import { useTheoMode } from "@/hooks/useTheoMode";
+import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
 import { IdeaPreview } from "./IdeaPreview";
 import type { Idea } from "./KanbanBoard";
 import { Badge } from "./ui/badge";
@@ -47,6 +53,12 @@ interface EditIdeaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+};
 
 // Hook to share update logic across field components
 function useScheduledUpdate() {
@@ -203,7 +215,7 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
   const [releaseDate, setReleaseDate] = useAtom(editIdeaFields.releaseDate);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="space-y-1.5">
         <Label htmlFor="edit-vod-date" className="text-sm">
           VOD Date
@@ -270,9 +282,6 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
 
 const UnsponsoredSection = memo(function UnsponsoredSection({ scheduleUpdate }: FieldProps) {
   const [unsponsored, setUnsponsored] = useAtom(editIdeaFields.unsponsored);
-  const streamMode = useAtomValue(streamModeAtom);
-
-  if (streamMode) return null;
 
   return (
     <div className="flex items-center gap-2 pt-1">
@@ -353,7 +362,6 @@ const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }
 });
 
 const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: FieldProps) {
-  const [label, setLabel] = useAtom(editIdeaFields.label);
   const [status, setStatus] = useAtom(editIdeaFields.status);
 
   const handleStatusChange = (value: string) => {
@@ -373,20 +381,7 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
   };
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="edit-label" className="text-sm">
-          Label
-        </Label>
-        <LabelSelect
-          id="edit-label"
-          labels={label}
-          onChange={(next) => {
-            setLabel(next);
-            scheduleUpdate({ label: next });
-          }}
-        />
-      </div>
+    <div className="space-y-1.5">
       <div className="space-y-1.5">
         <Label htmlFor="edit-status" className="text-sm">
           Status
@@ -406,15 +401,28 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
   );
 });
 
-const PotentialAdReadSection = memo(function PotentialAdReadSection({
+const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection({
   scheduleUpdate,
 }: FieldProps) {
+  const [label, setLabel] = useAtom(editIdeaFields.label);
   const [potential, setPotential] = useAtom(editIdeaFields.potential);
   const [adReadTracker, setAdReadTracker] = useAtom(editIdeaFields.adReadTracker);
-  const streamMode = useAtomValue(streamModeAtom);
 
   return (
-    <div className={`grid gap-4 ${streamMode ? "grid-cols-1" : "grid-cols-2"}`}>
+    <div className="grid grid-cols-5 gap-4">
+      <div className="col-span-3 space-y-1.5">
+        <Label htmlFor="edit-label" className="text-sm">
+          Label
+        </Label>
+        <LabelSelect
+          id="edit-label"
+          labels={label}
+          onChange={(next) => {
+            setLabel(next);
+            scheduleUpdate({ label: next });
+          }}
+        />
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="edit-potential" className="text-sm">
           Potential
@@ -439,23 +447,21 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection({
           </SelectContent>
         </Select>
       </div>
-      {!streamMode && (
-        <div className="space-y-1.5 opacity-50">
-          <Label htmlFor="edit-ad-read-tracker" className="text-sm">
-            Ad Read Tracker
-          </Label>
-          <Input
-            id="edit-ad-read-tracker"
-            value={adReadTracker ? "•••••" : ""}
-            placeholder="Not set"
-            disabled
-            onChange={(event) => {
-              setAdReadTracker(event.target.value);
-              scheduleUpdate({ adReadTracker: event.target.value });
-            }}
-          />
-        </div>
-      )}
+      <div className="space-y-1.5 opacity-50">
+        <Label htmlFor="edit-ad-read-tracker" className="text-sm">
+          Ad Read Tracker
+        </Label>
+        <Input
+          id="edit-ad-read-tracker"
+          value={adReadTracker ? "•••••" : ""}
+          placeholder="Not set"
+          disabled
+          onChange={(event) => {
+            setAdReadTracker(event.target.value);
+            scheduleUpdate({ adReadTracker: event.target.value });
+          }}
+        />
+      </div>
     </div>
   );
 });
@@ -482,7 +488,8 @@ const NotesField = memo(function NotesField({ scheduleUpdate }: FieldProps) {
   );
 });
 
-export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
+export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) {
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useAtom(editIdeaIsEditingAtom);
   const title = useAtomValue(editIdeaFields.title);
   const description = useAtomValue(editIdeaFields.description);
@@ -499,7 +506,8 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
   const status = useAtomValue(editIdeaFields.status);
   const adReadTracker = useAtomValue(editIdeaFields.adReadTracker);
   const unsponsored = useAtomValue(editIdeaFields.unsponsored);
-  const streamMode = useAtomValue(streamModeAtom);
+  const { isTheoMode } = useTheoMode();
+  const isSHeld = useKeyHold("S");
   const resourceList = resources.length ? resources : [""];
 
   const { scheduleUpdate, isPending, isSuccess } = useScheduledUpdate();
@@ -511,6 +519,31 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
     upload: uploadFile,
     clear: clearFileUpload,
   } = useFileUpload();
+  const sendIdeaToNotionAction = useConvexAction(api.notion.actions.sendIdeaToNotion) as (args: {
+    ideaId: Idea["_id"];
+  }) => Promise<{
+    success: true;
+    status: "queued" | "already_sent" | "already_sending";
+  }>;
+  const { mutate: sendIdeaToNotion, isPending: isSendingToNotion } = useMutation({
+    mutationFn: sendIdeaToNotionAction,
+    onSuccess: async (result) => {
+      if (result.status === "already_sent") {
+        toast.info("Idea already sent to Notion.");
+      } else if (result.status === "already_sending") {
+        toast.info("Idea is already being sent to Notion.");
+      } else {
+        toast.success("Sending to Notion in background.");
+      }
+      await queryClient.invalidateQueries();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to send idea to Notion");
+    },
+  });
+  const { mutateAsync: deleteIdea, isPending: isDeletingIdea } = useMutation({
+    mutationFn: useConvexMutation(api.ideas.mutations.remove),
+  });
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -524,12 +557,74 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
     setIsEditing(true);
   };
 
+  const handleSendToNotion = () => {
+    if (!idea) {
+      return;
+    }
+    handleOpenChange(false);
+    sendIdeaToNotion({ ideaId: idea._id });
+  };
+
+  const handleDeleteIdea = async () => {
+    if (!idea) {
+      return;
+    }
+
+    try {
+      await deleteIdea({ id: idea._id });
+      toast.success("Idea deleted");
+      await queryClient.invalidateQueries();
+      handleOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete idea");
+    }
+  };
+
+  useHotkey(
+    "E",
+    () => {
+      handleEditToggle();
+    },
+    { enabled: open && !isEditing, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "N",
+    (event) => {
+      if (event.isComposing || isEditableTarget(event.target) || !isSHeld) return;
+      event.preventDefault();
+      handleSendToNotion();
+    },
+    {
+      enabled:
+        open &&
+        isTheoMode &&
+        Boolean(idea) &&
+        !idea?.inNotion &&
+        !isDeletingIdea &&
+        !isSendingToNotion,
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
+  useHotkey(
+    "D",
+    (event) => {
+      if (event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      void handleDeleteIdea();
+    },
+    {
+      enabled: open && isTheoMode && Boolean(idea) && !isDeletingIdea && !isSendingToNotion,
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl p-0 gap-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-      >
+      <DialogContent showCloseButton={false} className="overflow-hidden max-w-5xl p-0 gap-0">
         <DialogHeader className="flex flex-row items-center justify-between border-b border-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
             <DialogTitle className="text-base font-medium text-muted-foreground">
@@ -537,18 +632,6 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
             </DialogTitle>
           </div>
           <div className="flex items-center gap-2">
-            {!isEditing && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleEditToggle}
-                aria-label="Edit"
-                className="cursor-pointer"
-              >
-                <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
-                Edit
-              </Button>
-            )}
             {isEditing && isPending && (
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <SpinnerIcon weight="bold" className="w-3.5 h-3.5 animate-spin" />
@@ -580,7 +663,7 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
               <DescriptionField scheduleUpdate={scheduleUpdate} />
             </div>
             <ResourcesSection scheduleUpdate={scheduleUpdate} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className={isTheoMode ? "grid grid-cols-2 gap-4" : "space-y-4"}>
               <ThumbnailSection
                 scheduleUpdate={scheduleUpdate}
                 thumbnailPreview={thumbnailPreview}
@@ -591,34 +674,87 @@ export function EditIdeaModal({ open, onOpenChange }: EditIdeaModalProps) {
               />
               <div className="space-y-4">
                 <DatesSection scheduleUpdate={scheduleUpdate} />
-                <UnsponsoredSection scheduleUpdate={scheduleUpdate} />
+                {isTheoMode ? <UnsponsoredSection scheduleUpdate={scheduleUpdate} /> : null}
               </div>
             </div>
-            <OwnerChannelSection scheduleUpdate={scheduleUpdate} />
+            {isTheoMode ? <OwnerChannelSection scheduleUpdate={scheduleUpdate} /> : null}
             <LabelStatusSection scheduleUpdate={scheduleUpdate} />
-            <PotentialAdReadSection scheduleUpdate={scheduleUpdate} />
+            {isTheoMode ? <LabelPotentialAdReadSection scheduleUpdate={scheduleUpdate} /> : null}
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
         ) : (
-          <IdeaPreview
-            title={title}
-            description={description}
-            notes={notes}
-            thumbnail={thumbnail}
-            thumbnailPreview={thumbnailPreview}
-            thumbnailReady={thumbnailReady}
-            resources={resourceList}
-            vodRecordingDate={vodRecordingDate}
-            releaseDate={releaseDate}
-            owner={owner}
-            channel={channel}
-            potential={potential}
-            labels={label}
-            status={status}
-            adReadTracker={adReadTracker}
-            unsponsored={unsponsored}
-            streamMode={streamMode}
-          />
+          <div className="flex flex-col">
+            <IdeaPreview
+              title={title}
+              description={description}
+              notes={notes}
+              thumbnail={thumbnail}
+              thumbnailPreview={thumbnailPreview}
+              thumbnailReady={thumbnailReady}
+              resources={resourceList}
+              vodRecordingDate={vodRecordingDate}
+              releaseDate={releaseDate}
+              owner={owner}
+              channel={channel}
+              potential={potential}
+              labels={label}
+              status={status}
+              adReadTracker={adReadTracker}
+              unsponsored={unsponsored}
+              theoMode={isTheoMode}
+            />
+            <div className="border-t border-border/40 px-6 py-4 flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleEditToggle}
+                aria-label="Edit idea"
+                className="cursor-pointer"
+              >
+                <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
+                Edit Idea
+                <Kbd className="ml-2">e</Kbd>
+              </Button>
+              {isTheoMode ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleDeleteIdea}
+                    disabled={!idea || isDeletingIdea || isSendingToNotion}
+                    className="cursor-pointer"
+                  >
+                    {isDeletingIdea ? (
+                      <SpinnerIcon className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <TrashIcon className="w-4 h-4" />
+                    )}
+                    Delete
+                    <Kbd className="">d</Kbd>
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSendToNotion}
+                    disabled={!idea || idea.inNotion || isDeletingIdea || isSendingToNotion}
+                    className="cursor-pointer"
+                  >
+                    {isSendingToNotion ? (
+                      <SpinnerIcon className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <PaperPlaneTiltIcon className="w-4 h-4" />
+                    )}
+                    {idea?.inNotion ? "Sent to Notion" : "Send to Notion"}
+                    {!idea?.inNotion && (
+                      <KbdGroup className="ml-2">
+                        <Kbd>s</Kbd>
+                        <Kbd>n</Kbd>
+                      </KbdGroup>
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>

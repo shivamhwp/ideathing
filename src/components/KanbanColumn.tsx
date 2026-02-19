@@ -1,17 +1,10 @@
 import { useDroppable } from "@dnd-kit/core";
-import {
-  ArrowClockwiseIcon,
-  LightbulbIcon,
-  PlusIcon,
-  VideoCameraIcon,
-} from "@phosphor-icons/react";
+import { LightbulbIcon, PlusIcon, VideoCameraIcon } from "@phosphor-icons/react";
 import type { Id } from "convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
-
-export type ToStreamSyncState = "disconnected" | "pending" | "synced";
 
 interface KanbanColumnProps {
   id: "concept" | "to-stream";
@@ -21,10 +14,11 @@ interface KanbanColumnProps {
   onAddClick?: () => void;
   onItemClick?: (idea: Idea) => void;
   interactive?: boolean;
-  toStreamSyncState?: ToStreamSyncState;
   selectionMode?: boolean;
   selectedIds?: Set<Id<"ideas">>;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
+  focusedIdeaId?: Id<"ideas"> | null;
+  getIdeaDomId?: (ideaId: Id<"ideas">) => string;
 }
 
 export function KanbanColumn({
@@ -35,26 +29,16 @@ export function KanbanColumn({
   onAddClick,
   onItemClick,
   interactive = true,
-  toStreamSyncState,
   selectionMode = false,
   selectedIds,
   onToggleSelect,
+  focusedIdeaId,
+  getIdeaDomId,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
     disabled: !interactive || selectionMode,
   });
-  const shouldShowSyncState = id === "to-stream" && !!toStreamSyncState;
-  const syncStateLabel = {
-    disconnected: "Disconnected",
-    pending: "Sync pending",
-    synced: "Synced",
-  } as const;
-  const syncStateClassName = {
-    disconnected: "border-border/60 bg-muted/20 text-muted-foreground",
-    pending: "border-amber-500/40 bg-amber-500/15 text-amber-700",
-    synced: "border-emerald-500/40 bg-emerald-500/15 text-emerald-700",
-  } as const;
   const showAddButton = !!onAddClick && interactive;
 
   return (
@@ -78,20 +62,6 @@ export function KanbanColumn({
           <span className="text-xs text-muted-foreground/50">{items.length}</span>
         </div>
         <div className="flex items-center justify-end gap-2">
-          {shouldShowSyncState && toStreamSyncState && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
-                syncStateClassName[toStreamSyncState],
-              )}
-            >
-              <ArrowClockwiseIcon
-                className={cn("w-3.5 h-3.5", toStreamSyncState === "pending" && "animate-spin")}
-                weight="bold"
-              />
-              {syncStateLabel[toStreamSyncState]}
-            </span>
-          )}
           {showAddButton ? (
             <Button
               onClick={onAddClick}
@@ -120,7 +90,7 @@ export function KanbanColumn({
         </div>
       ) : items.length > 0 ? (
         <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((idea) => (
               <IdeaCard
                 key={idea._id}
@@ -130,6 +100,8 @@ export function KanbanColumn({
                 selectionMode={selectionMode}
                 selected={selectedIds?.has(idea._id) ?? false}
                 onToggleSelect={onToggleSelect}
+                isKeyboardFocused={focusedIdeaId === idea._id}
+                domId={getIdeaDomId?.(idea._id)}
               />
             ))}
           </div>

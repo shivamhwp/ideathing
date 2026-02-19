@@ -7,9 +7,10 @@ import {
   ShareNetworkIcon,
 } from "@phosphor-icons/react";
 import { useUser } from "@clerk/tanstack-react-start";
+import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -19,9 +20,10 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { commandMenuOpenAtom, openAddIdeaModalAtom } from "@/store/atoms";
 
-const CHORD_RESET_MS = 700;
+const CHORD_RESET_MS = 650;
 
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -29,19 +31,14 @@ const isEditableTarget = (target: EventTarget | null) => {
   return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 };
 
-const shortcutMatches = (combo: string, key: string) => {
-  const normalized = key.toLowerCase();
-  return combo === normalized;
-};
-
 export function AppCommandCenter() {
   const { isSignedIn } = useUser();
+  const { isTheoMode, isCheckingMode } = useTheoMode();
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
-  const bufferRef = useRef("");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [query, setQuery] = useState("");
 
   const runCommand = useCallback(
     (id: string) => {
@@ -78,16 +75,12 @@ export function AppCommandCenter() {
     [isSignedIn, navigate, openAddIdeaModal, pathname, setOpen],
   );
 
-  const commands = useMemo(
-    () => [
+  const commands = useMemo(() => {
+    const list = [
       {
         id: "add",
         label: "Add Idea",
-        hint: (
-          <KbdGroup>
-            <Kbd>a</Kbd>
-          </KbdGroup>
-        ),
+        hint: <Kbd>a</Kbd>,
         icon: PlusIcon,
       },
       {
@@ -100,17 +93,6 @@ export function AppCommandCenter() {
           </KbdGroup>
         ),
         icon: GearSixIcon,
-      },
-      {
-        id: "settings-notion",
-        label: "Go to Notion Settings",
-        hint: (
-          <KbdGroup>
-            <Kbd>n</Kbd>
-            <Kbd>c</Kbd>
-          </KbdGroup>
-        ),
-        icon: NotionLogoIcon,
       },
       {
         id: "settings-shared",
@@ -128,12 +110,16 @@ export function AppCommandCenter() {
         label: "Go to Home",
         hint: (
           <KbdGroup>
+            <Kbd>g</Kbd>
             <Kbd>h</Kbd>
           </KbdGroup>
         ),
         icon: HouseIcon,
       },
-      {
+    ];
+
+    if (!isCheckingMode && !isTheoMode) {
+      list.push({
         id: "recorded",
         label: "Go to Recorded Videos",
         hint: (
@@ -143,10 +129,33 @@ export function AppCommandCenter() {
           </KbdGroup>
         ),
         icon: CassetteTapeIcon,
-      },
-    ],
-    [],
-  );
+      });
+    }
+
+    if (!isCheckingMode && isTheoMode) {
+      list.splice(2, 0, {
+        id: "settings-notion",
+        label: "Go to Notion Settings",
+        hint: (
+          <KbdGroup>
+            <Kbd>n</Kbd>
+            <Kbd>c</Kbd>
+          </KbdGroup>
+        ),
+        icon: NotionLogoIcon,
+      });
+    }
+
+    return list;
+  }, [isCheckingMode, isTheoMode]);
+
+  const filteredCommands = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return commands;
+    return commands.filter((command) =>
+      `${command.id} ${command.label}`.toLowerCase().includes(normalizedQuery),
+    );
+  }, [commands, query]);
 
   useEffect(() => {
     if (!isSignedIn && open) {
@@ -155,89 +164,101 @@ export function AppCommandCenter() {
   }, [isSignedIn, open, setOpen]);
 
   useEffect(() => {
-    if (!isSignedIn) {
-      return;
+    if (!open) {
+      setQuery("");
     }
+  }, [open]);
 
-    const clearChord = () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-      bufferRef.current = "";
-    };
+  useHotkey(
+    { key: "K", meta: true },
+    () => {
+      setOpen((prev) => !prev);
+    },
+    { enabled: isSignedIn, requireReset: true },
+  );
 
-    const scheduleReset = () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(clearChord, CHORD_RESET_MS);
-    };
+  useHotkey(
+    "A",
+    () => {
+      runCommand("add");
+    },
+    { enabled: isSignedIn && !open, ignoreInputs: true, requireReset: true },
+  );
 
-    const chordToCommand = new Map([
-      ["a", "add"],
-      ["gs", "settings-profile"],
-      ["nc", "settings-notion"],
-      ["sl", "settings-shared"],
-      ["rv", "recorded"],
-      ["h", "home"],
-    ]);
-    const sequences = [...chordToCommand.keys()];
+  useHotkeySequence(
+    ["G", "S"],
+    (event) => {
+      if (event.defaultPrevented || event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      runCommand("settings-profile");
+    },
+    {
+      enabled: isSignedIn && !open,
+      timeout: CHORD_RESET_MS,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && shortcutMatches("k", event.key)) {
-        event.preventDefault();
-        setOpen((prev) => !prev);
-        clearChord();
-        return;
-      }
+  useHotkeySequence(
+    ["G", "H"],
+    (event) => {
+      if (event.defaultPrevented || event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      runCommand("home");
+    },
+    {
+      enabled: isSignedIn && !open,
+      timeout: CHORD_RESET_MS,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
 
-      if (event.defaultPrevented || event.repeat || event.isComposing) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (open || isEditableTarget(event.target)) return;
+  useHotkeySequence(
+    ["S", "L"],
+    (event) => {
+      if (event.defaultPrevented || event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      runCommand("settings-shared");
+    },
+    {
+      enabled: isSignedIn && !open,
+      timeout: CHORD_RESET_MS,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
 
-      const key = event.key.toLowerCase();
-      if (!/^[a-z]$/.test(key)) {
-        clearChord();
-        return;
-      }
+  useHotkeySequence(
+    ["R", "V"],
+    (event) => {
+      if (event.defaultPrevented || event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      runCommand("recorded");
+    },
+    {
+      enabled: isSignedIn && !open && !isCheckingMode && !isTheoMode,
+      timeout: CHORD_RESET_MS,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
 
-      const buffered = `${bufferRef.current}${key}`;
-      const normalized = buffered.length > 2 ? buffered.slice(-2) : buffered;
-      const direct = chordToCommand.get(normalized);
-      if (direct) {
-        event.preventDefault();
-        runCommand(direct);
-        clearChord();
-        return;
-      }
-
-      const hasPrefix = sequences.some((value) => value.startsWith(normalized));
-      if (hasPrefix) {
-        bufferRef.current = normalized;
-        scheduleReset();
-        return;
-      }
-
-      const single = chordToCommand.get(key);
-      if (single) {
-        event.preventDefault();
-        runCommand(single);
-        clearChord();
-        return;
-      }
-
-      if (sequences.some((value) => value.startsWith(key))) {
-        bufferRef.current = key;
-        scheduleReset();
-        return;
-      }
-
-      clearChord();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      clearChord();
-    };
-  }, [isSignedIn, open, runCommand, setOpen]);
+  useHotkeySequence(
+    ["N", "C"],
+    (event) => {
+      if (event.defaultPrevented || event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      runCommand("settings-notion");
+    },
+    {
+      enabled: isSignedIn && !open && !isCheckingMode && isTheoMode,
+      timeout: CHORD_RESET_MS,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
 
   if (!isSignedIn) {
     return null;
@@ -254,11 +275,13 @@ export function AppCommandCenter() {
       <CommandInput
         placeholder="Type a command or shortcut..."
         className="placeholder:text-muted-foreground/70"
+        value={query}
+        onValueChange={setQuery}
       />
       <CommandList className="bg-background/45 shadow-2xl shadow-black/30 backdrop-blur-2xl">
         <CommandEmpty>No commands found.</CommandEmpty>
         <CommandGroup heading="Commands">
-          {commands.map((command) => (
+          {filteredCommands.map((command) => (
             <CommandItem
               key={command.id}
               value={`${command.id} ${command.label}`}
@@ -273,6 +296,84 @@ export function AppCommandCenter() {
             </CommandItem>
           ))}
         </CommandGroup>
+        {filteredCommands.length > 0 && (
+          <CommandGroup heading="Keyboard Shortcuts">
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Move Focus Left</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>h</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Move Focus Down</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>j</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Move Focus Up</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>k</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Move Focus Right</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>l</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Open Focused Idea</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>enter</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Edit Idea</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>e</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Send to Notion</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>s</Kbd>
+                  <Kbd>n</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Delete Idea</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>d</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+            <CommandItem disabled className="rounded-md opacity-60">
+              <span>Add Idea Submit</span>
+              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+                <KbdGroup>
+                  <Kbd>cmd</Kbd>
+                  <Kbd>enter</Kbd>
+                </KbdGroup>
+              </span>
+            </CommandItem>
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   );

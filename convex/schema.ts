@@ -27,18 +27,33 @@ export default defineSchema({
     column: v.union(v.literal("Concept"), v.literal("To Stream")),
     order: v.number(),
     notionPageId: v.optional(v.string()),
-    notionSynced: v.optional(v.boolean()),
-    syncedAt: v.optional(v.number()),
-    importedFromExportId: v.optional(v.id("ideaExports")),
-    importedFromOrganizationId: v.optional(v.string()),
-    importedFromIdeaId: v.optional(v.id("ideas")),
-    importedAt: v.optional(v.number()),
+    inNotion: v.optional(v.boolean()),
+    notionSentAt: v.optional(v.number()),
+    notionSendBy: v.optional(v.string()),
+    notionSendState: v.optional(
+      v.union(v.literal("idle"), v.literal("sending"), v.literal("sent"), v.literal("error")),
+    ),
+    notionSendError: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_column", ["userId", "column"])
     .index("by_organization", ["organizationId"])
     .index("by_organization_column", ["organizationId", "column"])
     .index("by_notion_page", ["notionPageId"]),
+
+  modeSettings: defineTable({
+    organizationId: v.string(),
+    theoMode: v.boolean(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  }).index("by_organization", ["organizationId"]),
+
+  userFlags: defineTable({
+    userId: v.string(),
+    canManageTheoMode: v.optional(v.boolean()),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  }).index("by_user", ["userId"]),
 
   notionOauthStates: defineTable({
     state: v.string(),
@@ -64,6 +79,11 @@ export default defineSchema({
     workspaceId: v.string(),
     workspaceName: v.optional(v.string()),
     workspaceIcon: v.optional(v.string()),
+    // Health status for revoked/removed integrations
+    isActive: v.optional(v.boolean()),
+    lastCheckedAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    disconnectedAt: v.optional(v.number()),
     // Connection metadata
     createdBy: v.string(), // userId of admin who set it
     connectedAt: v.number(),

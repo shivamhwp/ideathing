@@ -13,6 +13,7 @@ import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useTheoMode } from "@/hooks/useTheoMode";
 
 export const Route = createFileRoute("/_authenticated/settings/notion")({
   component: NotionSettings,
@@ -25,9 +26,11 @@ type DatabaseOption = {
 
 function NotionSettings() {
   const { organization, membership, isLoaded: isOrgLoaded } = useOrganization();
-  const { data: connectionStatus } = useQuery(
-    convexQuery(api.notion.queries.getConnectionStatus, {}),
-  );
+  const { isTheoMode, isCheckingMode } = useTheoMode();
+  const { data: connectionStatus } = useQuery({
+    ...convexQuery(api.notion.queries.getConnectionStatus, {}),
+    enabled: isTheoMode,
+  });
 
   const isAdmin = membership?.role === "org:admin";
 
@@ -40,12 +43,26 @@ function NotionSettings() {
   const listDatabases = useAction(api.notion.actions.listDatabases);
   const saveDatabaseSettings = useMutation(api.notion.mutations.saveDatabaseSettings);
   const getDataSourceSchema = useAction(api.notion.actions.getDataSourceSchema);
-  const disconnect = useMutation(api.notion.mutations.disconnect);
+  const disconnect = useAction(api.notion.actions.disconnect);
 
-  if (!isOrgLoaded) {
+  if (!isOrgLoaded || isCheckingMode) {
     return (
       <div className="flex items-center justify-center py-20">
         <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isTheoMode) {
+    return (
+      <div className="rounded-xl border border-border/50 bg-card/50 p-6">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <WarningCircleIcon className="w-5 h-5" />
+          <p>
+            Theo mode is disabled for this organization. Enable `modeSettings.theoMode` in Convex
+            dashboard to use Notion integration.
+          </p>
+        </div>
       </div>
     );
   }
@@ -84,7 +101,7 @@ function NotionSettings() {
                 <p className="font-medium text-primary">Connected</p>
                 {connectionStatus.databaseName && (
                   <p className="text-sm text-muted-foreground">
-                    Syncing with: {connectionStatus.databaseName}
+                    Notion destination: {connectionStatus.databaseName}
                   </p>
                 )}
               </div>
@@ -144,9 +161,9 @@ function NotionSettings() {
 
   const handleDisconnect = async () => {
     try {
-      await disconnect();
+      await disconnect({});
       setDatabases([]);
-      toast.success("Disconnected from Notion");
+      toast.success("Disconnected from Notion.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to disconnect");
     }
@@ -161,7 +178,7 @@ function NotionSettings() {
           <div>
             <h2 className="text-lg font-semibold">Notion Integration</h2>
             <p className="text-sm text-muted-foreground">
-              {connectionStatus?.isConnected ? "Connected" : "Not connected"}
+              {connectionStatus?.isConnected ? "Connected" : "Disconnected"}
             </p>
             {connectionStatus?.databaseName && (
               <p className="text-xs text-muted-foreground mt-1">
@@ -232,7 +249,7 @@ function NotionSettings() {
         <div className="rounded-xl border border-border/50 bg-card/50 p-6">
           <div className="flex items-center gap-3 text-muted-foreground">
             <WarningCircleIcon className="w-5 h-5" />
-            <p>Connect Notion to sync ideas.</p>
+            <p>Connect Notion to send ideas from Theo mode.</p>
           </div>
         </div>
       )}
@@ -243,7 +260,7 @@ function NotionSettings() {
           <div className="flex items-center gap-3">
             <WarningCircleIcon className="w-5 h-5 text-amber-500" weight="fill" />
             <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-              Select a database to continue syncing.
+              Select a database to enable sending ideas.
             </p>
           </div>
         </div>

@@ -1,9 +1,10 @@
-import { CaretDownIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, SpinnerIcon, XIcon } from "@phosphor-icons/react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { api } from "convex/_generated/api";
 import { useMutation } from "convex/react";
 import { format } from "date-fns";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { channelValues, ownerValues } from "shared/idea-values";
 import { toast } from "sonner";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
@@ -18,8 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -36,7 +37,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { defaultIdeaDraft, newIdeaDraftAtom, newIdeaFields, streamModeAtom } from "@/store/atoms";
+import { useTheoMode } from "@/hooks/useTheoMode";
+import { defaultIdeaDraft, newIdeaDraftAtom, newIdeaFields } from "@/store/atoms";
 
 interface AddIdeaModalProps {
   open: boolean;
@@ -48,7 +50,7 @@ const DatesSection = memo(function DatesSection() {
   const [releaseDate, setReleaseDate] = useAtom(newIdeaFields.releaseDate);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="space-y-1.5">
         <Label htmlFor="vod-date" className="text-sm">
           VOD Date
@@ -158,26 +160,19 @@ const OwnerChannelSection = memo(function OwnerChannelSection() {
   );
 });
 
-const LabelSection = memo(function LabelSection() {
+const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection() {
   const [label, setLabel] = useAtom(newIdeaFields.label);
-
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="label" className="text-sm">
-        Label
-      </Label>
-      <LabelSelect id="label" labels={label} onChange={setLabel} />
-    </div>
-  );
-});
-
-const PotentialAdReadSection = memo(function PotentialAdReadSection() {
   const [potential, setPotential] = useAtom(newIdeaFields.potential);
   const [adReadTracker, setAdReadTracker] = useAtom(newIdeaFields.adReadTracker);
-  const streamMode = useAtomValue(streamModeAtom);
 
   return (
-    <div className={`grid gap-4 ${streamMode ? "grid-cols-1" : "grid-cols-2"}`}>
+    <div className="grid grid-cols-5 gap-4">
+      <div className="col-span-3 space-y-1.5">
+        <Label htmlFor="label" className="text-sm">
+          Label
+        </Label>
+        <LabelSelect id="label" labels={label} onChange={setLabel} />
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="potential" className="text-sm">
           Potential
@@ -198,29 +193,24 @@ const PotentialAdReadSection = memo(function PotentialAdReadSection() {
           </SelectContent>
         </Select>
       </div>
-      {!streamMode && (
-        <div className="space-y-1.5 opacity-50">
-          <Label htmlFor="ad-read-tracker" className="text-sm">
-            Ad Read Tracker
-          </Label>
-          <Input
-            id="ad-read-tracker"
-            value={adReadTracker ? "•••••" : ""}
-            placeholder="Not set"
-            disabled
-            onChange={(event) => setAdReadTracker(event.target.value)}
-          />
-        </div>
-      )}
+      <div className="space-y-1.5 opacity-50">
+        <Label htmlFor="ad-read-tracker" className="text-sm">
+          Ad Read Tracker
+        </Label>
+        <Input
+          id="ad-read-tracker"
+          value={adReadTracker ? "•••••" : ""}
+          placeholder="Not set"
+          disabled
+          onChange={(event) => setAdReadTracker(event.target.value)}
+        />
+      </div>
     </div>
   );
 });
 
 const UnsponsoredToggle = memo(function UnsponsoredToggle() {
   const [unsponsored, setUnsponsored] = useAtom(newIdeaFields.unsponsored);
-  const streamMode = useAtomValue(streamModeAtom);
-
-  if (streamMode) return null;
 
   return (
     <div className="flex items-center gap-2">
@@ -271,6 +261,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
   const label = useAtomValue(newIdeaFields.label);
   const adReadTracker = useAtomValue(newIdeaFields.adReadTracker);
   const unsponsored = useAtomValue(newIdeaFields.unsponsored);
+  const { isTheoMode } = useTheoMode();
   const setNewDraft = useSetAtom(newIdeaDraftAtom);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const resourceList = resources.length ? resources : [""];
@@ -292,8 +283,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     clearFileUpload();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitIdea = useCallback(async () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
 
@@ -320,12 +310,14 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
         resources: cleanedResources,
         vodRecordingDate: vodRecordingDate || undefined,
         releaseDate: releaseDate || undefined,
-        owner: owner || ownerValues[7],
-        channel: channel || channelValues[0],
-        potential: typeof potential === "number" ? potential : undefined,
-        label: label.length ? label : undefined,
-        adReadTracker: adReadTracker || undefined,
-        unsponsored,
+        ...(isTheoMode && {
+          owner: owner || ownerValues[7],
+          channel: channel || channelValues[0],
+          potential: typeof potential === "number" ? potential : undefined,
+          label: label.length ? label : undefined,
+          adReadTracker: adReadTracker || undefined,
+          unsponsored,
+        }),
       });
 
       toast.success("Idea added successfully");
@@ -337,72 +329,124 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }, [
+    title,
+    description,
+    notes,
+    thumbnail,
+    thumbnailFile,
+    thumbnailReady,
+    resourceList,
+    vodRecordingDate,
+    releaseDate,
+    isTheoMode,
+    owner,
+    channel,
+    potential,
+    label,
+    adReadTracker,
+    unsponsored,
+    uploadFile,
+    createIdea,
+    clearAll,
+    onOpenChange,
+  ]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitIdea();
   };
+
+  useHotkey(
+    "Mod+Enter",
+    (event) => {
+      if (event.isComposing) return;
+      event.preventDefault();
+      void submitIdea();
+    },
+    { enabled: open && !isSubmitting, requireReset: true },
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl p-0 gap-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <DialogContent
+        showCloseButton={false}
+        className="overflow-hidden !flex !flex-col max-w-5xl p-0 gap-0"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>Add Idea</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-          {/* Title & Description */}
-          <div className="space-y-4">
-            <TitleField autoFocus id="title" value={title} onChange={setTitle} />
-            <DescriptionField id="description" value={description} onChange={setDescription} />
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="flex items-center justify-between border-b border-border/40 bg-background px-4 py-3">
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                <XIcon className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </DialogClose>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <SpinnerIcon className="w-4 h-4 mr-2 animate-spin" />
+                    {isUploading ? "Uploading…" : "Adding…"}
+                  </>
+                ) : (
+                  "Add Idea"
+                )}
+              </Button>
+            </div>
           </div>
 
-          {/* Resources */}
-          <ResourcesSection id="resources" resources={resources} onChange={setResources} />
+          <div className="space-y-5 px-6 py-5">
+            {/* Title & Description */}
+            <div className="space-y-4">
+              <TitleField autoFocus id="title" value={title} onChange={setTitle} />
+              <DescriptionField id="description" value={description} onChange={setDescription} />
+            </div>
 
-          {/* Thumbnail + Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <ThumbnailField
-              thumbnail={thumbnail}
-              thumbnailReady={thumbnailReady}
-              showPreview={Boolean(thumbnailPreview)}
-              previewUrl={thumbnailPreview}
-              fileInputRef={fileInputRef}
-              onFileSelect={(event) => {
-                onFileSelect(event);
-                setThumbnail("");
-                setThumbnailReady(true);
-              }}
-              onClear={() => {
-                clearFileUpload();
-                setThumbnail("");
-                setThumbnailReady(false);
-              }}
-              onThumbnailChange={setThumbnail}
-              onThumbnailReadyChange={setThumbnailReady}
-              labelId="thumbnail-ready"
-            />
-            <DatesSection />
-          </div>
+            {/* Resources */}
+            <ResourcesSection id="resources" resources={resources} onChange={setResources} />
 
-          <OwnerChannelSection />
-          <LabelSection />
-          <PotentialAdReadSection />
-          <UnsponsoredToggle />
-          <NotesField />
-        </form>
+            {/* Thumbnail + Dates */}
+            <div className={isTheoMode ? "grid grid-cols-2 gap-4" : "space-y-4"}>
+              <ThumbnailField
+                thumbnail={thumbnail}
+                thumbnailReady={thumbnailReady}
+                showPreview={Boolean(thumbnailPreview)}
+                previewUrl={thumbnailPreview}
+                fileInputRef={fileInputRef}
+                onFileSelect={(event) => {
+                  onFileSelect(event);
+                  setThumbnail("");
+                  setThumbnailReady(true);
+                }}
+                onClear={() => {
+                  clearFileUpload();
+                  setThumbnail("");
+                  setThumbnailReady(false);
+                }}
+                onThumbnailChange={setThumbnail}
+                onThumbnailReadyChange={setThumbnailReady}
+                labelId="thumbnail-ready"
+              />
+              <DatesSection />
+            </div>
 
-        <DialogFooter className="px-6 py-4 border-t border-border/40">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting} onClick={handleSubmit}>
-            {isSubmitting ? (
+            {isTheoMode && (
               <>
-                <SpinnerIcon className="w-4 h-4 mr-2 animate-spin" />
-                {isUploading ? "Uploading…" : "Adding…"}
+                <OwnerChannelSection />
+                <LabelPotentialAdReadSection />
+                <UnsponsoredToggle />
               </>
-            ) : (
-              "Add Idea"
             )}
-          </Button>
-        </DialogFooter>
+            <NotesField />
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
