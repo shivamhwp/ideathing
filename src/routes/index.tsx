@@ -1,23 +1,25 @@
-import { convexQuery } from "@convex-dev/react-query";
+import { SpinnerIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
-import { api } from "convex/_generated/api";
 import { AppCommandCenter } from "@/components/AppCommandCenter";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { TheoIdeaQueue } from "@/components/TheoIdeaQueue";
 import { TopNav } from "@/components/TopNav";
-import { theoModeQuery, useTheoMode } from "@/hooks/useTheoMode";
+import { useTheoMode } from "@/hooks/useTheoMode";
 
 export const Route = createFileRoute("/")({
-  loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(theoModeQuery);
-    await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.list, {}));
-    await context.queryClient.ensureQueryData(convexQuery(api.ideas.queries.listTheoQueue, {}));
-  },
   component: App,
 });
 
 function App() {
-  const { isTheoMode } = useTheoMode();
+  const { isTheoMode, isCheckingMode } = useTheoMode();
+
+  if (isCheckingMode) {
+    return (
+      <div className="h-dvh flex items-center justify-center bg-background">
+        <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-dvh flex flex-col bg-background">

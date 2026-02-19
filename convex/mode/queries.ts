@@ -28,8 +28,10 @@ export const getCurrentMode = query({
     }
 
     const scope = resolveModeScopeFromIdentity(identity);
-    const mode = await getModeForScope(ctx, scope);
-    const canManageTheoMode = await canManageTheoModeForIdentity(ctx, identity);
+    const [mode, canManageTheoMode] = await Promise.all([
+      getModeForScope(ctx, scope),
+      canManageTheoModeForIdentity(ctx, identity),
+    ]);
 
     return {
       mode,

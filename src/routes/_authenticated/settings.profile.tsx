@@ -4,12 +4,10 @@ import {
   useOrganization,
   useUser,
 } from "@clerk/tanstack-react-start";
-import { convexQuery } from "@convex-dev/react-query";
 import { ShieldCheckIcon, SpinnerIcon, UserIcon } from "@phosphor-icons/react";
 import { CheckCircleIcon, XCircleIcon } from "@phosphor-icons/react/dist/ssr";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { api } from "convex/_generated/api";
+import { useTheoMode } from "@/hooks/useTheoMode";
 
 export const Route = createFileRoute("/_authenticated/settings/profile")({
   component: ProfileSettings,
@@ -18,9 +16,9 @@ export const Route = createFileRoute("/_authenticated/settings/profile")({
 function ProfileSettings() {
   const { user, isLoaded: isUserLoaded } = useUser();
   const { membership } = useOrganization();
-  const { data: modeData } = useQuery(convexQuery(api.mode.queries.getCurrentMode, {}));
+  const { isTheoMode, isCheckingMode } = useTheoMode();
 
-  if (!isUserLoaded) {
+  if (!isUserLoaded || isCheckingMode) {
     return (
       <div className="flex items-center justify-center py-20">
         <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
@@ -37,8 +35,6 @@ function ProfileSettings() {
   }
 
   const isAdmin = membership?.role === "org:admin" || membership?.role === "admin";
-  const isTheoMode = modeData?.mode === "theo";
-
   return (
     <div className="space-y-6">
       {/* User Info Card */}

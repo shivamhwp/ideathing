@@ -8,6 +8,7 @@ import {
   TrashIcon,
   XIcon,
 } from "@phosphor-icons/react";
+import { useHotkey, useKeyHold } from "@tanstack/react-hotkeys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import { format } from "date-fns";
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/select-new";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheoMode } from "@/hooks/useTheoMode";
 import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
@@ -51,6 +53,12 @@ interface EditIdeaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+};
 
 // Hook to share update logic across field components
 function useScheduledUpdate() {
@@ -504,6 +512,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
   const adReadTracker = useAtomValue(editIdeaFields.adReadTracker);
   const unsponsored = useAtomValue(editIdeaFields.unsponsored);
   const { isTheoMode } = useTheoMode();
+  const isSHeld = useKeyHold("S");
   const resourceList = resources.length ? resources : [""];
 
   const { scheduleUpdate, isPending, isSuccess } = useScheduledUpdate();
@@ -576,12 +585,51 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
     }
   };
 
+  useHotkey(
+    "E",
+    () => {
+      handleEditToggle();
+    },
+    { enabled: open && !isEditing, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "N",
+    (event) => {
+      if (event.isComposing || isEditableTarget(event.target) || !isSHeld) return;
+      event.preventDefault();
+      handleSendToNotion();
+    },
+    {
+      enabled:
+        open &&
+        isTheoMode &&
+        Boolean(idea) &&
+        !idea?.inNotion &&
+        !isDeletingIdea &&
+        !isSendingToNotion,
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
+  useHotkey(
+    "D",
+    (event) => {
+      if (event.isComposing || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      void handleDeleteIdea();
+    },
+    {
+      enabled: open && isTheoMode && Boolean(idea) && !isDeletingIdea && !isSendingToNotion,
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl p-0 gap-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-      >
+      <DialogContent showCloseButton={false} className="overflow-hidden sm:max-w-2xl p-0 gap-0">
         <DialogHeader className="flex flex-row items-center justify-between border-b border-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
             <DialogTitle className="text-base font-medium text-muted-foreground">
@@ -589,18 +637,6 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
             </DialogTitle>
           </div>
           <div className="flex items-center gap-2">
-            {!isEditing && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleEditToggle}
-                aria-label="Edit"
-                className="cursor-pointer"
-              >
-                <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
-                Edit
-              </Button>
-            )}
             {isEditing && isPending && (
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <SpinnerIcon weight="bold" className="w-3.5 h-3.5 animate-spin" />
@@ -672,37 +708,57 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
               unsponsored={unsponsored}
               theoMode={isTheoMode}
             />
-            {isTheoMode ? (
-              <div className="border-t border-border/40 px-6 py-4 flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleDeleteIdea}
-                  disabled={!idea || isDeletingIdea || isSendingToNotion}
-                  className="cursor-pointer"
-                >
-                  {isDeletingIdea ? (
-                    <SpinnerIcon className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <TrashIcon className="w-4 h-4" />
-                  )}
-                  Delete
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSendToNotion}
-                  disabled={!idea || idea.inNotion || isDeletingIdea || isSendingToNotion}
-                  className="cursor-pointer"
-                >
-                  {isSendingToNotion ? (
-                    <SpinnerIcon className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <PaperPlaneTiltIcon className="w-4 h-4" />
-                  )}
-                  {idea?.inNotion ? "Sent to Notion" : "Send to Notion"}
-                </Button>
-              </div>
-            ) : null}
+            <div className="border-t border-border/40 px-6 py-4 flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleEditToggle}
+                aria-label="Edit idea"
+                className="cursor-pointer"
+              >
+                <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
+                Edit Idea
+                <Kbd className="ml-2">e</Kbd>
+              </Button>
+              {isTheoMode ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleDeleteIdea}
+                    disabled={!idea || isDeletingIdea || isSendingToNotion}
+                    className="cursor-pointer"
+                  >
+                    {isDeletingIdea ? (
+                      <SpinnerIcon className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <TrashIcon className="w-4 h-4" />
+                    )}
+                    Delete
+                    <Kbd className="ml-2">d</Kbd>
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSendToNotion}
+                    disabled={!idea || idea.inNotion || isDeletingIdea || isSendingToNotion}
+                    className="cursor-pointer"
+                  >
+                    {isSendingToNotion ? (
+                      <SpinnerIcon className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <PaperPlaneTiltIcon className="w-4 h-4" />
+                    )}
+                    {idea?.inNotion ? "Sent to Notion" : "Send to Notion"}
+                    {!idea?.inNotion && (
+                      <KbdGroup className="ml-2">
+                        <Kbd>s</Kbd>
+                        <Kbd>n</Kbd>
+                      </KbdGroup>
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
       </DialogContent>

@@ -19,6 +19,8 @@ interface IdeaCardProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
+  isKeyboardFocused?: boolean;
+  domId?: string;
 }
 
 function ThumbnailImage({ src, alt }: { src: string; alt: string }) {
@@ -53,6 +55,8 @@ export function IdeaCard({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  isKeyboardFocused = false,
+  domId,
 }: IdeaCardProps) {
   const { isTheoMode } = useTheoMode();
   const deleteIdea = useMutation(api.ideas.mutations.remove);
@@ -110,6 +114,8 @@ export function IdeaCard({
 
   return (
     <div
+      id={domId}
+      data-idea-id={idea._id}
       ref={setNodeRef}
       style={style}
       role="card"
@@ -121,7 +127,12 @@ export function IdeaCard({
       onClick={handleClick}
     >
       {/* Compact card */}
-      <div className="rounded-lg overflow-hidden bg-card border border-border/60 hover:border-border hover:shadow-sm transition-all duration-200">
+      <div
+        className={cn(
+          "rounded-lg overflow-hidden bg-card border hover:border-border hover:shadow-sm transition-all duration-200",
+          isKeyboardFocused ? "border-primary" : "border-border/60",
+        )}
+      >
         {/* Thumbnail - shorter aspect ratio */}
         <div
           className="relative aspect-2/1 overflow-hidden bg-muted"

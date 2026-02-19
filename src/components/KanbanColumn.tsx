@@ -17,6 +17,8 @@ interface KanbanColumnProps {
   selectionMode?: boolean;
   selectedIds?: Set<Id<"ideas">>;
   onToggleSelect?: (ideaId: Id<"ideas">) => void;
+  focusedIdeaId?: Id<"ideas"> | null;
+  getIdeaDomId?: (ideaId: Id<"ideas">) => string;
 }
 
 export function KanbanColumn({
@@ -30,6 +32,8 @@ export function KanbanColumn({
   selectionMode = false,
   selectedIds,
   onToggleSelect,
+  focusedIdeaId,
+  getIdeaDomId,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -86,7 +90,7 @@ export function KanbanColumn({
         </div>
       ) : items.length > 0 ? (
         <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             {items.map((idea) => (
               <IdeaCard
                 key={idea._id}
@@ -96,6 +100,8 @@ export function KanbanColumn({
                 selectionMode={selectionMode}
                 selected={selectedIds?.has(idea._id) ?? false}
                 onToggleSelect={onToggleSelect}
+                isKeyboardFocused={focusedIdeaId === idea._id}
+                domId={getIdeaDomId?.(idea._id)}
               />
             ))}
           </div>

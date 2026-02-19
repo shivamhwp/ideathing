@@ -9,7 +9,7 @@ import { useTheoMode } from "@/hooks/useTheoMode";
 import { cn } from "@/utils/utils";
 
 export function TopNav() {
-  const { isTheoMode } = useTheoMode();
+  const { isTheoMode, isCheckingMode } = useTheoMode();
   const baseLink = "text-foreground/40 hover:text-primary font-semibold transition-colors";
   const boardLink = cn(baseLink, "flex items-center gap-2 font-semibold");
   const boardLinkActive = cn(boardLink, "text-primary font-semibold");
@@ -31,7 +31,7 @@ export function TopNav() {
           >
             ideathing
           </Link>
-          {!isTheoMode ? (
+          {!isCheckingMode && !isTheoMode ? (
             <Link
               to="/recorded"
               preload="intent"
@@ -65,7 +65,7 @@ export function TopNav() {
 
       <div className="flex items-center gap-2">
         <Authenticated>
-          {isTheoMode && <NotionConnect />}
+          {!isCheckingMode && isTheoMode ? <NotionConnect /> : null}
           <div className="flex items-center">
             <div className="flex items-center bg-primary/10 rounded-md ">
               <ThemeToggle className="bg-transparent" />

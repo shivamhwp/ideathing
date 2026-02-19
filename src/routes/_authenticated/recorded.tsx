@@ -1,5 +1,6 @@
 import { convexQuery } from "@convex-dev/react-query";
-import { CassetteTapeIcon } from "@phosphor-icons/react";
+import { CassetteTapeIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
@@ -18,13 +19,100 @@ export const Route = createFileRoute("/_authenticated/recorded")({
 
 function RecordedIdeasPage() {
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
+  const [focusedIdeaId, setFocusedIdeaId] = useState<Idea["_id"] | null>(null);
   const setDraft = useSetAtom(editIdeaDraftAtom);
-  const { isTheoMode } = useTheoMode();
+  const { isTheoMode, isCheckingMode } = useTheoMode();
   const { data: recorded, isLoading } = useQuery({
     ...convexQuery(api.ideas.queries.listRecorded, {}),
     gcTime: 60 * 60 * 1000, // 1 hour
     staleTime: 61 * 60 * 1000, // 1 hour + 1 minute
   });
+  const recordedIdeas = recorded ?? [];
+
+  const getIdeaDomId = (ideaId: Idea["_id"]) => `idea-card-${ideaId}`;
+
+  const focusIdea = (ideaId: Idea["_id"] | null) => {
+    setFocusedIdeaId(ideaId);
+    if (!ideaId) return;
+    requestAnimationFrame(() => {
+      document
+        .getElementById(getIdeaDomId(ideaId))
+        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    });
+  };
+
+  const gridColumns =
+    typeof window === "undefined"
+      ? 1
+      : window.innerWidth >= 1280
+        ? 4
+        : window.innerWidth >= 1024
+          ? 3
+          : window.innerWidth >= 640
+            ? 2
+            : 1;
+  const canUseMotionHotkeys = !isCheckingMode && !isTheoMode && !isLoading && !editingIdea;
+  const moveFocus = (step: number) => {
+    if (recordedIdeas.length === 0) return;
+    const currentIndex = recordedIdeas.findIndex((idea) => idea._id === focusedIdeaId);
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+    const nextIndex = Math.max(0, Math.min(recordedIdeas.length - 1, baseIndex + step));
+    focusIdea(recordedIdeas[nextIndex]?._id ?? null);
+  };
+
+  useHotkey(
+    "J",
+    () => {
+      moveFocus(gridColumns);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+  useHotkey(
+    "K",
+    () => {
+      moveFocus(-gridColumns);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+  useHotkey(
+    "L",
+    () => {
+      moveFocus(1);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+  useHotkey(
+    "H",
+    () => {
+      moveFocus(-1);
+    },
+    { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "Enter",
+    () => {
+      if (!focusedIdeaId) return;
+      const focusedIdea = recordedIdeas.find((idea) => idea._id === focusedIdeaId);
+      if (!focusedIdea) return;
+      focusIdea(focusedIdea._id);
+      setDraft(createIdeaDraftFromIdea(focusedIdea));
+      setEditingIdea(focusedIdea);
+    },
+    {
+      enabled: canUseMotionHotkeys && Boolean(focusedIdeaId),
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
+  if (isCheckingMode) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background">
+        <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+      </div>
+    );
+  }
 
   if (isTheoMode) {
     return <Navigate to="/" replace />;
@@ -54,15 +142,18 @@ function RecordedIdeasPage() {
             </div>
           ) : (
             <div className="h-full overflow-y-auto">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {recorded.map((idea) => (
                   <IdeaCard
                     key={idea._id}
                     idea={idea}
                     onClick={() => {
+                      focusIdea(idea._id);
                       setDraft(createIdeaDraftFromIdea(idea));
                       setEditingIdea(idea);
                     }}
+                    isKeyboardFocused={focusedIdeaId === idea._id}
+                    domId={getIdeaDomId(idea._id)}
                   />
                 ))}
               </div>

@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, SpinnerIcon } from "@phosphor-icons/react";
 import { List, Root, Trigger } from "@radix-ui/react-tabs";
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsLayout() {
   const current = useLocation().pathname.split("/")[2] || "profile";
-  const { isTheoMode } = useTheoMode();
+  const { isTheoMode, isCheckingMode } = useTheoMode();
   const tabs: Array<{
     key: string;
     label: string;
@@ -35,6 +35,14 @@ function SettingsLayout() {
       label: "Notion",
       to: "/settings/notion",
     });
+  }
+
+  if (isCheckingMode) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+      </div>
+    );
   }
 
   return (

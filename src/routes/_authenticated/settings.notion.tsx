@@ -26,7 +26,7 @@ type DatabaseOption = {
 
 function NotionSettings() {
   const { organization, membership, isLoaded: isOrgLoaded } = useOrganization();
-  const { isTheoMode } = useTheoMode();
+  const { isTheoMode, isCheckingMode } = useTheoMode();
   const { data: connectionStatus } = useQuery({
     ...convexQuery(api.notion.queries.getConnectionStatus, {}),
     enabled: isTheoMode,
@@ -45,7 +45,7 @@ function NotionSettings() {
   const getDataSourceSchema = useAction(api.notion.actions.getDataSourceSchema);
   const disconnect = useAction(api.notion.actions.disconnect);
 
-  if (!isOrgLoaded) {
+  if (!isOrgLoaded || isCheckingMode) {
     return (
       <div className="flex items-center justify-center py-20">
         <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />

@@ -19,13 +19,9 @@ import {
 import { cn } from "@/utils/utils";
 
 type NotionConnection = {
+  isConnected: boolean;
   databaseId?: string | null;
   databaseName?: string | null;
-  targetSection?: string | null;
-  titlePropertyName?: string | null;
-  statusPropertyName?: string | null;
-  statusPropertyType?: "status" | "select" | null;
-  descriptionPropertyName?: string | null;
 };
 
 type DatabaseOption = {
@@ -38,10 +34,6 @@ export function NotionConnect() {
   const { isTheoMode } = useTheoMode();
   const isAdmin = membership?.role === "org:admin";
 
-  const { data: connection, isLoading: isConnectionLoading } = useQuery({
-    ...convexQuery(api.notion.queries.getConnection, {}),
-    enabled: isTheoMode,
-  });
   const { data: connectionStatus, isLoading: isStatusLoading } = useQuery({
     ...convexQuery(api.notion.queries.getConnectionStatus, {}),
     enabled: isTheoMode,
@@ -52,7 +44,7 @@ export function NotionConnect() {
   }
 
   // Not connected - show button to go to settings
-  if (isConnectionLoading || isStatusLoading) {
+  if (isStatusLoading) {
     return <NotionConnectPlaceholder />;
   }
 
@@ -60,7 +52,7 @@ export function NotionConnect() {
     return <NotionConnectButton />;
   }
 
-  return <NotionConnectDropdown connection={connection ?? null} isAdmin={isAdmin} />;
+  return <NotionConnectDropdown connection={connectionStatus} isAdmin={isAdmin} />;
 }
 
 function NotionConnectPlaceholder() {
@@ -86,7 +78,7 @@ function NotionConnectDropdown({
   connection,
   isAdmin,
 }: {
-  connection: NotionConnection | null;
+  connection: NotionConnection;
   isAdmin?: boolean;
 }) {
   const navigate = useNavigate();
@@ -164,7 +156,7 @@ function NotionConnectDropdown({
           key={db.id}
           onClick={() => handleSelectDatabase(db)}
           disabled={isSubmitting || !isAdmin}
-          className={`cursor-pointer hover:bg-muted/50 focus:bg-muted/50 ${connection?.databaseId === db.id ? "bg-primary/15" : ""}`}
+          className={`cursor-pointer hover:bg-muted/50 focus:bg-muted/50 ${connection.databaseId === db.id ? "bg-primary/15" : ""}`}
         >
           {db.name}
         </DropdownMenuItem>
@@ -180,7 +172,7 @@ function NotionConnectDropdown({
           databaseList
         ) : (
           <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            {connection?.databaseName || "Connected to Notion"}
+            {connection.databaseName || "Connected to Notion"}
           </div>
         )}
         <DropdownMenuSeparator />
