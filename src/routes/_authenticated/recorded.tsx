@@ -134,9 +134,9 @@ function RecordedIdeasPage() {
         <TopNav />
         <section className="flex-1 min-h-0 rounded-2xl border border-border/60 bg-card/40 p-4">
           {recorded?.length === 0 ? (
-            <div className="h-full p-6 items-center justify-center">
-              <div className=" text-muted-foreground/25 flex items-center justify-center h-full w-full flex-col text-xl">
-                <CassetteTapeIcon weight="duotone" className="w-16 h-16" />
+            <div className="flex h-full items-center justify-center p-6">
+              <div className="flex flex-col items-center justify-center text-xl text-muted-foreground/25">
+                <CassetteTapeIcon weight="duotone" className="mb-2 h-12 w-12" />
                 No recorded ideas yet.
               </div>
             </div>

@@ -4,8 +4,13 @@ import {
   useOrganization,
   useUser,
 } from "@clerk/tanstack-react-start";
-import { ShieldCheckIcon, SpinnerIcon, UserIcon } from "@phosphor-icons/react";
-import { CheckCircleIcon, XCircleIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  CheckCircleIcon,
+  ShieldCheckIcon,
+  SpinnerIcon,
+  UserIcon,
+  XCircleIcon,
+} from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheoMode } from "@/hooks/useTheoMode";
 
@@ -38,13 +43,13 @@ function ProfileSettings() {
   return (
     <div className="space-y-6">
       {/* User Info Card */}
-      <div className="rounded-xl border border-border/50 bg-card/50 p-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 rounded-xl border border-border/50 bg-card/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4 w-full justify-between">
           <UserButton
             appearance={{
               elements: {
                 rootBox: "flex",
-                avatarBox: "size-20",
+                avatarBox: "size-16 sm:size-20",
               },
             }}
           >
@@ -52,8 +57,8 @@ function ProfileSettings() {
               <UserButton.Action label="manageAccount" />
             </UserButton.MenuItems>
           </UserButton>
-          <div className="flex-1">
-            <h2 className="gap-2 flex">
+          <div className="min-w-0 flex-1 sm:block hidden">
+            <h2 className="flex flex-wrap items-center gap-2 ">
               <div className="text-lg font-semibold ">{user.fullName}</div>
               {isAdmin ? (
                 <span className="inline-flex items-center gap-1 px-2  rounded text-xs bg-primary/10 text-primary">
@@ -66,35 +71,32 @@ function ProfileSettings() {
                   Member
                 </span>
               )}
-              {isTheoMode && (
-                <span className="inline-flex items-center gap-1 px-2 rounded text-xs bg-secondary/40 text-secondary-foreground">
-                  Theo mode active
-                </span>
-              )}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm sm:block hidden text-muted-foreground">
               {user.primaryEmailAddress?.emailAddress}
             </p>
           </div>
-        </div>
-        <div>
-          <OrganizationSwitcher
-            hidePersonal={false}
-            afterCreateOrganizationUrl="/"
-            afterSelectOrganizationUrl="/"
-            afterLeaveOrganizationUrl="/"
-            appearance={{
-              elements: {
-                rootBox: "flex items-center justify-center gap-2",
-                avatarBox: "size-10 ",
-              },
-            }}
-          />
+          <div>
+            <div className="flex items-center justify-between">
+              <OrganizationSwitcher
+                hidePersonal={false}
+                afterCreateOrganizationUrl="/"
+                afterSelectOrganizationUrl="/"
+                afterLeaveOrganizationUrl="/"
+                appearance={{
+                  elements: {
+                    rootBox: "flex items-center justify-center gap-2",
+                    avatarBox: "size-10",
+                  },
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       {isTheoMode && (
-        <div className="rounded-xl border border-border/50 bg-card/50 p-6">
+        <div className="rounded-xl border border-border/50 bg-card/50 p-4 sm:p-6">
           <div className="space-y-1 flex items-center justify-between">
             <h3 className="font-medium">Theo mode</h3>
             {isTheoMode ? (

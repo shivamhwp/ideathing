@@ -10,7 +10,7 @@ import { cn } from "@/utils/utils";
 
 export function TopNav() {
   const { isTheoMode, isCheckingMode } = useTheoMode();
-  const baseLink = "text-foreground/40 hover:text-primary font-semibold transition-colors";
+  const baseLink = "text-foreground/40 hover:text-primary text-sm font-semibold transition-colors";
   const boardLink = cn(baseLink, "flex items-center gap-2 font-semibold");
   const boardLinkActive = cn(boardLink, "text-primary font-semibold");
   const recordedLink = cn(
@@ -20,8 +20,8 @@ export function TopNav() {
   const recordedLinkActive = cn(recordedLink, "font-semibold text-foreground text-primary");
 
   return (
-    <div className="flex h-8 w-full items-center justify-between gap-3 select-none">
-      <div className="flex items-center gap-4">
+    <div className="flex min-h-8 w-full items-center justify-between gap-3 select-none">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         <Authenticated>
           <Link
             to="/"
@@ -63,7 +63,7 @@ export function TopNav() {
         </Unauthenticated>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <Authenticated>
           {!isCheckingMode && isTheoMode ? <NotionConnect /> : null}
           <div className="flex items-center">

@@ -270,7 +270,7 @@ export function AppCommandCenter() {
       onOpenChange={setOpen}
       title="Command Menu"
       description="Search commands and navigate quickly."
-      className="top-[5.5rem] translate-y-0 border-border/60 bg-background/45 shadow-2xl shadow-black/30 backdrop-blur-2xl sm:max-w-xl"
+      className="top-4 w-[calc(100vw-1rem)] translate-y-0 border-border/60 bg-background/45 shadow-2xl shadow-black/30 backdrop-blur-2xl sm:top-[5.5rem] sm:w-full sm:max-w-xl"
     >
       <CommandInput
         placeholder="Type a command or shortcut..."
@@ -290,14 +290,14 @@ export function AppCommandCenter() {
             >
               <command.icon className="h-4 w-4" />
               <span>{command.label}</span>
-              <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
+              <span className="ml-auto hidden sm:inline-flex [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">
                 {command.hint}
               </span>
             </CommandItem>
           ))}
         </CommandGroup>
         {filteredCommands.length > 0 && (
-          <CommandGroup heading="Keyboard Shortcuts">
+          <CommandGroup heading="Keyboard Shortcuts" className="hidden sm:block">
             <CommandItem disabled className="rounded-md opacity-60">
               <span>Move Focus Left</span>
               <span className="ml-auto [&_[data-slot=kbd]]:h-6 [&_[data-slot=kbd]]:min-w-6 [&_[data-slot=kbd]]:px-1.5 [&_[data-slot=kbd]]:text-xs">

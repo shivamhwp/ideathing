@@ -40,12 +40,13 @@ export function KanbanColumn({
     disabled: !interactive || selectionMode,
   });
   const showAddButton = !!onAddClick && interactive;
+  const emptyStateIconClassName = "mb-2 h-12 w-12";
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
+        "flex h-full min-h-0 min-w-0 snap-start flex-col overflow-hidden rounded-xl border border-border/50 bg-card/50 p-3 transition-colors",
         isOver && interactive && "ring-2 ring-primary/30 border-primary/50 bg-primary/5",
       )}
     >
@@ -82,9 +83,9 @@ export function KanbanColumn({
       {items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-xl text-muted-foreground/25">
           {id === "concept" ? (
-            <LightbulbIcon className="w-8 h-8 mb-2" weight="duotone" />
+            <LightbulbIcon className={emptyStateIconClassName} weight="duotone" />
           ) : (
-            <VideoCameraIcon className="w-16 h-16" weight="duotone" />
+            <VideoCameraIcon className={emptyStateIconClassName} weight="duotone" />
           )}
           {id === "concept" ? "Add your first concept" : "Drag ideas here"}
         </div>

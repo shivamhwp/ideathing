@@ -112,7 +112,7 @@ const OwnerChannelSection = memo(function OwnerChannelSection() {
   const [channel, setChannel] = useAtom(newIdeaFields.channel);
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor="owner" className="text-sm">
           Owner
@@ -166,8 +166,8 @@ const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection() 
   const [adReadTracker, setAdReadTracker] = useAtom(newIdeaFields.adReadTracker);
 
   return (
-    <div className="grid grid-cols-5 gap-4">
-      <div className="col-span-3 space-y-1.5">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+      <div className="space-y-1.5 sm:col-span-3">
         <Label htmlFor="label" className="text-sm">
           Label
         </Label>
@@ -371,13 +371,13 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="overflow-hidden !flex !flex-col max-w-5xl p-0 gap-0"
+        className="!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 p-0 sm:!w-full max-w-5xl"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Add Idea</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col">
+        <form onSubmit={handleSubmit} className="flex max-h-[92dvh] flex-col">
           <div className="flex items-center justify-between border-b border-border/40 bg-background px-4 py-3">
             <DialogClose asChild>
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
@@ -402,7 +402,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
             </div>
           </div>
 
-          <div className="space-y-5 px-6 py-5">
+          <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             {/* Title & Description */}
             <div className="space-y-4">
               <TitleField autoFocus id="title" value={title} onChange={setTitle} />
@@ -413,7 +413,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
             <ResourcesSection id="resources" resources={resources} onChange={setResources} />
 
             {/* Thumbnail + Dates */}
-            <div className={isTheoMode ? "grid grid-cols-2 gap-4" : "space-y-4"}>
+            <div className={isTheoMode ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : "space-y-4"}>
               <ThumbnailField
                 thumbnail={thumbnail}
                 thumbnailReady={thumbnailReady}

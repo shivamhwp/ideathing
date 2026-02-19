@@ -81,8 +81,8 @@ function NotionSettings() {
   if (!isAdmin) {
     return (
       <div className="space-y-6">
-        <div className="rounded-xl border border-border/50 bg-card/50 p-6">
-          <div className="flex items-center gap-4">
+        <div className="rounded-xl border border-border/50 bg-card/50 p-4 sm:p-6">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <NotionLogoIcon className="w-8 h-8" weight="fill" />
             <div>
               <h2 className="text-lg font-semibold">Notion Integration</h2>
@@ -94,7 +94,7 @@ function NotionSettings() {
         </div>
 
         {connectionStatus?.isConnected && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-6">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-6">
             <div className="flex items-center gap-3">
               <CheckCircleIcon className="w-5 h-5 text-primary" weight="fill" />
               <div>
@@ -172,7 +172,7 @@ function NotionSettings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-xl border border-border/50 bg-card/50 p-6 flex items-center justify-between">
+      <div className="flex flex-col gap-4 rounded-xl border border-border/50 bg-card/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex items-center gap-4">
           <NotionLogoIcon className="w-8 h-8" weight="fill" />
           <div>
@@ -187,23 +187,34 @@ function NotionSettings() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full gap-2 sm:w-auto sm:flex-row">
           {connectionStatus?.isConnected ? (
             <>
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 onClick={handleLoadDatabases}
                 disabled={isLoadingDatabases}
+                className="flex-1 sm:flex-none"
               >
                 {isLoadingDatabases ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : "Change"}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDisconnect}>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleDisconnect}
+                className="flex-1 sm:flex-none"
+              >
                 Disconnect
               </Button>
             </>
           ) : (
-            <Button onClick={handleConnectOAuth} disabled={isConnecting} size="sm">
+            <Button
+              onClick={handleConnectOAuth}
+              disabled={isConnecting}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
               {isConnecting ? (
                 <>
                   <SpinnerIcon className="w-4 h-4 animate-spin mr-2" />
@@ -222,7 +233,7 @@ function NotionSettings() {
 
       {/* Connected State */}
       {connectionStatus?.isConnected ? (
-        <div className="rounded-xl border border-border/50 bg-card/50 p-6 space-y-4">
+        <div className="rounded-xl border border-border/50 bg-card/50 p-4 space-y-4 sm:p-6">
           <div className="flex items-center gap-3">
             <CheckCircleIcon className="w-5 h-5 text-primary" weight="fill" />
             <p className="text-sm text-muted-foreground">Workspace connected</p>
@@ -246,7 +257,7 @@ function NotionSettings() {
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-border/50 bg-card/50 p-6">
+        <div className="rounded-xl border border-border/50 bg-card/50 p-4 sm:p-6">
           <div className="flex items-center gap-3 text-muted-foreground">
             <WarningCircleIcon className="w-5 h-5" />
             <p>Connect Notion to send ideas from Theo mode.</p>
@@ -256,7 +267,7 @@ function NotionSettings() {
 
       {/* Select Database Prompt (shown after connection but no database selected) */}
       {connectionStatus?.isConnected && !connectionStatus.databaseId && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6">
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 sm:p-6">
           <div className="flex items-center gap-3">
             <WarningCircleIcon className="w-5 h-5 text-amber-500" weight="fill" />
             <p className="text-sm font-medium text-amber-700 dark:text-amber-400">

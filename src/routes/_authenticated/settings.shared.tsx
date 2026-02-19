@@ -74,14 +74,14 @@ function SharedLinksSettings() {
         return (
           <div
             key={record._id}
-            className="group flex items-center gap-3 px-2 py-3 transition-colors hover:bg-primary/10"
+            className="group flex flex-col gap-3 px-2 py-3 transition-colors hover:bg-primary/10 sm:flex-row sm:items-center"
           >
-            <div className="relative min-w-0 flex-1">
-              <div className="min-w-0 overflow-x-auto whitespace-nowrap font-mono text-sm text-muted-foreground/70">
+            <div className="relative min-w-0 flex-1 sm:border-none border-border border-2 rounded-md p-2">
+              <div className="min-w-0 overflow-x-auto whitespace-normal break-all sm:whitespace-nowrap sm:break-normal font-mono text-sm text-muted-foreground/70">
                 {link}
               </div>
-              <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                <div className="pointer-events-auto flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2 opacity-100 transition-opacity sm:absolute sm:inset-y-0 sm:right-1 sm:mt-0 sm:flex-nowrap sm:opacity-0 sm:group-hover:opacity-100">
+                <div className="flex items-center gap-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
