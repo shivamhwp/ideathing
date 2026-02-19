@@ -22,14 +22,24 @@ function configureOneDollarStats() {
     return;
   }
 
+  if (import.meta.env.VITE_ENABLE_ANALYTICS !== "true") {
+    hasConfiguredOneDollarStats = true;
+    return;
+  }
+
   const hostname = import.meta.env.VITE_ONEDOLLARSTATS_HOSTNAME?.trim();
+  const collectorUrl = import.meta.env.VITE_ONEDOLLARSTATS_COLLECTOR_URL?.trim();
   if (import.meta.env.DEV && hostname) {
     configure({
       hostname,
+      collectorUrl,
       devmode: true,
     });
   } else {
-    configure();
+    configure({
+      hostname,
+      collectorUrl,
+    });
   }
 
   hasConfiguredOneDollarStats = true;
