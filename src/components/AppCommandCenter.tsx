@@ -80,11 +80,7 @@ export function AppCommandCenter() {
       {
         id: "add",
         label: "Add Idea",
-        hint: (
-          <KbdGroup>
-            <Kbd>a</Kbd>
-          </KbdGroup>
-        ),
+        hint: <Kbd>a</Kbd>,
         icon: PlusIcon,
       },
       {

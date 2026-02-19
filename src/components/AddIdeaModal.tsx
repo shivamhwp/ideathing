@@ -160,25 +160,19 @@ const OwnerChannelSection = memo(function OwnerChannelSection() {
   );
 });
 
-const LabelSection = memo(function LabelSection() {
+const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection() {
   const [label, setLabel] = useAtom(newIdeaFields.label);
-
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="label" className="text-sm">
-        Label
-      </Label>
-      <LabelSelect id="label" labels={label} onChange={setLabel} />
-    </div>
-  );
-});
-
-const PotentialAdReadSection = memo(function PotentialAdReadSection() {
   const [potential, setPotential] = useAtom(newIdeaFields.potential);
   const [adReadTracker, setAdReadTracker] = useAtom(newIdeaFields.adReadTracker);
 
   return (
-    <div className="grid gap-4 grid-cols-2">
+    <div className="grid grid-cols-5 gap-4">
+      <div className="col-span-3 space-y-1.5">
+        <Label htmlFor="label" className="text-sm">
+          Label
+        </Label>
+        <LabelSelect id="label" labels={label} onChange={setLabel} />
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="potential" className="text-sm">
           Potential
@@ -377,7 +371,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="overflow-hidden !flex !flex-col sm:max-w-2xl p-0 gap-0"
+        className="overflow-hidden !flex !flex-col max-w-5xl p-0 gap-0"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Add Idea</DialogTitle>
@@ -446,8 +440,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
             {isTheoMode && (
               <>
                 <OwnerChannelSection />
-                <LabelSection />
-                <PotentialAdReadSection />
+                <LabelPotentialAdReadSection />
                 <UnsponsoredToggle />
               </>
             )}

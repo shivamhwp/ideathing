@@ -142,7 +142,7 @@ function RecordedIdeasPage() {
             </div>
           ) : (
             <div className="h-full overflow-y-auto">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recorded.map((idea) => (
                   <IdeaCard
                     key={idea._id}

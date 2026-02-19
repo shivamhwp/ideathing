@@ -20,16 +20,17 @@ import { useDebouncedCallback } from "use-debounce";
 import { formatDateValue, parseDateValue } from "@/components/idea-form/date-utils";
 import {
   DescriptionField as IdeaDescriptionField,
-  LabelSelect,
   ResourcesSection as IdeaResourcesSection,
   ThumbnailField as IdeaThumbnailField,
   TitleField as IdeaTitleField,
+  LabelSelect,
 } from "@/components/idea-form/fields";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -40,7 +41,6 @@ import {
 } from "@/components/ui/select-new";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheoMode } from "@/hooks/useTheoMode";
 import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
@@ -361,11 +361,7 @@ const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }
   );
 });
 
-const LabelStatusSection = memo(function LabelStatusSection({
-  scheduleUpdate,
-  showLabel,
-}: FieldProps & { showLabel: boolean }) {
-  const [label, setLabel] = useAtom(editIdeaFields.label);
+const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: FieldProps) {
   const [status, setStatus] = useAtom(editIdeaFields.status);
 
   const handleStatusChange = (value: string) => {
@@ -385,22 +381,7 @@ const LabelStatusSection = memo(function LabelStatusSection({
   };
 
   return (
-    <div className={showLabel ? "grid grid-cols-2 gap-4" : "space-y-1.5"}>
-      {showLabel && (
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-label" className="text-sm">
-            Label
-          </Label>
-          <LabelSelect
-            id="edit-label"
-            labels={label}
-            onChange={(next) => {
-              setLabel(next);
-              scheduleUpdate({ label: next });
-            }}
-          />
-        </div>
-      )}
+    <div className="space-y-1.5">
       <div className="space-y-1.5">
         <Label htmlFor="edit-status" className="text-sm">
           Status
@@ -420,14 +401,28 @@ const LabelStatusSection = memo(function LabelStatusSection({
   );
 });
 
-const PotentialAdReadSection = memo(function PotentialAdReadSection({
+const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection({
   scheduleUpdate,
 }: FieldProps) {
+  const [label, setLabel] = useAtom(editIdeaFields.label);
   const [potential, setPotential] = useAtom(editIdeaFields.potential);
   const [adReadTracker, setAdReadTracker] = useAtom(editIdeaFields.adReadTracker);
 
   return (
-    <div className="grid gap-4 grid-cols-2">
+    <div className="grid grid-cols-5 gap-4">
+      <div className="col-span-3 space-y-1.5">
+        <Label htmlFor="edit-label" className="text-sm">
+          Label
+        </Label>
+        <LabelSelect
+          id="edit-label"
+          labels={label}
+          onChange={(next) => {
+            setLabel(next);
+            scheduleUpdate({ label: next });
+          }}
+        />
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="edit-potential" className="text-sm">
           Potential
@@ -629,7 +624,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={false} className="overflow-hidden sm:max-w-2xl p-0 gap-0">
+      <DialogContent showCloseButton={false} className="overflow-hidden max-w-5xl p-0 gap-0">
         <DialogHeader className="flex flex-row items-center justify-between border-b border-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
             <DialogTitle className="text-base font-medium text-muted-foreground">
@@ -683,8 +678,8 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
               </div>
             </div>
             {isTheoMode ? <OwnerChannelSection scheduleUpdate={scheduleUpdate} /> : null}
-            <LabelStatusSection scheduleUpdate={scheduleUpdate} showLabel={isTheoMode} />
-            {isTheoMode ? <PotentialAdReadSection scheduleUpdate={scheduleUpdate} /> : null}
+            <LabelStatusSection scheduleUpdate={scheduleUpdate} />
+            {isTheoMode ? <LabelPotentialAdReadSection scheduleUpdate={scheduleUpdate} /> : null}
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
         ) : (
@@ -735,7 +730,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
                       <TrashIcon className="w-4 h-4" />
                     )}
                     Delete
-                    <Kbd className="ml-2">d</Kbd>
+                    <Kbd className="">d</Kbd>
                   </Button>
                   <Button
                     type="button"
