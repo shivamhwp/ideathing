@@ -46,8 +46,8 @@ function SettingsLayout() {
   }
 
   return (
-    <div className="container mx-auto w-full max-w-3xl">
-      <div className="flex items-center justify-between pt-10">
+    <div className="container mx-auto w-full max-w-3xl px-4 sm:px-0">
+      <div className="flex items-center justify-between pt-6 sm:pt-10">
         <Link
           to="/"
           preload="intent"
@@ -59,7 +59,7 @@ function SettingsLayout() {
         <ThemeToggle />
       </div>
       <Root value={current}>
-        <List className="mt-6 flex h-10 items-end gap-6 ">
+        <List className="mt-6 flex h-10 items-end gap-4 overflow-x-auto whitespace-nowrap sm:gap-6">
           {tabs.map((t) => (
             <Trigger
               asChild

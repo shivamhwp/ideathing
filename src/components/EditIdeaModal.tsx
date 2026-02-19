@@ -305,7 +305,7 @@ const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }
   const [channel, setChannel] = useAtom(editIdeaFields.channel);
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor="edit-owner" className="text-sm">
           Owner
@@ -409,8 +409,8 @@ const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection({
   const [adReadTracker, setAdReadTracker] = useAtom(editIdeaFields.adReadTracker);
 
   return (
-    <div className="grid grid-cols-5 gap-4">
-      <div className="col-span-3 space-y-1.5">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+      <div className="space-y-1.5 sm:col-span-3">
         <Label htmlFor="edit-label" className="text-sm">
           Label
         </Label>
@@ -624,7 +624,10 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={false} className="overflow-hidden max-w-5xl p-0 gap-0">
+      <DialogContent
+        showCloseButton={false}
+        className="!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 p-0 sm:!w-full max-w-5xl"
+      >
         <DialogHeader className="flex flex-row items-center justify-between border-b border-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
             <DialogTitle className="text-base font-medium text-muted-foreground">
@@ -657,13 +660,13 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
         </DialogHeader>
 
         {isEditing ? (
-          <div className="px-6 py-5 space-y-5">
+          <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             <div className="space-y-4">
               <TitleField scheduleUpdate={scheduleUpdate} />
               <DescriptionField scheduleUpdate={scheduleUpdate} />
             </div>
             <ResourcesSection scheduleUpdate={scheduleUpdate} />
-            <div className={isTheoMode ? "grid grid-cols-2 gap-4" : "space-y-4"}>
+            <div className={isTheoMode ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : "space-y-4"}>
               <ThumbnailSection
                 scheduleUpdate={scheduleUpdate}
                 thumbnailPreview={thumbnailPreview}
@@ -683,27 +686,29 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
         ) : (
-          <div className="flex flex-col">
-            <IdeaPreview
-              title={title}
-              description={description}
-              notes={notes}
-              thumbnail={thumbnail}
-              thumbnailPreview={thumbnailPreview}
-              thumbnailReady={thumbnailReady}
-              resources={resourceList}
-              vodRecordingDate={vodRecordingDate}
-              releaseDate={releaseDate}
-              owner={owner}
-              channel={channel}
-              potential={potential}
-              labels={label}
-              status={status}
-              adReadTracker={adReadTracker}
-              unsponsored={unsponsored}
-              theoMode={isTheoMode}
-            />
-            <div className="border-t border-border/40 px-6 py-4 flex items-center justify-between gap-2">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <IdeaPreview
+                title={title}
+                description={description}
+                notes={notes}
+                thumbnail={thumbnail}
+                thumbnailPreview={thumbnailPreview}
+                thumbnailReady={thumbnailReady}
+                resources={resourceList}
+                vodRecordingDate={vodRecordingDate}
+                releaseDate={releaseDate}
+                owner={owner}
+                channel={channel}
+                potential={potential}
+                labels={label}
+                status={status}
+                adReadTracker={adReadTracker}
+                unsponsored={unsponsored}
+                theoMode={isTheoMode}
+              />
+            </div>
+            <div className="flex flex-col gap-2 border-t border-border/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <Button
                 type="button"
                 variant="secondary"
@@ -713,10 +718,10 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
               >
                 <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
                 Edit Idea
-                <Kbd className="ml-2">e</Kbd>
+                <Kbd className="ml-2 hidden sm:inline-flex">e</Kbd>
               </Button>
               {isTheoMode ? (
-                <div className="flex items-center gap-2">
+                <div className="flex w-full items-center gap-2 sm:w-auto">
                   <Button
                     type="button"
                     variant="destructive"
@@ -730,7 +735,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
                       <TrashIcon className="w-4 h-4" />
                     )}
                     Delete
-                    <Kbd className="">d</Kbd>
+                    <Kbd className="hidden sm:inline-flex">d</Kbd>
                   </Button>
                   <Button
                     type="button"
@@ -745,7 +750,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
                     )}
                     {idea?.inNotion ? "Sent to Notion" : "Send to Notion"}
                     {!idea?.inNotion && (
-                      <KbdGroup className="ml-2">
+                      <KbdGroup className="ml-2 hidden sm:inline-flex">
                         <Kbd>s</Kbd>
                         <Kbd>n</Kbd>
                       </KbdGroup>

@@ -107,7 +107,7 @@ export const ResourcesSection = memo(function ResourcesSection({
       <Label htmlFor={id} className="text-sm">
         Resources
       </Label>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {resourceList.map((resource, index) => (
           <div key={`resource-${index}`} className="flex items-center gap-2">
             <Input
@@ -130,7 +130,7 @@ export const ResourcesSection = memo(function ResourcesSection({
             </Button>
           </div>
         ))}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <Button
             type="button"
             variant="ghost"
@@ -245,7 +245,7 @@ export const ThumbnailField = memo(function ThumbnailField({
           <button
             type="button"
             onClick={onClear}
-            className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute top-2 right-2 rounded-md bg-background/80 p-1 opacity-100 transition-opacity backdrop-blur-sm sm:opacity-0 sm:group-hover:opacity-100"
           >
             <XIcon className="w-3.5 h-3.5" />
           </button>

@@ -230,8 +230,8 @@ export function TheoIdeaQueue() {
       )}
 
       {selectionMode && selectedIds.length > 0 ? (
-        <div className="fixed bottom-8 z-40 right-8 animate-in fade-in duration-150">
-          <div className="w-[280px] rounded-3xl border border-border/70 bg-popover/95 p-4 shadow-2xl backdrop-blur-xl">
+        <div className="fixed inset-x-4 bottom-4 z-40 animate-in fade-in duration-150 sm:inset-x-auto sm:bottom-8 sm:right-8">
+          <div className="w-full rounded-3xl border border-border/70 bg-popover/95 p-4 shadow-2xl backdrop-blur-xl sm:w-[280px]">
             <div className="flex items-center justify-between px-1 pb-3 text-xs text-muted-foreground">
               <div className="flex items-center">
                 <span>ideas selected</span>
