@@ -720,6 +720,22 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
                 Edit Idea
                 <Kbd className="ml-2 hidden sm:inline-flex">e</Kbd>
               </Button>
+              {!isTheoMode ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeleteIdea}
+                  disabled={!idea || isDeletingIdea || isSendingToNotion}
+                  className="w-full cursor-pointer sm:hidden"
+                >
+                  {isDeletingIdea ? (
+                    <SpinnerIcon className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <TrashIcon className="w-4 h-4" />
+                  )}
+                  Delete
+                </Button>
+              ) : null}
               {isTheoMode ? (
                 <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                   <Button

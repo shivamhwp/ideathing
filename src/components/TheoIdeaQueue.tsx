@@ -1,6 +1,5 @@
 import { convexQuery } from "@convex-dev/react-query";
 import {
-  ClipboardTextIcon,
   PlusIcon,
   ShareNetworkIcon,
   SpinnerIcon,
@@ -145,22 +144,19 @@ export function TheoIdeaQueue() {
     );
   }
 
-  const toggleSelected = (ideaId: Id<"ideas">) => {
-    setSelectedIds((prev) => {
-      if (prev.includes(ideaId)) {
-        return prev.filter((id) => id !== ideaId);
-      }
-      return [...prev, ideaId];
-    });
-  };
-
   const handleSelectIdea = (ideaId: Id<"ideas">) => {
     if (!selectionMode) {
       setSelectionMode(true);
       setSelectedIds([ideaId]);
       return;
     }
-    toggleSelected(ideaId);
+    setSelectedIds((prev) => {
+      const next = prev.includes(ideaId) ? prev.filter((id) => id !== ideaId) : [...prev, ideaId];
+      if (next.length === 0) {
+        setSelectionMode(false);
+      }
+      return next;
+    });
   };
 
   const clearSelection = () => {
@@ -255,14 +251,6 @@ export function TheoIdeaQueue() {
               >
                 <ShareNetworkIcon className="h-4 w-4" weight="duotone" />
                 Share ideas
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={clearSelection}
-                className="h-10 w-full justify-start border-none bg-muted/60 hover:bg-muted cursor-pointer gap-2 rounded-full text-foreground"
-              >
-                <ClipboardTextIcon className="h-4 w-4" weight="duotone" />
-                Clear selection
               </Button>
               <Button
                 variant="secondary"

@@ -99,11 +99,6 @@ export function IdeaCard({
     if (!interactive) {
       return;
     }
-
-    if (selectionMode) {
-      onToggleSelect?.(idea._id);
-      return;
-    }
     if (!isSortableDragging && onClick) {
       onClick();
     }
@@ -140,17 +135,14 @@ export function IdeaCard({
           {...dragListeners}
         >
           <div
-            className={cn(
-              "absolute top-2 left-2 z-10 transition-opacity",
-              selectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-            )}
+            className="absolute top-2 left-2 z-10"
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
             <Checkbox
               checked={selected}
-              onChange={() => interactive && onToggleSelect?.(idea._id)}
+              onCheckedChange={() => interactive && onToggleSelect?.(idea._id)}
               aria-label="Select idea"
             />
           </div>
