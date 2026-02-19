@@ -1,6 +1,7 @@
 import type { ConvexQueryClient } from "@convex-dev/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import { configure } from "onedollarstats";
 import { NotFound } from "@/components/not-found";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
@@ -12,6 +13,26 @@ import appCss from "../styles.css?url";
 interface MyRouterContext {
   queryClient: QueryClient;
   convexQueryClient: ConvexQueryClient;
+}
+
+let hasConfiguredOneDollarStats = false;
+
+function configureOneDollarStats() {
+  if (hasConfiguredOneDollarStats || typeof window === "undefined") {
+    return;
+  }
+
+  const hostname = import.meta.env.VITE_ONEDOLLARSTATS_HOSTNAME?.trim();
+  if (import.meta.env.DEV && hostname) {
+    configure({
+      hostname,
+      devmode: true,
+    });
+  } else {
+    configure();
+  }
+
+  hasConfiguredOneDollarStats = true;
 }
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
@@ -74,6 +95,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
+  configureOneDollarStats();
 
   return (
     <html lang="en" suppressHydrationWarning>
