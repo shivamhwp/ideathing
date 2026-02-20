@@ -44,6 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheoMode } from "@/hooks/useTheoMode";
 import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
+import { cn } from "@/utils/utils";
 import { IdeaPreview } from "./IdeaPreview";
 import type { Idea } from "./KanbanBoard";
 import { Badge } from "./ui/badge";
@@ -626,7 +627,10 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 p-0 sm:!w-full max-w-5xl"
+        className={cn(
+          "!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 border-border/40 p-0 sm:!w-full",
+          isEditing ? "max-w-5xl" : "max-w-2xl",
+        )}
       >
         <DialogHeader className="flex flex-row items-center justify-between border-b border-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
