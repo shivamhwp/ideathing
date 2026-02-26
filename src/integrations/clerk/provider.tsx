@@ -6,8 +6,13 @@ if (!PUBLISHABLE_KEY) {
   throw new Error("Add your Clerk Publishable Key to the .env.local file");
 }
 
+const clerkTheme = {
+  ...shadcn,
+  cssLayerName: "utilities",
+};
+
 const clerkAppearance = {
-  theme: shadcn,
+  theme: clerkTheme,
   variables: {
     colorBackground: "var(--card)",
     colorForeground: "var(--card-foreground)",
