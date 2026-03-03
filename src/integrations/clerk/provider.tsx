@@ -20,36 +20,17 @@ const clerkAppearance = {
     colorInputText: "var(--card-foreground)",
     colorPrimary: "var(--primary)",
     colorPrimaryForeground: "var(--primary-foreground)",
-    borderRadius: "calc(var(--radius) - 2px)",
+    borderRadius: "var(--radius)",
   },
   elements: {
-    cardBox: {
-      backgroundColor: "var(--card)",
-      color: "var(--card-foreground)",
-      border: "1px solid var(--border)",
-      borderRadius: "0.75rem",
-      boxShadow: "var(--shadow-sm)",
-    },
-    socialButtonsBlockButton: {
-      border: "1px solid var(--border)",
-      borderRadius: "calc(var(--radius) - 2px)",
-    },
-    formFieldInput: {
-      backgroundColor: "transparent",
-      border: "1px solid var(--input)",
-      borderRadius: "calc(var(--radius) - 2px)",
-      color: "var(--card-foreground)",
-    },
-    formButtonPrimary: {
-      backgroundColor: "var(--primary)",
-      color: "var(--primary-foreground)",
-      borderRadius: "calc(var(--radius) - 2px)",
-      border: "none",
-      boxShadow: "none",
-    },
-    footerActionLink: {
-      color: "var(--primary)",
-    },
+    cardBox: "rounded-xl border border-border/50 bg-card/50 text-card-foreground shadow-sm",
+    socialButtonsBlockButton:
+      "rounded-md border border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground",
+    formFieldInput:
+      "rounded-md border border-input bg-transparent text-card-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring",
+    formButtonPrimary:
+      "rounded-md bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
+    footerActionLink: "text-primary hover:text-primary/90",
   },
 };
 

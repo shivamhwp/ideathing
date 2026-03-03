@@ -483,6 +483,34 @@ export const remove = mutation({
       throw new Error("Idea not found");
     }
 
+    const linkedExportItems = await ctx.db
+      .query("ideaExportItems")
+      .withIndex("by_idea", (q) => q.eq("ideaId", args.id))
+      .collect();
+
+    if (linkedExportItems.length > 0) {
+      const now = Date.now();
+      const affectedExports = linkedExportItems.reduce(
+        (map, item) => map.set(item.exportId, (map.get(item.exportId) ?? 0) + 1),
+        new Map<Id<"ideaExports">, number>(),
+      );
+
+      for (const [exportId, removedItemCount] of affectedExports) {
+        const exportRecord = await ctx.db.get(exportId);
+        if (!exportRecord) {
+          continue;
+        }
+        await ctx.db.patch(exportId, {
+          itemCount: Math.max(0, exportRecord.itemCount - removedItemCount),
+          revokedAt: exportRecord.revokedAt ?? now,
+        });
+      }
+
+      for (const item of linkedExportItems) {
+        await ctx.db.delete(item._id);
+      }
+    }
+
     await ctx.db.delete(args.id);
   },
 });

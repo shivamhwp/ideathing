@@ -137,5 +137,7 @@ export default defineSchema({
       column: v.union(v.literal("Concept"), v.literal("To Stream")),
       order: v.number(),
     }),
-  }).index("by_export", ["exportId"]),
+  })
+    .index("by_export", ["exportId"])
+    .index("by_idea", ["ideaId"]),
 });

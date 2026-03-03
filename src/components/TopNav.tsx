@@ -1,15 +1,19 @@
 import { SignInButton } from "@clerk/tanstack-react-start";
-import { GearSixIcon } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { GearSixIcon, PlusIcon } from "@phosphor-icons/react";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
+import { useSetAtom } from "jotai";
 import { NotionConnect } from "@/components/NotionConnect";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useTheoMode } from "@/hooks/useTheoMode";
+import { openAddIdeaModalAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 
 export function TopNav() {
   const { isTheoMode, isCheckingMode } = useTheoMode();
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const baseLink = "text-foreground/40 hover:text-primary text-sm font-semibold transition-colors";
   const boardLink = cn(baseLink, "flex items-center gap-2 font-semibold");
   const boardLinkActive = cn(boardLink, "text-primary font-semibold");
@@ -65,6 +69,17 @@ export function TopNav() {
 
       <div className="flex shrink-0 items-center gap-2">
         <Authenticated>
+          {!isCheckingMode && pathname === "/" ? (
+            <Button
+              onClick={openAddIdeaModal}
+              variant="secondary"
+              size="icon"
+              aria-label="Add idea"
+              className="cursor-pointer"
+            >
+              <PlusIcon className="w-4 h-4" weight="bold" />
+            </Button>
+          ) : null}
           {!isCheckingMode && isTheoMode ? <NotionConnect /> : null}
           <div className="flex items-center">
             <div className="flex items-center bg-primary/10 rounded-md ">

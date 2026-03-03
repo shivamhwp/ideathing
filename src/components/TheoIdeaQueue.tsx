@@ -1,16 +1,10 @@
 import { convexQuery } from "@convex-dev/react-query";
-import {
-  PlusIcon,
-  ShareNetworkIcon,
-  SpinnerIcon,
-  TrashIcon,
-  TrayIcon,
-} from "@phosphor-icons/react";
+import { ShareNetworkIcon, SpinnerIcon, TrashIcon, TrayIcon } from "@phosphor-icons/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
 import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { EditIdeaModal } from "@/components/EditIdeaModal";
@@ -26,7 +20,6 @@ import {
   editIdeaIsEditingAtom,
   editIdeaOpenAtom,
   ideaSelectionModeAtom,
-  openAddIdeaModalAtom,
 } from "@/store/atoms";
 
 export function TheoIdeaQueue() {
@@ -41,7 +34,6 @@ export function TheoIdeaQueue() {
   const [focusedIdeaId, setFocusedIdeaId] = useState<Id<"ideas"> | null>(null);
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
-  const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const orderedIdeas = [...(ideas ?? [])].sort((a, b) => a.order - b.order);
   const activeIdea = orderedIdeas.find((idea) => idea._id === editIdeaId) ?? null;
   const selectedIdSet = new Set(selectedIds);
@@ -70,9 +62,9 @@ export function TheoIdeaQueue() {
     typeof window === "undefined"
       ? 1
       : window.innerWidth >= 1024
-        ? 3
+        ? 4
         : window.innerWidth >= 768
-          ? 2
+          ? 3
           : 1;
 
   const moveFocus = (step: number) => {
@@ -113,6 +105,18 @@ export function TheoIdeaQueue() {
       moveFocus(-1);
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
+  );
+
+  useHotkey(
+    "Escape",
+    () => {
+      focusIdea(null);
+    },
+    {
+      enabled: canUseMotionHotkeys && Boolean(focusedIdeaId),
+      ignoreInputs: true,
+      requireReset: true,
+    },
   );
 
   useHotkey(
@@ -176,20 +180,6 @@ export function TheoIdeaQueue() {
 
   return (
     <div className="rounded-xl border border-border/50 bg-card/50 px-2 flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-between py-2.5">
-        <h2 className="text-sm font-semibold text-foreground">Theo Queue</h2>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={openAddIdeaModal}
-            className="cursor-pointer"
-            size="icon"
-          >
-            <PlusIcon className="size-4" weight="bold" />
-          </Button>
-        </div>
-      </div>
-
       {orderedIdeas.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/40 gap-3">
           <TrayIcon className="w-10 h-10" />
@@ -200,7 +190,7 @@ export function TheoIdeaQueue() {
           className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           onPointerDown={handleQueuePointerDown}
         >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {orderedIdeas.map((idea) => (
               <IdeaCard
                 key={idea._id}

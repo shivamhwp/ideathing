@@ -88,6 +88,18 @@ function RecordedIdeasPage() {
   );
 
   useHotkey(
+    "Escape",
+    () => {
+      focusIdea(null);
+    },
+    {
+      enabled: canUseMotionHotkeys && Boolean(focusedIdeaId),
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
+  useHotkey(
     "Enter",
     () => {
       if (!focusedIdeaId) return;

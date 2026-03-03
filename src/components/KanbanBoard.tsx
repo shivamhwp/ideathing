@@ -33,7 +33,6 @@ import {
   editIdeaIdAtom,
   editIdeaOpenAtom,
   ideaSelectionModeAtom,
-  openAddIdeaModalAtom,
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { EditIdeaModal } from "./EditIdeaModal";
@@ -48,7 +47,6 @@ const getIdeaDomId = (ideaId: Id<"ideas">) => `idea-card-${ideaId}`;
 export function KanbanBoard() {
   const { isLoaded, isSignedIn } = useUser();
 
-  const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
   const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
@@ -184,6 +182,18 @@ export function KanbanBoard() {
   );
 
   useHotkey(
+    "Escape",
+    () => {
+      focusIdea(null);
+    },
+    {
+      enabled: canUseMotionHotkeys && Boolean(focusedIdeaId),
+      ignoreInputs: true,
+      requireReset: true,
+    },
+  );
+
+  useHotkey(
     "Enter",
     () => {
       if (!focusedIdeaId) return;
@@ -205,11 +215,6 @@ export function KanbanBoard() {
       </div>
     );
   }
-
-  const handleAddIdea = () => {
-    if (isInteractionLocked) return;
-    openAddIdeaModal();
-  };
 
   const handleEditIdea = (idea: Idea) => {
     if (isInteractionLocked) return;
@@ -335,7 +340,6 @@ export function KanbanBoard() {
                 title="Concept"
                 color="concept"
                 items={conceptColumn}
-                onAddClick={handleAddIdea}
                 onItemClick={handleEditIdea}
                 interactive={!isInteractionLocked}
                 selectionMode={selectionMode}
