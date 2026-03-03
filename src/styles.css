@@ -55,6 +55,7 @@ code {
   --font-sans: Zalando Sans, ui-sans-serif, sans-serif, system-ui;
   --font-serif: Instrument Serif, ui-serif, serif;
   --font-mono: JetBrains Mono, ui-monospace, monospace;
+  --font-display: "Micro 5", ui-monospace, monospace;
   --shadow-color: oklch(0 0 0);
   --shadow-opacity: 0.1;
   --shadow-blur: 3px;
@@ -111,6 +112,7 @@ code {
   --font-sans: Zalando Sans, ui-sans-serif, sans-serif, system-ui;
   --font-serif: Instrument Serif, ui-serif, serif;
   --font-mono: JetBrains Mono, ui-monospace, monospace;
+  --font-display: "Micro 5", ui-monospace, monospace;
   --shadow-color: oklch(0 0 0);
   --shadow-opacity: 0.1;
   --shadow-blur: 3px;
@@ -169,6 +171,7 @@ code {
   --font-sans: Zalando Sans, ui-sans-serif, sans-serif, system-ui;
   --font-mono: JetBrains Mono, ui-monospace, monospace;
   --font-serif: Instrument Serif, ui-serif, serif;
+  --font-display: "Micro 5", ui-monospace, monospace;
   --radius: 0.5rem;
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
   --tracking-tight: calc(var(--tracking-normal) - 0.025em);
