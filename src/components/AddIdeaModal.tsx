@@ -371,7 +371,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 border-border/40 p-0 sm:!w-full max-w-5xl"
+        className="!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 border-border/40 p-0 sm:!w-full sm:!max-w-3xl"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Add Idea</DialogTitle>
