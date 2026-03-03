@@ -7,7 +7,6 @@ import { api } from "convex/_generated/api";
 import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useTheoMode } from "@/hooks/useTheoMode";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { cn } from "@/utils/utils";
 
 type NotionConnection = {
@@ -167,7 +167,7 @@ function NotionConnectDropdown({
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 border-none">
         {isAdmin ? (
           databaseList
         ) : (
