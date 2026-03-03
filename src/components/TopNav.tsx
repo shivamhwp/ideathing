@@ -16,7 +16,8 @@ export function TopNav() {
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
   const baseLink = "text-foreground/40 hover:text-primary text-sm font-semibold transition-colors";
   const boardLink = cn(baseLink, "flex items-center gap-2 font-semibold");
-  const boardLinkActive = cn(boardLink, "text-primary font-semibold");
+  const brandLink = cn(boardLink, "font-display text-3xl leading-none");
+  const boardLinkActive = cn(brandLink, "text-primary");
   const recordedLink = cn(
     baseLink,
     "p-1 rounded-md font-semibold duration-200 text-foreground/40 transition",
@@ -30,7 +31,7 @@ export function TopNav() {
           <Link
             to="/"
             activeOptions={{ exact: true }}
-            className={cn(boardLink, "font-display text-5xl")}
+            className={brandLink}
             activeProps={{ className: boardLinkActive }}
           >
             ideathing
@@ -50,7 +51,7 @@ export function TopNav() {
         <Unauthenticated>
           <span
             className={cn(
-              boardLink,
+              brandLink,
               "cursor-not-allowed text-foreground/30 hover:text-foreground/30",
             )}
           >
