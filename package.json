@@ -11,7 +11,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "check": "bun run lint && bun run format:check",
-    "type-check": "bun run tsc --noEmit"
+    "type-check": "bun run tsgo --noEmit"
   },
   "dependencies": {
     "@clerk/tanstack-react-start": "^0.29.6",
@@ -61,12 +61,12 @@
     "@types/node": "^25.3.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "^7.0.0-dev.20260302.1",
     "@vitejs/plugin-react": "^5.1.4",
     "babel-plugin-react-compiler": "^1.0.0",
     "jsdom": "^28.1.0",
     "oxfmt": "^0.35.0",
     "oxlint": "^1.50.0",
-    "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
   }

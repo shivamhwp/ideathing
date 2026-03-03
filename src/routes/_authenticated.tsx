@@ -2,6 +2,8 @@ import { useOrganization, useUser } from "@clerk/tanstack-react-start";
 import { SpinnerIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
+import { api } from "convex/_generated/api";
+import { useMutation } from "convex/react";
 import { useAtom } from "jotai";
 import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { useEffect, useRef } from "react";
@@ -29,12 +31,15 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { user, isSignedIn, isLoaded } = useUser();
   const { organization } = useOrganization();
   const queryClient = useQueryClient();
+  const ensureUserModeState = useMutation(api.mode.mutations.ensureUserModeState);
   const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const prevOrgId = useRef<string | null>(organization?.id ?? null);
   const prevSignedIn = useRef(isSignedIn);
+  const modeBootstrapKey = useRef<string | null>(null);
+  const userId = user?.id;
 
   useEffect(() => {
     if (prevSignedIn.current && !isSignedIn) {
@@ -50,6 +55,25 @@ function AuthenticatedLayout() {
       prevOrgId.current = orgId;
     }
   }, [organization?.id, queryClient]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userId) {
+      modeBootstrapKey.current = null;
+      return;
+    }
+
+    const key = `${userId}:${organization?.id ?? "no-org"}`;
+    if (modeBootstrapKey.current === key) {
+      return;
+    }
+    modeBootstrapKey.current = key;
+
+    void ensureUserModeState({})
+      .then(() => queryClient.invalidateQueries())
+      .catch(() => {
+        modeBootstrapKey.current = null;
+      });
+  }, [ensureUserModeState, isLoaded, isSignedIn, organization?.id, queryClient, userId]);
 
   if (!isLoaded) {
     return (

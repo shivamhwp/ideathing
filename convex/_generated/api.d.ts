@@ -14,6 +14,7 @@ import type * as ideas_actions from "../ideas/actions.js";
 import type * as ideas_mutations from "../ideas/mutations.js";
 import type * as ideas_queries from "../ideas/queries.js";
 import type * as migrations from "../migrations.js";
+import type * as mode_mutations from "../mode/mutations.js";
 import type * as mode_queries from "../mode/queries.js";
 import type * as notion_actions from "../notion/actions.js";
 import type * as notion_mutations from "../notion/mutations.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   "ideas/mutations": typeof ideas_mutations;
   "ideas/queries": typeof ideas_queries;
   migrations: typeof migrations;
+  "mode/mutations": typeof mode_mutations;
   "mode/queries": typeof mode_queries;
   "notion/actions": typeof notion_actions;
   "notion/mutations": typeof notion_mutations;
