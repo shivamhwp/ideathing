@@ -4,7 +4,10 @@ import { CopyIcon, InfoIcon, LinkIcon, TrashIcon, WarningCircleIcon } from "@pho
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -22,8 +25,51 @@ function SharedLinksSettings() {
     ...exportsQuery,
     enabled: canQueryExports,
   });
+  const [revokingId, setRevokingId] = useState<Id<"ideaExports"> | null>(null);
   const queryClient = useQueryClient();
   const revokeExport = useMutation(api.ideas.mutations.revokeExport);
+
+  const copyToClipboard = async (value: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "absolute";
+    textarea.style.left = "-9999px";
+    document.body.append(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  };
+
+  const handleCopy = async (value?: string | null) => {
+    if (!value) return;
+    try {
+      await copyToClipboard(value);
+      toast.success("Link copied");
+    } catch (error) {
+      void error;
+      toast.error("Failed to copy link");
+    }
+  };
+
+  const handleDelete = async (exportId: Id<"ideaExports">) => {
+    setRevokingId(exportId);
+    try {
+      await revokeExport({ exportId });
+      await queryClient.invalidateQueries({ queryKey: exportsQuery.queryKey });
+      toast.success("Link deleted");
+    } catch (error) {
+      void error;
+      toast.error("Failed to delete link");
+    } finally {
+      setRevokingId(null);
+    }
+  };
 
   if (!isLoaded) {
     return (
@@ -88,10 +134,7 @@ function SharedLinksSettings() {
                         size="icon"
                         variant="secondary"
                         className="h-9 w-9 cursor-pointer text-muted-foreground hover:text-primary"
-                        onClick={async () => {
-                          if (!record.shareUrl) return;
-                          await navigator.clipboard.writeText(link);
-                        }}
+                        onClick={() => void handleCopy(record.shareUrl)}
                         aria-label="Copy link"
                       >
                         <CopyIcon className="size-4" />
@@ -123,10 +166,8 @@ function SharedLinksSettings() {
                         variant="secondary"
                         className="h-9 w-9 cursor-pointer text-muted-foreground hover:text-red-500"
                         aria-label="Delete link"
-                        onClick={async () => {
-                          await revokeExport({ exportId: record._id });
-                          await queryClient.invalidateQueries(exportsQuery);
-                        }}
+                        onClick={() => void handleDelete(record._id)}
+                        disabled={revokingId === record._id}
                       >
                         <TrashIcon className="size-4" weight="bold" />
                       </Button>

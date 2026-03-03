@@ -11,7 +11,7 @@ import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useAction } from "convex/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,12 +38,26 @@ export function ShareIdeasModal({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionMode = useAtomValue(ideaSelectionModeAtom);
   const setSelectionMode = useSetAtom(ideaSelectionModeAtom);
   const visibleIdeaIds = selectionMode ? selectedIdeaIds : [];
 
+  const clearCopiedResetTimeout = () => {
+    if (!copiedResetTimeoutRef.current) return;
+    clearTimeout(copiedResetTimeoutRef.current);
+    copiedResetTimeoutRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      clearCopiedResetTimeout();
+    };
+  }, []);
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
+      clearCopiedResetTimeout();
       setShareUrl(null);
       setExpiresAt(null);
       setCopied(false);
@@ -69,7 +83,6 @@ export function ShareIdeasModal({
     try {
       const result = await createExport({
         ideaIds: visibleIdeaIds,
-        origin: window.location.origin,
       });
       setShareUrl(result.shareUrl ?? null);
       setExpiresAt(result.expiresAt);
@@ -88,7 +101,8 @@ export function ShareIdeasModal({
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       toast.success("Link copied");
-      setTimeout(() => setCopied(false), 1000);
+      clearCopiedResetTimeout();
+      copiedResetTimeoutRef.current = setTimeout(() => setCopied(false), 1000);
     } catch (error) {
       void error;
       toast.error("Failed to copy link");

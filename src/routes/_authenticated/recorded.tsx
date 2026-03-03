@@ -41,14 +41,18 @@ function RecordedIdeasPage() {
     });
   };
 
-  const gridColumns =
-    typeof window === "undefined"
-      ? 1
-      : window.innerWidth >= 1024
-        ? 3
-        : window.innerWidth >= 768
-          ? 2
-          : 1;
+  const getGridColumns = () => {
+    if (typeof window === "undefined") {
+      return 1;
+    }
+    if (window.innerWidth >= 1024) {
+      return 3;
+    }
+    if (window.innerWidth >= 768) {
+      return 2;
+    }
+    return 1;
+  };
   const canUseMotionHotkeys = !isCheckingMode && !isTheoMode && !isLoading && !editingIdea;
   const moveFocus = (step: number) => {
     if (recordedIdeas.length === 0) return;
@@ -61,14 +65,14 @@ function RecordedIdeasPage() {
   useHotkey(
     "J",
     () => {
-      moveFocus(gridColumns);
+      moveFocus(getGridColumns());
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
   );
   useHotkey(
     "K",
     () => {
-      moveFocus(-gridColumns);
+      moveFocus(-getGridColumns());
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
   );

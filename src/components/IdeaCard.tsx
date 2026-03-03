@@ -113,7 +113,6 @@ export function IdeaCard({
       data-idea-id={idea._id}
       ref={setNodeRef}
       style={style}
-      role="card"
       className={cn(
         "group",
         interactive ? "cursor-pointer" : "cursor-not-allowed",

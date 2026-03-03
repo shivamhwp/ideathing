@@ -2,9 +2,9 @@ import { ConvexQueryClient } from "@convex-dev/react-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConvexReactClient } from "convex/react";
 
-const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
+const CONVEX_URL = import.meta.env.VITE_CONVEX_URL?.trim();
 if (!CONVEX_URL) {
-  console.error("missing envar CONVEX_URL");
+  throw new Error("Missing VITE_CONVEX_URL. Add it to your environment variables.");
 }
 
 const convex = new ConvexReactClient(CONVEX_URL);

@@ -15,17 +15,11 @@ interface MyRouterContext {
 }
 
 const oneDollarStatsCollectorUrl = import.meta.env.VITE_ONEDOLLARSTATS_COLLECTOR_URL?.trim();
-const oneDollarStatsHostname = import.meta.env.VITE_ONEDOLLARSTATS_HOSTNAME?.trim();
 const oneDollarStatsScript = {
   defer: true,
   src: "https://assets.onedollarstats.com/stonks.js",
   ...(oneDollarStatsCollectorUrl ? { "data-url": oneDollarStatsCollectorUrl } : {}),
-  ...(import.meta.env.DEV && oneDollarStatsHostname
-    ? {
-        "data-hostname": oneDollarStatsHostname,
-        "data-devmode": "true",
-      }
-    : {}),
+  ...(import.meta.env.DEV ? { "data-debug": "true" } : {}),
 };
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
@@ -95,7 +89,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="h-screen w-screen fixed">
+      <body className="min-h-dvh w-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AppClerkProvider>
             <ConvexProvider>

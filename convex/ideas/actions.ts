@@ -8,9 +8,29 @@ import { assertOrgAdmin, getIdentityOrgId } from "../utils/auth";
 import type { OwnerValue, ChannelValue, LabelValue, StatusValue } from "../../shared/idea-values";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const PROD_APP_ORIGIN = "https://ideath.ing";
 const internalApiPromise = import("../_generated/api") as Promise<any>;
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+const normalizeOrigin = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+};
+
+const getShareOrigin = () => {
+  if (process.env.NODE_ENV === "production") {
+    return PROD_APP_ORIGIN;
+  }
+  return normalizeOrigin(process.env.APP_PUBLIC_ORIGIN ?? "") ?? "http://localhost:3000";
+};
 
 type ExportPayload = {
   title: string;
@@ -96,7 +116,6 @@ export const getSummary = action({
 export const create = action({
   args: {
     ideaIds: v.array(v.id("ideas")),
-    origin: v.string(),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
@@ -135,7 +154,7 @@ export const create = action({
 
     const token = randomBytes(32).toString("hex");
     const tokenHash = hashToken(token);
-    const shareUrl = `${args.origin}/share/${token}`;
+    const shareUrl = `${getShareOrigin()}/share/${token}`;
     const createdAt = Date.now();
     const expiresAt = createdAt + ONE_DAY_MS;
 

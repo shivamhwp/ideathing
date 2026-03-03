@@ -32,6 +32,7 @@ function NotionCallback() {
   useEffect(() => {
     if (exchangeAttempted.current) return;
     exchangeAttempted.current = true;
+    let redirectTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const code = params.code;
     const state = params.state;
@@ -40,7 +41,10 @@ function NotionCallback() {
     const setStatusAndRedirect = (status: "success" | "error", errorMessage?: string) => {
       setLoaderData({ status, errorMessage });
       const delay = status === "success" ? 2000 : 3000;
-      setTimeout(() => {
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
+      redirectTimeout = setTimeout(() => {
         void navigate({ to: "/settings/notion" });
       }, delay);
     };
@@ -61,6 +65,12 @@ function NotionCallback() {
         console.error("OAuth exchange error:", err);
         setStatusAndRedirect("error", "exchange_failed");
       });
+
+    return () => {
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
+    };
   }, [params.code, params.state, params.error, exchangeOAuthCodeMutation, navigate]);
 
   const errorMessages: Record<string, string> = {
