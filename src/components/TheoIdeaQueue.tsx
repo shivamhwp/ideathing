@@ -69,13 +69,11 @@ export function TheoIdeaQueue() {
   const gridColumns =
     typeof window === "undefined"
       ? 1
-      : window.innerWidth >= 1536
-        ? 4
-        : window.innerWidth >= 1280
-          ? 3
-          : window.innerWidth >= 768
-            ? 2
-            : 1;
+      : window.innerWidth >= 1024
+        ? 3
+        : window.innerWidth >= 768
+          ? 2
+          : 1;
 
   const moveFocus = (step: number) => {
     if (orderedIdeas.length === 0) return;
@@ -202,7 +200,7 @@ export function TheoIdeaQueue() {
           className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           onPointerDown={handleQueuePointerDown}
         >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {orderedIdeas.map((idea) => (
               <IdeaCard
                 key={idea._id}

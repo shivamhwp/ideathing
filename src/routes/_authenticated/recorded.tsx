@@ -44,13 +44,11 @@ function RecordedIdeasPage() {
   const gridColumns =
     typeof window === "undefined"
       ? 1
-      : window.innerWidth >= 1536
-        ? 4
-        : window.innerWidth >= 1280
-          ? 3
-          : window.innerWidth >= 768
-            ? 2
-            : 1;
+      : window.innerWidth >= 1024
+        ? 3
+        : window.innerWidth >= 768
+          ? 2
+          : 1;
   const canUseMotionHotkeys = !isCheckingMode && !isTheoMode && !isLoading && !editingIdea;
   const moveFocus = (step: number) => {
     if (recordedIdeas.length === 0) return;
@@ -142,7 +140,7 @@ function RecordedIdeasPage() {
             </div>
           ) : (
             <div className="h-full overflow-y-auto">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {recorded.map((idea) => (
                   <IdeaCard
                     key={idea._id}

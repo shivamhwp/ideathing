@@ -91,7 +91,7 @@ export function KanbanColumn({
         </div>
       ) : items.length > 0 ? (
         <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {items.map((idea) => (
               <IdeaCard
                 key={idea._id}
