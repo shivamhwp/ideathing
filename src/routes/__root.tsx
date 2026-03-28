@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { NotFound } from "@/components/not-found";
 import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "../components/ui/sonner";
 import AppClerkProvider from "../integrations/clerk/provider";
 import ConvexProvider from "../integrations/convex/provider";
@@ -95,14 +96,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="min-h-dvh w-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AppClerkProvider>
-            <ConvexProvider>
-              <QueryProvider queryClient={queryClient}>
-                {children}
-                <Toaster />
-              </QueryProvider>
-            </ConvexProvider>
-          </AppClerkProvider>
+          <TooltipProvider>
+            <AppClerkProvider>
+              <ConvexProvider>
+                <QueryProvider queryClient={queryClient}>
+                  {children}
+                  <Toaster />
+                </QueryProvider>
+              </ConvexProvider>
+            </AppClerkProvider>
+          </TooltipProvider>
         </ThemeProvider>
         <Scripts />
       </body>

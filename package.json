@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --bun vite dev --port 3000",
+    "dev:web": "concurrently -k --prefix name --names convex,web \"bunx convex dev\" \"bun run dev\"",
     "build": "bun run --bun vite build",
     "preview": "bun run --bun vite preview",
     "test": "vitest run",
@@ -65,6 +66,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260302.1",
     "@vitejs/plugin-react": "^5.1.4",
     "babel-plugin-react-compiler": "^1.0.0",
+    "concurrently": "^9.2.1",
     "jsdom": "^28.1.0",
     "oxfmt": "^0.35.0",
     "oxlint": "^1.50.0",
