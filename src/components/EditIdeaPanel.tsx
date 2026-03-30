@@ -1,11 +1,5 @@
 import { useConvexAction, useConvexMutation } from "@convex-dev/react-query";
-import {
-  CaretDownIcon,
-  CheckIcon,
-  PencilSimpleIcon,
-  SpinnerIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon, CheckIcon, SpinnerIcon, XIcon } from "@phosphor-icons/react";
 import { useHotkey, useKeyHold } from "@tanstack/react-hotkeys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
@@ -25,8 +19,6 @@ import {
 } from "@/components/idea-form/fields";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -37,16 +29,16 @@ import {
   SelectValue,
 } from "@/components/ui/select-new";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheoMode } from "@/hooks/useTheoMode";
 import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
-import { cn } from "@/utils/utils";
 import { IdeaPreview } from "./IdeaPreview";
 import type { Idea } from "./KanbanBoard";
 import { Badge } from "./ui/badge";
 
-interface EditIdeaModalProps {
+interface EditIdeaPanelProps {
   idea: Idea | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -191,6 +183,7 @@ const ThumbnailSection = memo(function ThumbnailSection({
       labelId="edit-thumbnail-ready"
       thumbnail={thumbnail}
       thumbnailReady={thumbnailReady}
+      showReadyToggle={false}
       showPreview={hasThumbnail}
       previewUrl={previewUrl}
       fileInputRef={fileInputRef}
@@ -213,7 +206,7 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
   const [releaseDate, setReleaseDate] = useAtom(editIdeaFields.releaseDate);
 
   return (
-    <div className="flex flex-col ">
+    <div className="grid grid-cols-2 gap-4">
       <div className="space-y-1.5">
         <Label htmlFor="edit-vod-date" className="text-sm">
           VOD Date
@@ -226,7 +219,7 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
               data-empty={!vodRecordingDate}
               className="w-full justify-between text-left font-normal data-[empty=true]:text-muted-foreground"
             >
-              {formatDateValue(vodRecordingDate)}
+              {formatDateValue(vodRecordingDate) ?? "Not set"}
               <CaretDownIcon className="w-4 h-4" />
             </Button>
           </PopoverTrigger>
@@ -256,7 +249,7 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
               data-empty={!releaseDate}
               className="w-full justify-between text-left font-normal data-[empty=true]:text-muted-foreground"
             >
-              {formatDateValue(releaseDate)}
+              {formatDateValue(releaseDate) ?? "Not set"}
               <CaretDownIcon className="w-4 h-4" />
             </Button>
           </PopoverTrigger>
@@ -274,26 +267,6 @@ const DatesSection = memo(function DatesSection({ scheduleUpdate }: FieldProps) 
           </PopoverContent>
         </Popover>
       </div>
-    </div>
-  );
-});
-
-const UnsponsoredSection = memo(function UnsponsoredSection({ scheduleUpdate }: FieldProps) {
-  const [unsponsored, setUnsponsored] = useAtom(editIdeaFields.unsponsored);
-
-  return (
-    <div className="flex items-center gap-2 pt-1">
-      <Switch
-        id="edit-unsponsored"
-        checked={unsponsored}
-        onChange={(e) => {
-          setUnsponsored(e.target.checked);
-          scheduleUpdate({ unsponsored: e.target.checked });
-        }}
-      />
-      <Label htmlFor="edit-unsponsored" className="text-sm text-muted-foreground font-normal">
-        Unsponsored
-      </Label>
     </div>
   );
 });
@@ -359,8 +332,14 @@ const OwnerChannelSection = memo(function OwnerChannelSection({ scheduleUpdate }
   );
 });
 
-const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: FieldProps) {
+const StatusPotentialSection = memo(function StatusPotentialSection({
+  scheduleUpdate,
+  theoMode,
+}: FieldProps & {
+  theoMode: boolean;
+}) {
   const [status, setStatus] = useAtom(editIdeaFields.status);
+  const [potential, setPotential] = useAtom(editIdeaFields.potential);
 
   const handleStatusChange = (value: string) => {
     const nextValue = (value || "") as typeof status;
@@ -379,7 +358,7 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className={theoMode ? "grid grid-cols-2 gap-4" : "space-y-1.5"}>
       <div className="space-y-1.5">
         <Label htmlFor="edit-status" className="text-sm">
           Status
@@ -395,20 +374,44 @@ const LabelStatusSection = memo(function LabelStatusSection({ scheduleUpdate }: 
           </SelectContent>
         </Select>
       </div>
+      {theoMode ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-potential" className="text-sm">
+            Potential
+          </Label>
+          <Select
+            value={potential !== "" ? String(potential) : undefined}
+            onValueChange={(value) => {
+              const next = Number(value);
+              setPotential(next);
+              scheduleUpdate({ potential: next });
+            }}
+          >
+            <SelectTrigger id="edit-potential">
+              <SelectValue placeholder="Not set" />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
     </div>
   );
 });
 
-const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection({
-  scheduleUpdate,
-}: FieldProps) {
+const LabelAdReadSection = memo(function LabelAdReadSection({ scheduleUpdate }: FieldProps) {
   const [label, setLabel] = useAtom(editIdeaFields.label);
-  const [potential, setPotential] = useAtom(editIdeaFields.potential);
-  const [adReadTracker, setAdReadTracker] = useAtom(editIdeaFields.adReadTracker);
+  const [thumbnailReady, setThumbnailReady] = useAtom(editIdeaFields.thumbnailReady);
+  const [unsponsored, setUnsponsored] = useAtom(editIdeaFields.unsponsored);
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-      <div className="space-y-1.5 sm:col-span-3">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)] lg:items-end">
+      <div className="space-y-1.5">
         <Label htmlFor="edit-label" className="text-sm">
           Label
         </Label>
@@ -421,44 +424,39 @@ const LabelPotentialAdReadSection = memo(function LabelPotentialAdReadSection({
           }}
         />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="edit-potential" className="text-sm">
-          Potential
-        </Label>
-        <Select
-          value={potential !== "" ? String(potential) : undefined}
-          onValueChange={(value) => {
-            const next = Number(value);
-            setPotential(next);
-            scheduleUpdate({ potential: next });
-          }}
-        >
-          <SelectTrigger id="edit-potential">
-            <SelectValue placeholder="Not set" />
-          </SelectTrigger>
-          <SelectContent>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {n}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-1.5 opacity-50">
-        <Label htmlFor="edit-ad-read-tracker" className="text-sm">
-          Ad Read Tracker
-        </Label>
-        <Input
-          id="edit-ad-read-tracker"
-          value={adReadTracker ? "•••••" : ""}
-          placeholder="Not set"
-          disabled
-          onChange={(event) => {
-            setAdReadTracker(event.target.value);
-            scheduleUpdate({ adReadTracker: event.target.value });
-          }}
-        />
+      <div className="flex flex-col gap-4 lg:pb-1">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="edit-thumbnail-ready-inline"
+            checked={thumbnailReady}
+            onChange={(e) => {
+              setThumbnailReady(e.target.checked);
+              scheduleUpdate({ thumbnailReady: e.target.checked });
+            }}
+          />
+          <Label
+            htmlFor="edit-thumbnail-ready-inline"
+            className="text-sm text-muted-foreground font-normal"
+          >
+            Thumbnail ready
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            id="edit-unsponsored-inline"
+            checked={unsponsored}
+            onChange={(e) => {
+              setUnsponsored(e.target.checked);
+              scheduleUpdate({ unsponsored: e.target.checked });
+            }}
+          />
+          <Label
+            htmlFor="edit-unsponsored-inline"
+            className="text-sm text-muted-foreground font-normal"
+          >
+            Unsponsored
+          </Label>
+        </div>
       </div>
     </div>
   );
@@ -486,7 +484,7 @@ const NotesField = memo(function NotesField({ scheduleUpdate }: FieldProps) {
   );
 });
 
-export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) {
+export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useAtom(editIdeaIsEditingAtom);
   const title = useAtomValue(editIdeaFields.title);
@@ -551,10 +549,6 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
     onOpenChange(nextOpen);
   };
 
-  const handleEditToggle = () => {
-    setIsEditing(true);
-  };
-
   const handleSendToNotion = () => {
     if (!idea) {
       return;
@@ -581,7 +575,7 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
   useHotkey(
     "E",
     () => {
-      handleEditToggle();
+      setIsEditing(true);
     },
     { enabled: open && !isEditing, ignoreInputs: true, requireReset: true },
   );
@@ -620,104 +614,92 @@ export function EditIdeaModal({ idea, open, onOpenChange }: EditIdeaModalProps) 
     },
   );
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className={cn(
-          "!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 border-border/40 p-0 sm:!w-full",
-          isEditing ? "sm:!max-w-3xl" : "sm:!max-w-4xl",
-        )}
-      >
-        <DialogHeader className="sticky top-0 z-10 flex flex-row items-center justify-between border-b border-border/40 bg-background px-4 py-3">
-          <div className="flex items-center gap-2">
-            <DialogTitle className="text-base font-medium text-muted-foreground">
-              {isEditing ? "Edit Idea" : "Idea Details"}
-            </DialogTitle>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <Button type="button" variant="secondary" size="sm" onClick={handleEditToggle}>
-                <PencilSimpleIcon weight="duotone" className="w-4 h-4" />
-                Edit Idea
-              </Button>
-            ) : null}
-            {isEditing && isPending && (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <SpinnerIcon weight="bold" className="w-3.5 h-3.5 animate-spin" />
-                <span>Saving...</span>
-              </div>
-            )}
-            {isSuccess && (
-              <Badge variant="link" className="flex items-center gap-1.5 px-3 py-2 rounded-md">
-                <CheckIcon weight="bold" className="w-4 h-4" />
-                Saved
-              </Badge>
-            )}
-            <Button
-              onClick={() => handleOpenChange(false)}
-              variant="outline"
-              size="icon"
-              className="cursor-pointer border-none"
-              aria-label="Close"
-            >
-              <XIcon weight="bold" className="w-4 h-4" />
-            </Button>
-          </div>
-        </DialogHeader>
+  if (!open) return null;
 
-        {isEditing ? (
-          <div className="min-h-0 flex-1 space-y-2 overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
-            <div className="space-y-4">
-              <TitleField scheduleUpdate={scheduleUpdate} />
-              <DescriptionField scheduleUpdate={scheduleUpdate} />
+  return (
+    <Tabs
+      value={isEditing ? "edit" : "preview"}
+      onValueChange={(value) => setIsEditing(value === "edit")}
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
+    >
+      <div className="sticky top-0 z-10 flex flex-row items-center justify-between border-b border-border/40 bg-background px-4 py-3">
+        <TabsList className="grid w-fit grid-cols-2">
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="edit">Edit</TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-2">
+          {isEditing && isPending && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <SpinnerIcon weight="bold" className="w-3.5 h-3.5 animate-spin" />
+              <span>Saving...</span>
             </div>
+          )}
+          {isSuccess && (
+            <Badge variant="link" className="flex items-center gap-1.5 px-3 py-2 rounded-md">
+              <CheckIcon weight="bold" className="w-4 h-4" />
+              Saved
+            </Badge>
+          )}
+          <Button
+            onClick={() => handleOpenChange(false)}
+            variant="outline"
+            size="icon"
+            className="cursor-pointer border-none"
+            aria-label="Close"
+          >
+            <XIcon weight="bold" className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {isEditing ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="space-y-4">
+            <TitleField scheduleUpdate={scheduleUpdate} />
+            <DescriptionField scheduleUpdate={scheduleUpdate} />
+          </div>
+          <div className="space-y-4 pt-4">
             <ResourcesSection scheduleUpdate={scheduleUpdate} />
-            <div className={isTheoMode ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : "space-y-4"}>
-              <ThumbnailSection
-                scheduleUpdate={scheduleUpdate}
-                thumbnailPreview={thumbnailPreview}
-                fileInputRef={fileInputRef}
-                onFileSelect={onFileSelect}
-                onClear={clearFileUpload}
-                uploadFile={uploadFile}
-              />
-              <div className="space-y-4">
-                <DatesSection scheduleUpdate={scheduleUpdate} />
-                {isTheoMode ? <UnsponsoredSection scheduleUpdate={scheduleUpdate} /> : null}
-              </div>
-            </div>
+            <ThumbnailSection
+              scheduleUpdate={scheduleUpdate}
+              thumbnailPreview={thumbnailPreview}
+              fileInputRef={fileInputRef}
+              onFileSelect={onFileSelect}
+              onClear={clearFileUpload}
+              uploadFile={uploadFile}
+            />
+            <DatesSection scheduleUpdate={scheduleUpdate} />
             {isTheoMode ? <OwnerChannelSection scheduleUpdate={scheduleUpdate} /> : null}
-            <LabelStatusSection scheduleUpdate={scheduleUpdate} />
-            {isTheoMode ? <LabelPotentialAdReadSection scheduleUpdate={scheduleUpdate} /> : null}
+            <StatusPotentialSection scheduleUpdate={scheduleUpdate} theoMode={isTheoMode} />
+            {isTheoMode ? <LabelAdReadSection scheduleUpdate={scheduleUpdate} /> : null}
             <NotesField scheduleUpdate={scheduleUpdate} />
           </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <IdeaPreview
-                title={title}
-                description={description}
-                notes={notes}
-                thumbnail={thumbnail}
-                thumbnailPreview={thumbnailPreview}
-                thumbnailReady={thumbnailReady}
-                resources={resourceList}
-                vodRecordingDate={vodRecordingDate}
-                releaseDate={releaseDate}
-                owner={owner}
-                channel={channel}
-                potential={potential}
-                labels={label}
-                status={status}
-                adReadTracker={adReadTracker}
-                unsponsored={unsponsored}
-                theoMode={isTheoMode}
-              />
-            </div>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <IdeaPreview
+              title={title}
+              description={description}
+              notes={notes}
+              thumbnail={thumbnail}
+              thumbnailPreview={thumbnailPreview}
+              thumbnailReady={thumbnailReady}
+              resources={resourceList}
+              vodRecordingDate={vodRecordingDate}
+              releaseDate={releaseDate}
+              owner={owner}
+              channel={channel}
+              potential={potential}
+              labels={label}
+              status={status}
+              adReadTracker={adReadTracker}
+              unsponsored={unsponsored}
+              theoMode={isTheoMode}
+            />
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+    </Tabs>
   );
 }

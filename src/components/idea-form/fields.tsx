@@ -19,6 +19,8 @@ interface TitleFieldProps {
   value: string;
   onChange: (value: string) => void;
   autoFocus?: boolean;
+  hideLabel?: boolean;
+  placeholder?: string;
 }
 
 export const TitleField = memo(function TitleField({
@@ -26,18 +28,22 @@ export const TitleField = memo(function TitleField({
   value,
   onChange,
   autoFocus,
+  hideLabel = false,
+  placeholder = "What's the hook?",
 }: TitleFieldProps) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-sm">
-        Title <span className="text-destructive">*</span>
-      </Label>
+    <div className={hideLabel ? "space-y-0" : "space-y-1.5"}>
+      {!hideLabel ? (
+        <Label htmlFor={id} className="text-sm">
+          Title <span className="text-destructive">*</span>
+        </Label>
+      ) : null}
       <Input
         id={id}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="What's the hook?"
+        placeholder={placeholder}
         autoFocus={autoFocus}
       />
     </div>
@@ -48,23 +54,29 @@ interface DescriptionFieldProps {
   id: string;
   value: string;
   onChange: (value: string) => void;
+  hideLabel?: boolean;
+  placeholder?: string;
 }
 
 export const DescriptionField = memo(function DescriptionField({
   id,
   value,
   onChange,
+  hideLabel = false,
+  placeholder = "One-line summary",
 }: DescriptionFieldProps) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-sm">
-        Description
-      </Label>
+    <div className={hideLabel ? "space-y-0" : "space-y-1.5"}>
+      {!hideLabel ? (
+        <Label htmlFor={id} className="text-sm">
+          Description
+        </Label>
+      ) : null}
       <Input
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="One-line summary"
+        placeholder={placeholder}
       />
     </div>
   );
@@ -74,12 +86,16 @@ interface ResourcesSectionProps {
   resources: string[];
   onChange: (next: string[]) => void;
   id?: string;
+  hideLabel?: boolean;
+  placeholder?: string;
 }
 
 export const ResourcesSection = memo(function ResourcesSection({
   resources,
   onChange,
   id,
+  hideLabel = false,
+  placeholder = "Add resource URL",
 }: ResourcesSectionProps) {
   const resourceList = resources.length ? resources : [""];
 
@@ -103,10 +119,12 @@ export const ResourcesSection = memo(function ResourcesSection({
   };
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-sm">
-        Resources
-      </Label>
+    <div className={hideLabel ? "space-y-0" : "space-y-1.5"}>
+      {!hideLabel ? (
+        <Label htmlFor={id} className="text-sm">
+          Resources
+        </Label>
+      ) : null}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {resourceList.map((resource, index) => (
           <div key={`resource-${index}`} className="flex items-center gap-2">
@@ -115,7 +133,7 @@ export const ResourcesSection = memo(function ResourcesSection({
               type="url"
               value={resource}
               onChange={(e) => updateResource(index, e.target.value)}
-              placeholder={index === 0 ? "Add resource URL" : "Another resource URL"}
+              placeholder={index === 0 ? placeholder : "Another resource URL"}
               className="flex-1"
             />
             <Button
@@ -150,9 +168,17 @@ interface LabelSelectProps {
   id?: string;
   labels: LabelValue[];
   onChange: (next: LabelValue[]) => void;
+  placeholder?: string;
+  actionLabel?: string;
 }
 
-export const LabelSelect = memo(function LabelSelect({ id, labels, onChange }: LabelSelectProps) {
+export const LabelSelect = memo(function LabelSelect({
+  id,
+  labels,
+  onChange,
+  placeholder = "Not set",
+  actionLabel = "Select",
+}: LabelSelectProps) {
   const orderedLabels = labelValues.filter((label) => labels.includes(label));
   const visibleLabels = orderedLabels.slice(0, 2);
   const extraCount = orderedLabels.length - visibleLabels.length;
@@ -186,9 +212,9 @@ export const LabelSelect = memo(function LabelSelect({ id, labels, onChange }: L
               )}
             </span>
           ) : (
-            <span className="text-muted-foreground">Not set</span>
+            <span className="text-muted-foreground">{placeholder}</span>
           )}
-          <span className="text-muted-foreground text-xs">Select</span>
+          <span className="text-muted-foreground text-xs">{actionLabel}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[220px]">
@@ -218,6 +244,9 @@ interface ThumbnailFieldProps {
   onClear: () => void;
   onThumbnailChange: (value: string) => void;
   onThumbnailReadyChange: (next: boolean) => void;
+  hideLabel?: boolean;
+  inputPlaceholder?: string;
+  showReadyToggle?: boolean;
 }
 
 export const ThumbnailField = memo(function ThumbnailField({
@@ -231,10 +260,13 @@ export const ThumbnailField = memo(function ThumbnailField({
   onClear,
   onThumbnailChange,
   onThumbnailReadyChange,
+  hideLabel = false,
+  inputPlaceholder = "Paste image URL",
+  showReadyToggle = true,
 }: ThumbnailFieldProps) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-sm">Thumbnail</Label>
+    <div className={hideLabel ? "space-y-0" : "space-y-1.5"}>
+      {!hideLabel ? <Label className="text-sm">Thumbnail</Label> : null}
       {showPreview ? (
         <div className="group relative rounded-lg overflow-hidden border border-border/40 aspect-video bg-muted/30">
           {previewUrl ? (
@@ -256,7 +288,7 @@ export const ThumbnailField = memo(function ThumbnailField({
             type="url"
             value={thumbnail}
             onChange={(e) => onThumbnailChange(e.target.value)}
-            placeholder="Paste image URL"
+            placeholder={inputPlaceholder}
             className="flex-1"
           />
           <input
@@ -276,16 +308,18 @@ export const ThumbnailField = memo(function ThumbnailField({
           </Button>
         </div>
       )}
-      <div className="flex items-center gap-2 pt-1">
-        <Switch
-          id={labelId}
-          checked={thumbnailReady}
-          onChange={(e) => onThumbnailReadyChange(e.target.checked)}
-        />
-        <Label htmlFor={labelId} className="text-sm text-muted-foreground font-normal">
-          Thumbnail ready
-        </Label>
-      </div>
+      {showReadyToggle ? (
+        <div className="flex items-center gap-2 pt-1">
+          <Switch
+            id={labelId}
+            checked={thumbnailReady}
+            onChange={(e) => onThumbnailReadyChange(e.target.checked)}
+          />
+          <Label htmlFor={labelId} className="text-sm text-muted-foreground font-normal">
+            Thumbnail ready
+          </Label>
+        </div>
+      ) : null}
     </div>
   );
 });

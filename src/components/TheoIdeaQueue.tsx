@@ -7,7 +7,6 @@ import type { Id } from "convex/_generated/dataModel";
 import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
 import { AddIdeaModal } from "@/components/AddIdeaModal";
-import { EditIdeaModal } from "@/components/EditIdeaModal";
 import { IdeaCard } from "@/components/IdeaCard";
 import { ShareIdeasModal } from "@/components/ShareIdeasModal";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,7 @@ import {
 
 export function TheoIdeaQueue() {
   const { data: ideas, isLoading } = useQuery(convexQuery(api.ideas.queries.listTheoQueue, {}));
-  const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
+  const [, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
   const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const [selectionMode, setSelectionMode] = useAtom(ideaSelectionModeAtom);
@@ -35,7 +34,6 @@ export function TheoIdeaQueue() {
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const orderedIdeas = [...(ideas ?? [])].sort((a, b) => a.order - b.order);
-  const activeIdea = orderedIdeas.find((idea) => idea._id === editIdeaId) ?? null;
   const selectedIdSet = new Set(selectedIds);
 
   const canUseMotionHotkeys =
@@ -183,41 +181,43 @@ export function TheoIdeaQueue() {
     if (target.closest("[data-idea-id]")) return;
     focusIdea(null);
   };
+  const queueContent =
+    orderedIdeas.length === 0 ? (
+      <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/40 gap-3">
+        <TrayIcon className="w-10 h-10" />
+        <p className="text-sm">No ideas left to send.</p>
+      </div>
+    ) : (
+      <div
+        className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        onPointerDown={handleQueuePointerDown}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {orderedIdeas.map((idea) => (
+            <IdeaCard
+              key={idea._id}
+              idea={idea}
+              onClick={() => {
+                focusIdea(idea._id);
+                setEditDraft(createIdeaDraftFromIdea(idea));
+                setEditMode(false);
+                setEditIdeaId(idea._id);
+                setIsEditOpen(true);
+              }}
+              selectionMode={selectionMode}
+              selected={selectedIdSet.has(idea._id)}
+              onToggleSelect={handleSelectIdea}
+              isKeyboardFocused={focusedIdeaId === idea._id}
+              domId={getIdeaDomId(idea._id)}
+            />
+          ))}
+        </div>
+      </div>
+    );
 
   return (
     <div className="rounded-xl border border-border/50 bg-card/50 p-2.5 flex flex-col flex-1 min-h-0">
-      {orderedIdeas.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/40 gap-3">
-          <TrayIcon className="w-10 h-10" />
-          <p className="text-sm">No ideas left to send.</p>
-        </div>
-      ) : (
-        <div
-          className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-          onPointerDown={handleQueuePointerDown}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {orderedIdeas.map((idea) => (
-              <IdeaCard
-                key={idea._id}
-                idea={idea}
-                onClick={() => {
-                  focusIdea(idea._id);
-                  setEditDraft(createIdeaDraftFromIdea(idea));
-                  setEditMode(false);
-                  setEditIdeaId(idea._id);
-                  setIsEditOpen(true);
-                }}
-                selectionMode={selectionMode}
-                selected={selectedIdSet.has(idea._id)}
-                onToggleSelect={handleSelectIdea}
-                isKeyboardFocused={focusedIdeaId === idea._id}
-                domId={getIdeaDomId(idea._id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {queueContent}
 
       {selectionMode && selectedIds.length > 0 ? (
         <div className="fixed inset-x-4 bottom-4 z-40 animate-in fade-in duration-150 sm:inset-x-auto sm:bottom-8 sm:right-8">
@@ -260,18 +260,6 @@ export function TheoIdeaQueue() {
       ) : null}
 
       <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} />
-
-      <EditIdeaModal
-        key={editIdeaId ?? "theo-edit-idea"}
-        idea={activeIdea}
-        open={isEditOpen}
-        onOpenChange={(open) => {
-          setIsEditOpen(open);
-          if (!open) {
-            setEditIdeaId(null);
-          }
-        }}
-      />
 
       <ShareIdeasModal
         open={shareModalOpen}

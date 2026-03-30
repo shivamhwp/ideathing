@@ -35,7 +35,6 @@ import {
   ideaSelectionModeAtom,
 } from "@/store/atoms";
 import { AddIdeaModal } from "./AddIdeaModal";
-import { EditIdeaModal } from "./EditIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
 import { Badge } from "./ui/badge";
@@ -48,7 +47,7 @@ export function KanbanBoard() {
   const { isLoaded, isSignedIn } = useUser();
 
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
-  const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
+  const [, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
   const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const [selectionMode, setSelectionMode] = useAtom(ideaSelectionModeAtom);
@@ -315,107 +314,98 @@ export function KanbanBoard() {
   }
 
   const selectedIdSet = new Set(selectedIds);
+  const boardContent = (
+    <div className="relative h-full min-h-0 flex-1">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={rectIntersection}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <div
+          className="grid h-full min-h-0 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] grid-flow-col auto-cols-[minmax(20rem,92%)] grid-rows-[1fr] items-stretch gap-3 overflow-x-auto pb-1 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-2 md:gap-4 md:overflow-x-visible md:pb-0"
+          onPointerDown={handleBoardPointerDown}
+        >
+          <SortableContext
+            items={conceptColumn.map((idea) => idea._id)}
+            strategy={rectSortingStrategy}
+          >
+            <KanbanColumn
+              id="concept"
+              title="Concept"
+              color="concept"
+              items={conceptColumn}
+              onItemClick={handleEditIdea}
+              interactive={!isInteractionLocked}
+              selectionMode={selectionMode}
+              selectedIds={selectedIdSet}
+              onToggleSelect={handleSelectIdea}
+              focusedIdeaId={focusedIdeaId}
+              getIdeaDomId={getIdeaDomId}
+            />
+          </SortableContext>
+
+          <SortableContext
+            items={toStreamColumn.map((idea) => idea._id)}
+            strategy={rectSortingStrategy}
+          >
+            <KanbanColumn
+              id="to-stream"
+              title="To Stream"
+              color="to-stream"
+              items={toStreamColumn}
+              onItemClick={handleEditIdea}
+              interactive={!isInteractionLocked}
+              selectionMode={selectionMode}
+              selectedIds={selectedIdSet}
+              onToggleSelect={handleSelectIdea}
+              focusedIdeaId={focusedIdeaId}
+              getIdeaDomId={getIdeaDomId}
+            />
+          </SortableContext>
+        </div>
+
+        <DragOverlay
+          dropAnimation={{
+            duration: 250,
+            easing: "cubic-bezier(0.25, 1, 0.5, 1)",
+          }}
+        >
+          {activeIdea ? (
+            <div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
+                {activeIdea.draftThumbnail && (
+                  <img
+                    src={activeIdea.draftThumbnail}
+                    alt={activeIdea.title}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+              <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
+                {activeIdea.title}
+              </h3>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {isInteractionLocked && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl border border-border/70 bg-background/75 backdrop-blur-sm">
+          <div className="mx-6 flex max-w-sm flex-col items-center gap-3 rounded-xl  backdrop-blur-lg  px-5 py-6 text-center">
+            <h3 className="text-xl font-medium text-foreground">Sign in to use ideathing</h3>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex h-full flex-col flex-1 min-h-0 gap-4 select-none">
-      {/* Kanban Columns */}
-      <div className="relative h-full flex-1 min-h-0">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={rectIntersection}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragCancel={handleDragCancel}
-        >
-          <div
-            className="grid h-full min-h-0 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] grid-flow-col auto-cols-[minmax(20rem,92%)] grid-rows-[1fr] items-stretch gap-3 overflow-x-auto pb-1 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-2 md:gap-4 md:overflow-x-visible md:pb-0"
-            onPointerDown={handleBoardPointerDown}
-          >
-            <SortableContext
-              items={conceptColumn.map((idea) => idea._id)}
-              strategy={rectSortingStrategy}
-            >
-              <KanbanColumn
-                id="concept"
-                title="Concept"
-                color="concept"
-                items={conceptColumn}
-                onItemClick={handleEditIdea}
-                interactive={!isInteractionLocked}
-                selectionMode={selectionMode}
-                selectedIds={selectedIdSet}
-                onToggleSelect={handleSelectIdea}
-                focusedIdeaId={focusedIdeaId}
-                getIdeaDomId={getIdeaDomId}
-              />
-            </SortableContext>
-
-            <SortableContext
-              items={toStreamColumn.map((idea) => idea._id)}
-              strategy={rectSortingStrategy}
-            >
-              <KanbanColumn
-                id="to-stream"
-                title="To Stream"
-                color="to-stream"
-                items={toStreamColumn}
-                onItemClick={handleEditIdea}
-                interactive={!isInteractionLocked}
-                selectionMode={selectionMode}
-                selectedIds={selectedIdSet}
-                onToggleSelect={handleSelectIdea}
-                focusedIdeaId={focusedIdeaId}
-                getIdeaDomId={getIdeaDomId}
-              />
-            </SortableContext>
-          </div>
-
-          <DragOverlay
-            dropAnimation={{
-              duration: 250,
-              easing: "cubic-bezier(0.25, 1, 0.5, 1)",
-            }}
-          >
-            {activeIdea ? (
-              <div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
-                <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
-                  {activeIdea.draftThumbnail && (
-                    <img
-                      src={activeIdea.draftThumbnail}
-                      alt={activeIdea.title}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-                <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
-                  {activeIdea.title}
-                </h3>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-
-        {isInteractionLocked && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl border border-border/70 bg-background/75 backdrop-blur-sm">
-            <div className="mx-6 flex max-w-sm flex-col items-center gap-3 rounded-xl  backdrop-blur-lg  px-5 py-6 text-center">
-              <h3 className="text-xl font-medium text-foreground">Sign in to use ideathing</h3>
-            </div>
-          </div>
-        )}
-      </div>
+      {boardContent}
 
       <AddIdeaModal open={!isInteractionLocked && isAddModalOpen} onOpenChange={setAddModalOpen} />
-      <EditIdeaModal
-        key={editIdeaId ?? "edit-idea"}
-        idea={ideasData.find((idea) => idea._id === editIdeaId) ?? null}
-        open={!isInteractionLocked && isEditOpen}
-        onOpenChange={(open) => {
-          setIsEditOpen(open);
-          if (!open) {
-            setEditIdeaId(null);
-          }
-        }}
-      />
 
       {!isInteractionLocked && selectionMode && selectedIds.length > 0 && (
         <div className="fixed inset-x-4 bottom-4 z-40 animate-in fade-in duration-150 sm:inset-x-auto sm:bottom-8 sm:right-8">
