@@ -2,6 +2,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { LightbulbIcon, PlusIcon, VideoCameraIcon } from "@phosphor-icons/react";
 import type { Id } from "convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { IDEA_CARD_GRID_TEMPLATE } from "@/components/idea-grid";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
@@ -90,20 +91,21 @@ export function KanbanColumn({
           {id === "concept" ? "Add your first concept" : "Drag ideas here"}
         </div>
       ) : items.length > 0 ? (
-        <div className="flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="grid gap-3" style={{ gridTemplateColumns: IDEA_CARD_GRID_TEMPLATE }}>
             {items.map((idea) => (
-              <IdeaCard
-                key={idea._id}
-                idea={idea}
-                onClick={() => onItemClick?.(idea)}
-                interactive={interactive}
-                selectionMode={selectionMode}
-                selected={selectedIds?.has(idea._id) ?? false}
-                onToggleSelect={onToggleSelect}
-                isKeyboardFocused={focusedIdeaId === idea._id}
-                domId={getIdeaDomId?.(idea._id)}
-              />
+              <div key={idea._id} className="min-w-0">
+                <IdeaCard
+                  idea={idea}
+                  onClick={() => onItemClick?.(idea)}
+                  interactive={interactive}
+                  selectionMode={selectionMode}
+                  selected={selectedIds?.has(idea._id) ?? false}
+                  onToggleSelect={onToggleSelect}
+                  isKeyboardFocused={focusedIdeaId === idea._id}
+                  domId={getIdeaDomId?.(idea._id)}
+                />
+              </div>
             ))}
           </div>
         </div>

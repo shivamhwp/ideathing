@@ -23,8 +23,9 @@ import { api } from "convex/_generated/api";
 import type { Doc, Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { KANBAN_COMPACT_WIDTH_PX } from "@/components/idea-grid";
 import {
   addIdeaModalOpenAtom,
   commandMenuOpenAtom,
@@ -34,6 +35,8 @@ import {
   editIdeaOpenAtom,
   ideaSelectionModeAtom,
 } from "@/store/atoms";
+import { cn } from "@/utils/utils";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import { AddIdeaModal } from "./AddIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
@@ -56,6 +59,8 @@ export function KanbanBoard() {
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const commandCenterOpen = useAtomValue(commandMenuOpenAtom);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const boardWidth = useElementWidth(boardRef);
 
   const { data: ideas, isLoading: isIdeasLoading } = useQuery(
     convexQuery(api.ideas.queries.list, {}),
@@ -94,6 +99,7 @@ export function KanbanBoard() {
     !isAddModalOpen &&
     !isEditOpen &&
     !commandCenterOpen;
+  const isCompactBoard = boardWidth > 0 && boardWidth < KANBAN_COMPACT_WIDTH_PX;
 
   const focusIdea = (ideaId: Id<"ideas"> | null) => {
     setFocusedIdeaId(ideaId);
@@ -315,7 +321,7 @@ export function KanbanBoard() {
 
   const selectedIdSet = new Set(selectedIds);
   const boardContent = (
-    <div className="relative h-full min-h-0 flex-1">
+    <div ref={boardRef} className="relative h-full min-h-0 min-w-0 flex-1 overflow-hidden">
       <DndContext
         sensors={sensors}
         collisionDetection={rectIntersection}
@@ -324,7 +330,12 @@ export function KanbanBoard() {
         onDragCancel={handleDragCancel}
       >
         <div
-          className="grid h-full min-h-0 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] grid-flow-col auto-cols-[minmax(20rem,92%)] grid-rows-[1fr] items-stretch gap-3 overflow-x-auto pb-1 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-2 md:gap-4 md:overflow-x-visible md:pb-0"
+          className={cn(
+            "grid h-full min-h-0 min-w-0 flex-1 items-stretch [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
+            isCompactBoard
+              ? "grid-flow-col auto-cols-[minmax(20rem,min(32rem,78dvw))] grid-rows-[1fr] gap-3 overflow-x-auto pb-1 snap-x snap-mandatory"
+              : "grid-flow-row auto-cols-auto grid-cols-2 gap-4 overflow-x-visible pb-0",
+          )}
           onPointerDown={handleBoardPointerDown}
         >
           <SortableContext
@@ -402,7 +413,7 @@ export function KanbanBoard() {
   );
 
   return (
-    <div className="flex h-full flex-col flex-1 min-h-0 gap-4 select-none">
+    <div className="flex h-full flex-col flex-1 min-h-0 min-w-0 gap-4 select-none overflow-hidden">
       {boardContent}
 
       <AddIdeaModal open={!isInteractionLocked && isAddModalOpen} onOpenChange={setAddModalOpen} />

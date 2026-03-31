@@ -5,11 +5,17 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useAtom, useAtomValue } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { IdeaCard } from "@/components/IdeaCard";
 import { ShareIdeasModal } from "@/components/ShareIdeasModal";
+import {
+  getAutoFitColumnCount,
+  IDEA_CARD_GRID_TEMPLATE,
+  THEO_QUEUE_GAP_PX,
+} from "@/components/idea-grid";
 import { Button } from "@/components/ui/button";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import {
   addIdeaModalOpenAtom,
   commandMenuOpenAtom,
@@ -33,8 +39,11 @@ export function TheoIdeaQueue() {
   const [focusedIdeaId, setFocusedIdeaId] = useState<Id<"ideas"> | null>(null);
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const queueGridRef = useRef<HTMLDivElement>(null);
+  const queueWidth = useElementWidth(queueGridRef);
   const orderedIdeas = [...(ideas ?? [])].sort((a, b) => a.order - b.order);
   const selectedIdSet = new Set(selectedIds);
+  const gridColumns = getAutoFitColumnCount(queueWidth, THEO_QUEUE_GAP_PX);
 
   const canUseMotionHotkeys =
     !isLoading &&
@@ -58,19 +67,6 @@ export function TheoIdeaQueue() {
     });
   };
 
-  const getGridColumns = () => {
-    if (typeof window === "undefined") {
-      return 1;
-    }
-    if (window.innerWidth >= 1024) {
-      return 4;
-    }
-    if (window.innerWidth >= 768) {
-      return 3;
-    }
-    return 1;
-  };
-
   const moveFocus = (step: number) => {
     if (orderedIdeas.length === 0) return;
     const currentIndex = orderedIdeas.findIndex((idea) => idea._id === focusedIdeaId);
@@ -82,7 +78,7 @@ export function TheoIdeaQueue() {
   useHotkey(
     "J",
     () => {
-      moveFocus(getGridColumns());
+      moveFocus(gridColumns);
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
   );
@@ -90,7 +86,7 @@ export function TheoIdeaQueue() {
   useHotkey(
     "K",
     () => {
-      moveFocus(-getGridColumns());
+      moveFocus(-gridColumns);
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
   );
@@ -192,7 +188,11 @@ export function TheoIdeaQueue() {
         className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         onPointerDown={handleQueuePointerDown}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div
+          ref={queueGridRef}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: IDEA_CARD_GRID_TEMPLATE }}
+        >
           {orderedIdeas.map((idea) => (
             <IdeaCard
               key={idea._id}

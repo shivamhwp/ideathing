@@ -50,16 +50,13 @@ function App() {
         <TopNav />
         {isEditOpen ? (
           <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-            <ResizablePanel defaultSize="68%" minSize="42%" className="min-w-0">
-              <div className="flex h-full min-h-0 flex-col">{boardView}</div>
+            <ResizablePanel defaultSize="70%" minSize="30%" maxSize="70%" className="min-w-0">
+              <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+                {boardView}
+              </div>
             </ResizablePanel>
             <ResizableHandle className="mx-2" />
-            <ResizablePanel
-              defaultSize="32%"
-              minSize="24rem"
-              maxSize="45%"
-              className="min-w-[22rem]"
-            >
+            <ResizablePanel defaultSize="30%" minSize="30%" maxSize="65%" className="min-w-0">
               <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-card/60">
                 <EditIdeaPanel
                   key={editIdeaId ?? "edit-idea"}
