@@ -6,14 +6,11 @@ import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useAtom, useAtomValue } from "jotai";
 import { useRef, useState } from "react";
+import { VirtuosoGrid, type VirtuosoGridHandle } from "react-virtuoso";
 import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { IdeaCard } from "@/components/IdeaCard";
 import { ShareIdeasModal } from "@/components/ShareIdeasModal";
-import {
-  getAutoFitColumnCount,
-  IDEA_CARD_GRID_TEMPLATE,
-  THEO_QUEUE_GAP_PX,
-} from "@/components/idea-grid";
+import { getAutoFitColumnCount, THEO_QUEUE_GAP_PX } from "@/components/idea-grid";
 import { Button } from "@/components/ui/button";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import {
@@ -39,6 +36,7 @@ export function TheoIdeaQueue() {
   const [focusedIdeaId, setFocusedIdeaId] = useState<Id<"ideas"> | null>(null);
   const [selectedIds, setSelectedIds] = useState<Id<"ideas">[]>([]);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const gridRef = useRef<VirtuosoGridHandle>(null);
   const queueGridRef = useRef<HTMLDivElement>(null);
   const queueWidth = useElementWidth(queueGridRef);
   const orderedIdeas = [...(ideas ?? [])].sort((a, b) => a.order - b.order);
@@ -58,12 +56,12 @@ export function TheoIdeaQueue() {
   const focusIdea = (ideaId: Id<"ideas"> | null) => {
     setFocusedIdeaId(ideaId);
     if (!ideaId) return;
-    requestAnimationFrame(() => {
-      document.getElementById(getIdeaDomId(ideaId))?.scrollIntoView({
-        block: "nearest",
-        inline: "nearest",
-        behavior: "smooth",
-      });
+    const nextIndex = orderedIdeas.findIndex((idea) => idea._id === ideaId);
+    if (nextIndex < 0) return;
+    gridRef.current?.scrollToIndex({
+      index: nextIndex,
+      align: "start",
+      behavior: "smooth",
     });
   };
 
@@ -184,18 +182,17 @@ export function TheoIdeaQueue() {
         <p className="text-sm">No ideas left to send.</p>
       </div>
     ) : (
-      <div
-        className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-        onPointerDown={handleQueuePointerDown}
-      >
-        <div
-          ref={queueGridRef}
-          className="grid gap-4"
-          style={{ gridTemplateColumns: IDEA_CARD_GRID_TEMPLATE }}
-        >
-          {orderedIdeas.map((idea) => (
+      <div ref={queueGridRef} className="flex-1 min-h-0" onPointerDown={handleQueuePointerDown}>
+        <VirtuosoGrid
+          ref={gridRef}
+          style={{ height: "100%" }}
+          data={orderedIdeas}
+          computeItemKey={(_, idea) => idea._id}
+          listClassName="flex flex-wrap content-start gap-4"
+          itemClassName="flex min-w-0 grow basis-[18rem]"
+          increaseViewportBy={{ top: 500, bottom: 500 }}
+          itemContent={(_, idea) => (
             <IdeaCard
-              key={idea._id}
               idea={idea}
               onClick={() => {
                 focusIdea(idea._id);
@@ -210,8 +207,8 @@ export function TheoIdeaQueue() {
               isKeyboardFocused={focusedIdeaId === idea._id}
               domId={getIdeaDomId(idea._id)}
             />
-          ))}
-        </div>
+          )}
+        />
       </div>
     );
 

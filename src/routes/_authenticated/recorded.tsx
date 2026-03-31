@@ -5,12 +5,15 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import { useSetAtom } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { VirtuosoGrid, type VirtuosoGridHandle } from "react-virtuoso";
 import { EditIdeaPanel } from "@/components/EditIdeaPanel";
 import { IdeaCard } from "@/components/IdeaCard";
+import { getAutoFitColumnCount, THEO_QUEUE_GAP_PX } from "@/components/idea-grid";
 import type { Idea } from "@/components/KanbanBoard";
 import { TopNav } from "@/components/TopNav";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import { useTheoMode } from "@/hooks/useTheoMode";
 import { createIdeaDraftFromIdea, editIdeaDraftAtom } from "@/store/atoms";
 
@@ -21,6 +24,8 @@ export const Route = createFileRoute("/_authenticated/recorded")({
 function RecordedIdeasPage() {
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
   const [focusedIdeaId, setFocusedIdeaId] = useState<Idea["_id"] | null>(null);
+  const gridRef = useRef<VirtuosoGridHandle>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   const setDraft = useSetAtom(editIdeaDraftAtom);
   const { isTheoMode, isCheckingMode } = useTheoMode();
   const { data: recorded, isLoading } = useQuery({
@@ -29,30 +34,21 @@ function RecordedIdeasPage() {
     staleTime: 61 * 60 * 1000, // 1 hour + 1 minute
   });
   const recordedIdeas = recorded ?? [];
+  const gridWidth = useElementWidth(gridContainerRef);
+  const gridColumns = getAutoFitColumnCount(gridWidth, THEO_QUEUE_GAP_PX);
 
   const getIdeaDomId = (ideaId: Idea["_id"]) => `idea-card-${ideaId}`;
 
   const focusIdea = (ideaId: Idea["_id"] | null) => {
     setFocusedIdeaId(ideaId);
     if (!ideaId) return;
-    requestAnimationFrame(() => {
-      document
-        .getElementById(getIdeaDomId(ideaId))
-        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    const nextIndex = recordedIdeas.findIndex((idea) => idea._id === ideaId);
+    if (nextIndex < 0) return;
+    gridRef.current?.scrollToIndex({
+      index: nextIndex,
+      align: "start",
+      behavior: "smooth",
     });
-  };
-
-  const getGridColumns = () => {
-    if (typeof window === "undefined") {
-      return 1;
-    }
-    if (window.innerWidth >= 1024) {
-      return 3;
-    }
-    if (window.innerWidth >= 768) {
-      return 2;
-    }
-    return 1;
   };
   const canUseMotionHotkeys = !isCheckingMode && !isTheoMode && !isLoading && !editingIdea;
   const moveFocus = (step: number) => {
@@ -66,14 +62,14 @@ function RecordedIdeasPage() {
   useHotkey(
     "J",
     () => {
-      moveFocus(getGridColumns());
+      moveFocus(gridColumns);
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
   );
   useHotkey(
     "K",
     () => {
-      moveFocus(-getGridColumns());
+      moveFocus(-gridColumns);
     },
     { enabled: canUseMotionHotkeys, ignoreInputs: true, requireReset: true },
   );
@@ -151,11 +147,17 @@ function RecordedIdeasPage() {
         </div>
       </div>
     ) : (
-      <div className="h-full overflow-y-auto">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {recorded.map((idea) => (
+      <div ref={gridContainerRef} className="h-full min-h-0">
+        <VirtuosoGrid
+          ref={gridRef}
+          style={{ height: "100%" }}
+          data={recorded}
+          computeItemKey={(_, idea) => idea._id}
+          listClassName="flex flex-wrap content-start gap-4"
+          itemClassName="flex min-w-0 grow basis-[18rem]"
+          increaseViewportBy={{ top: 500, bottom: 500 }}
+          itemContent={(_, idea) => (
             <IdeaCard
-              key={idea._id}
               idea={idea}
               onClick={() => {
                 focusIdea(idea._id);
@@ -165,8 +167,8 @@ function RecordedIdeasPage() {
               isKeyboardFocused={focusedIdeaId === idea._id}
               domId={getIdeaDomId(idea._id)}
             />
-          ))}
-        </div>
+          )}
+        />
       </div>
     );
 
