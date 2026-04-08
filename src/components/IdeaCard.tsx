@@ -114,7 +114,7 @@ export function IdeaCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group",
+        "group w-full",
         interactive ? "cursor-pointer" : "cursor-not-allowed",
         isSortableDragging && "opacity-40 scale-[0.98]",
       )}
@@ -123,7 +123,7 @@ export function IdeaCard({
       {/* Compact card */}
       <div
         className={cn(
-          "rounded-lg overflow-hidden bg-card border hover:border-border hover:shadow-sm transition-all duration-200",
+          "w-full rounded-lg overflow-hidden bg-card border hover:border-border hover:shadow-sm transition-all duration-200",
           isKeyboardFocused ? "border-primary/50" : "border-border/60",
         )}
       >

@@ -154,7 +154,7 @@ function RecordedIdeasPage() {
           data={recorded}
           computeItemKey={(_, idea) => idea._id}
           listClassName="flex flex-wrap content-start gap-4"
-          itemClassName="flex min-w-0 grow basis-[18rem]"
+          itemClassName="flex min-w-[18rem] shrink-0 grow basis-[18rem]"
           increaseViewportBy={{ top: 500, bottom: 500 }}
           itemContent={(_, idea) => (
             <IdeaCard
