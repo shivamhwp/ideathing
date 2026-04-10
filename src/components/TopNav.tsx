@@ -12,13 +12,18 @@ import { NotionConnect } from "@/components/NotionConnect";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useTheoMode } from "@/hooks/useTheoMode";
-import { openAddIdeaModalAtom, workspaceViewModeAtom } from "@/store/atoms";
+import {
+  addIdeaModalOpenAtom,
+  openCreateIdeaSidebarAtom,
+  workspaceViewModeAtom,
+} from "@/store/atoms";
 import { cn } from "@/utils/utils";
 
 export function TopNav() {
   const { isTheoMode, isCheckingMode } = useTheoMode();
   const pathname = useLocation({ select: (location) => location.pathname });
-  const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
+  const openCreateIdeaSidebar = useSetAtom(openCreateIdeaSidebarAtom);
+  const openAddIdeaModal = useSetAtom(addIdeaModalOpenAtom);
   const [workspaceViewMode, setWorkspaceViewMode] = useAtom(workspaceViewModeAtom);
   const showWorkspaceControls = !isCheckingMode && pathname === "/";
   const navHeight = "h-10";
@@ -116,7 +121,13 @@ export function TopNav() {
                   </div>
                 ) : null}
                 <Button
-                  onClick={openAddIdeaModal}
+                  onClick={() => {
+                    if (isTheoMode) {
+                      openAddIdeaModal(true);
+                    } else {
+                      openCreateIdeaSidebar();
+                    }
+                  }}
                   variant="secondary"
                   size="icon"
                   aria-label="Add idea"

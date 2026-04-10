@@ -21,7 +21,11 @@ import {
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useTheoMode } from "@/hooks/useTheoMode";
-import { commandMenuOpenAtom, openAddIdeaModalAtom } from "@/store/atoms";
+import {
+  addIdeaModalOpenAtom,
+  commandMenuOpenAtom,
+  openCreateIdeaSidebarAtom,
+} from "@/store/atoms";
 
 const CHORD_RESET_MS = 650;
 
@@ -35,7 +39,8 @@ export function AppCommandCenter() {
   const { isSignedIn } = useUser();
   const { isTheoMode, isCheckingMode } = useTheoMode();
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
-  const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
+  const openCreateIdeaSidebar = useSetAtom(openCreateIdeaSidebarAtom);
+  const openAddIdeaModal = useSetAtom(addIdeaModalOpenAtom);
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
   const [query, setQuery] = useState("");
@@ -48,7 +53,11 @@ export function AppCommandCenter() {
 
       setOpen(false);
       if (id === "add") {
-        openAddIdeaModal();
+        if (isTheoMode) {
+          openAddIdeaModal(true);
+        } else {
+          openCreateIdeaSidebar();
+        }
         if (pathname !== "/") void navigate({ to: "/" });
         return;
       }
@@ -72,7 +81,7 @@ export function AppCommandCenter() {
         void navigate({ to: "/" });
       }
     },
-    [isSignedIn, navigate, openAddIdeaModal, pathname, setOpen],
+    [isSignedIn, isTheoMode, navigate, openAddIdeaModal, openCreateIdeaSidebar, pathname, setOpen],
   );
 
   const commands = useMemo(() => {

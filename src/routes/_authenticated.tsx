@@ -5,6 +5,7 @@ import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { useEffect, useRef } from "react";
+import { useTheoMode } from "@/hooks/useTheoMode";
 import { AppCommandCenter } from "@/components/AppCommandCenter";
 import { addIdeaModalOpenAtom } from "@/store/atoms";
 
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { isSignedIn, isLoaded } = useUser();
+  const { isTheoMode } = useTheoMode();
   const queryClient = useQueryClient();
   const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
   const prevSignedIn = useRef(isSignedIn);
@@ -40,6 +42,12 @@ function AuthenticatedLayout() {
     }
     prevSignedIn.current = isSignedIn;
   }, [isSignedIn, queryClient]);
+
+  useEffect(() => {
+    if (!isTheoMode && isAddModalOpen) {
+      setAddModalOpen(false);
+    }
+  }, [isAddModalOpen, isTheoMode, setAddModalOpen]);
 
   if (!isLoaded) {
     return (
@@ -57,7 +65,7 @@ function AuthenticatedLayout() {
     <>
       <AppCommandCenter />
       <Outlet />
-      <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} />
+      {isTheoMode ? <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} /> : null}
     </>
   );
 }

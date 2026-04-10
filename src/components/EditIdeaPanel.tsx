@@ -1,4 +1,4 @@
-import { useConvexAction, useConvexMutation } from "@convex-dev/react-query";
+import { convexQuery, useConvexAction, useConvexMutation } from "@convex-dev/react-query";
 import {
   CaretDownIcon,
   CheckCircleIcon,
@@ -44,7 +44,17 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheoMode } from "@/hooks/useTheoMode";
-import { editIdeaFields, editIdeaIsEditingAtom } from "@/store/atoms";
+import {
+  createIdeaDraftFromIdea,
+  defaultIdeaDraft,
+  editIdeaDraftAtom,
+  editIdeaIdAtom,
+  editIdeaFields,
+  editIdeaIsEditingAtom,
+  editIdeaModeAtom,
+  newIdeaDraftAtom,
+  newIdeaFields,
+} from "@/store/atoms";
 import { IdeaPreview } from "./IdeaPreview";
 import type { Idea } from "./KanbanBoard";
 import { Badge } from "./ui/badge";
@@ -713,7 +723,7 @@ const NonTheoIdeaWorkspace = memo(function NonTheoIdeaWorkspace({
 
       <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-6 py-6">
         <div className="space-y-4">
-          <Textarea
+          <AutosizeTextarea
             value={title}
             onChange={(event) => {
               const next = event.target.value;
@@ -721,8 +731,10 @@ const NonTheoIdeaWorkspace = memo(function NonTheoIdeaWorkspace({
               scheduleUpdate({ title: next });
             }}
             placeholder="Untitled idea"
-            className="min-h-0 resize-none border-0 bg-transparent px-0 py-0 text-[3.15rem] font-semibold leading-[0.95] text-foreground shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
             rows={1}
+            minHeight={38}
+            maxHeight={240}
+            className="min-h-0 resize-none overflow-hidden border-0 bg-transparent px-0 py-0 text-2xl font-semibold leading-tight tracking-tight break-words text-foreground shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <Select value={normalizedStatus} onValueChange={handleStatusChange}>
@@ -851,9 +863,290 @@ const NonTheoIdeaWorkspace = memo(function NonTheoIdeaWorkspace({
   );
 });
 
+interface CreateNonTheoIdeaWorkspaceProps {
+  thumbnailPreview: string | null;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
+  onClearThumbnail: () => void;
+}
+
+const CreateNonTheoIdeaWorkspace = memo(function CreateNonTheoIdeaWorkspace({
+  thumbnailPreview,
+  fileInputRef,
+  onFileSelect,
+  onClearThumbnail,
+}: CreateNonTheoIdeaWorkspaceProps) {
+  const [title, setTitle] = useAtom(newIdeaFields.title);
+  const [notes, setNotes] = useAtom(newIdeaFields.notes);
+  const [thumbnail, setThumbnail] = useAtom(newIdeaFields.draftThumbnail);
+  const [, setThumbnailReady] = useAtom(newIdeaFields.thumbnailReady);
+  const [resources, setResources] = useAtom(newIdeaFields.resources);
+  const [releaseDate, setReleaseDate] = useAtom(newIdeaFields.releaseDate);
+  const [status, setStatus] = useAtom(newIdeaFields.status);
+  const [resourceDraft, setResourceDraft] = useState("");
+  const notesSectionRef = useRef<HTMLDivElement | null>(null);
+  const notesHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [notesMaxHeight, setNotesMaxHeight] = useState(240);
+
+  const currentThumbnail = thumbnailPreview || thumbnail;
+  const filteredResources = resources.map((entry) => entry.trim()).filter(Boolean);
+  const recorded = status === "Recorded";
+  const releaseLabel = formatDateValue(releaseDate);
+  const normalizedStatus = status || "Concept";
+
+  const setNormalizedResources = (next: string[]) => {
+    const uniqueResources = Array.from(new Set(next.map((entry) => entry.trim()).filter(Boolean)));
+    setResources(uniqueResources.length ? uniqueResources : [""]);
+  };
+
+  const commitResourceDraft = () => {
+    const nextResources = splitResources(resourceDraft);
+    if (!nextResources.length) return;
+    setNormalizedResources([...filteredResources, ...nextResources]);
+    setResourceDraft("");
+  };
+
+  const removeResource = (resource: string) => {
+    const next = filteredResources.filter((entry) => entry !== resource);
+    setNormalizedResources(next);
+  };
+
+  const handleResourceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!resourceDraft.trim()) return;
+    if (event.key === "Enter" || event.key === "," || event.key === " ") {
+      event.preventDefault();
+      commitResourceDraft();
+    }
+  };
+
+  const handleThumbnailSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    onFileSelect(event);
+    setThumbnail("");
+    setThumbnailReady(true);
+  };
+
+  const clearThumbnail = () => {
+    onClearThumbnail();
+    setThumbnail("");
+    setThumbnailReady(false);
+  };
+
+  useEffect(() => {
+    const section = notesSectionRef.current;
+    if (!section) return;
+
+    const updateNotesMaxHeight = () => {
+      const headerHeight = notesHeaderRef.current?.offsetHeight ?? 0;
+      const availableHeight = section.clientHeight - headerHeight - 12;
+      setNotesMaxHeight(Math.max(availableHeight, 140));
+    };
+
+    updateNotesMaxHeight();
+
+    const observer = new ResizeObserver(updateNotesMaxHeight);
+    observer.observe(section);
+    if (notesHeaderRef.current) observer.observe(notesHeaderRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="relative aspect-video shrink-0 bg-muted">
+        {currentThumbnail ? (
+          <img
+            src={currentThumbnail}
+            alt={title || "Idea thumbnail"}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-full w-full items-center justify-center text-sm text-muted-foreground transition-colors hover:bg-muted/70"
+          >
+            No thumbnail
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleThumbnailSelect}
+          className="hidden"
+        />
+        <div className="absolute right-4 bottom-4 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={thumbnailOverlayClass}
+          >
+            <span className="inline-flex items-center gap-1">
+              <UploadIcon className="h-4 w-4" />
+              {currentThumbnail ? "Replace" : "Add"}
+            </span>
+          </button>
+          {currentThumbnail ? (
+            <button
+              type="button"
+              onClick={clearThumbnail}
+              className="rounded-md bg-background/85 p-1.5 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background hover:text-foreground"
+              aria-label="Clear thumbnail"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+        <span
+          className={cn(
+            tagStyles,
+            getTagVariantClass(recorded ? "primary" : "muted"),
+            thumbnailOverlayClass,
+            "absolute bottom-4 left-4",
+          )}
+        >
+          <CheckCircleIcon weight={recorded ? "fill" : "regular"} className="h-4 w-4" />
+          {recorded ? "Recorded" : "Not recorded"}
+        </span>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-6 py-6">
+        <div className="space-y-4">
+          <AutosizeTextarea
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Untitled idea"
+            rows={1}
+            minHeight={38}
+            maxHeight={240}
+            className="min-h-0 resize-none overflow-hidden border-0 bg-transparent px-0 py-0 text-2xl font-semibold leading-tight tracking-tight break-words text-foreground shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select
+              value={normalizedStatus}
+              onValueChange={(value) => setStatus(value as typeof status)}
+            >
+              <SelectTrigger className={topControlClassName}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Concept">Concept</SelectItem>
+                <SelectItem value="To Stream">To Stream</SelectItem>
+                <SelectItem value="Recorded">Recorded</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    topControlClassName,
+                    "justify-between font-normal text-foreground hover:bg-muted/20 focus-visible:border-border focus-visible:ring-0",
+                  )}
+                >
+                  <span className="truncate">{releaseLabel || "Release Date"}</span>
+                  <CaretDownIcon className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-auto p-0"
+                align="start"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+              >
+                <Calendar
+                  mode="single"
+                  selected={parseDateValue(releaseDate)}
+                  onSelect={(date) => setReleaseDate(date ? format(date, "yyyy-MM-dd") : "")}
+                  defaultMonth={parseDateValue(releaseDate)}
+                />
+                {releaseDate ? (
+                  <div className="border-t border-border/50 p-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => setReleaseDate("")}
+                    >
+                      Clear date
+                    </Button>
+                  </div>
+                ) : null}
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <div className="shrink-0 space-y-3">
+          <div className="space-y-3">
+            {filteredResources.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {filteredResources.map((resource) => (
+                  <span
+                    key={resource}
+                    className="group relative inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 py-1 pl-2 pr-2 text-xs font-medium text-primary transition-[padding] hover:pr-6"
+                  >
+                    <LinkSimpleIcon weight="bold" className="h-3 w-3" />
+                    <span className="max-w-[220px] truncate">{resource}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeResource(resource)}
+                      className="absolute top-1/2 right-1 -translate-y-1/2 rounded-full p-0.5 text-primary/70 opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+                      aria-label={`Remove ${resource}`}
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <Input
+              value={resourceDraft}
+              onChange={(event) => setResourceDraft(event.target.value)}
+              onBlur={commitResourceDraft}
+              onKeyDown={handleResourceKeyDown}
+              onPaste={(event) => {
+                const pastedText = event.clipboardData.getData("text");
+                const nextResources = splitResources(pastedText);
+                if (!nextResources.length) return;
+                event.preventDefault();
+                setNormalizedResources([...filteredResources, ...nextResources]);
+                setResourceDraft("");
+              }}
+              placeholder={filteredResources.length ? "Paste more links" : "Paste links"}
+              className="h-11 rounded-lg border-0 bg-transparent px-0 text-sm shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+            />
+          </div>
+        </div>
+
+        <div ref={notesSectionRef} className="flex min-h-0 flex-1 flex-col gap-3">
+          <div ref={notesHeaderRef} className="flex items-center gap-2">
+            <NoteIcon weight="bold" className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Notes</span>
+          </div>
+          <AutosizeTextarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Loose thoughts, beats, punchlines…"
+            minHeight={140}
+            maxHeight={notesMaxHeight}
+            className="h-full resize-none overflow-y-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm leading-relaxed text-foreground shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) {
   const queryClient = useQueryClient();
+  const [editMode, setEditMode] = useAtom(editIdeaModeAtom);
   const [isEditing, setIsEditing] = useAtom(editIdeaIsEditingAtom);
+  const [newDraft, setNewDraft] = useAtom(newIdeaDraftAtom);
+  const [, setEditDraft] = useAtom(editIdeaDraftAtom);
+  const [, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const title = useAtomValue(editIdeaFields.title);
   const description = useAtomValue(editIdeaFields.description);
   const notes = useAtomValue(editIdeaFields.notes);
@@ -872,10 +1165,12 @@ export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) 
   const { isTheoMode } = useTheoMode();
   const isSHeld = useKeyHold("S");
   const resourceList = resources.length ? resources : [""];
+  const showCreateMode = !isTheoMode && editMode === "create";
 
   const { scheduleUpdate, isPending, isSuccess } = useScheduledUpdate();
 
   const {
+    file: thumbnailFile,
     preview: thumbnailPreview,
     fileInputRef,
     handleFileSelect: onFileSelect,
@@ -906,6 +1201,12 @@ export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) 
   });
   const { mutateAsync: deleteIdea, isPending: isDeletingIdea } = useMutation({
     mutationFn: useConvexMutation(api.ideas.mutations.remove),
+  });
+  const { mutateAsync: createIdea, isPending: isCreatingIdea } = useMutation({
+    mutationFn: useConvexMutation(api.ideas.mutations.create),
+  });
+  const { mutateAsync: moveIdea } = useMutation({
+    mutationFn: useConvexMutation(api.ideas.mutations.move),
   });
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -938,6 +1239,84 @@ export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) 
       toast.error(error instanceof Error ? error.message : "Failed to delete idea");
     }
   };
+
+  const handleCreateIdea = async () => {
+    const trimmedTitle = newDraft.title.trim();
+    if (!trimmedTitle) {
+      toast.error("Title is required");
+      return;
+    }
+
+    try {
+      const trimmedNotes = newDraft.notes.trim();
+      const trimmedThumbnail = newDraft.draftThumbnail.trim();
+      const cleanedResources = Array.from(
+        new Set(newDraft.resources.map((resource) => resource.trim()).filter(Boolean)),
+      );
+      let finalThumbnail = trimmedThumbnail;
+
+      if (thumbnailFile) {
+        finalThumbnail = (await uploadFile()) ?? "";
+      }
+
+      const finalStatus = newDraft.status || "Concept";
+      const ideaId = await createIdea({
+        title: trimmedTitle,
+        description: "",
+        notes: trimmedNotes || "",
+        draftThumbnail: finalThumbnail || undefined,
+        thumbnailReady: Boolean(finalThumbnail),
+        resources: cleanedResources,
+        releaseDate: newDraft.releaseDate || undefined,
+        status: finalStatus,
+      });
+
+      if (finalStatus === "To Stream") {
+        const existingIdeas = await queryClient.ensureQueryData(
+          convexQuery(api.ideas.queries.list, {}),
+        );
+        const toStreamOrder = existingIdeas.filter(
+          (currentIdea) => currentIdea.column === "To Stream",
+        ).length;
+
+        await moveIdea({
+          id: ideaId,
+          column: "To Stream",
+          order: toStreamOrder,
+          status: "To Stream",
+        });
+      }
+
+      setEditDraft(
+        createIdeaDraftFromIdea({
+          _id: ideaId,
+          title: trimmedTitle,
+          description: "",
+          notes: trimmedNotes,
+          draftThumbnail: finalThumbnail,
+          thumbnailReady: Boolean(finalThumbnail),
+          resources: cleanedResources,
+          releaseDate: newDraft.releaseDate,
+          status: finalStatus,
+        }),
+      );
+      setEditMode("edit");
+      setEditIdeaId(ideaId);
+      setIsEditing(false);
+      setNewDraft(defaultIdeaDraft);
+      clearFileUpload();
+      toast.success("Idea added");
+      await queryClient.invalidateQueries();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add idea");
+    }
+  };
+
+  useEffect(() => {
+    if (open && idea) {
+      setEditMode("edit");
+    }
+  }, [idea, open, setEditMode]);
 
   useHotkey(
     "E",
@@ -981,26 +1360,60 @@ export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) 
     },
   );
 
+  useHotkey(
+    "Mod+Enter",
+    (event) => {
+      if (event.isComposing) return;
+      event.preventDefault();
+      void handleCreateIdea();
+    },
+    {
+      enabled: open && showCreateMode && !isCreatingIdea,
+      requireReset: true,
+    },
+  );
+
   if (!open) return null;
 
   if (!isTheoMode) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/40 bg-background px-4 py-3">
-          <p className="text-sm font-medium text-foreground">Preview</p>
+          <p className="text-sm font-medium text-foreground">
+            {showCreateMode ? "Add Idea" : "Edit Idea"}
+          </p>
           <div className="flex items-center gap-2">
-            {isPending ? (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <SpinnerIcon weight="bold" className="h-3.5 w-3.5 animate-spin" />
-                <span>Saving...</span>
-              </div>
-            ) : null}
-            {isSuccess ? (
-              <Badge variant="link" className="rounded-md px-3 py-2">
-                <CheckIcon weight="bold" className="h-4 w-4" />
-                Saved
-              </Badge>
-            ) : null}
+            {showCreateMode ? (
+              <Button
+                type="button"
+                onClick={() => void handleCreateIdea()}
+                disabled={isCreatingIdea || !newDraft.title.trim()}
+              >
+                {isCreatingIdea ? (
+                  <>
+                    <SpinnerIcon weight="bold" className="h-4 w-4 animate-spin" />
+                    Adding
+                  </>
+                ) : (
+                  "Done"
+                )}
+              </Button>
+            ) : (
+              <>
+                {isPending ? (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <SpinnerIcon weight="bold" className="h-3.5 w-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </div>
+                ) : null}
+                {isSuccess ? (
+                  <Badge variant="link" className="rounded-md px-3 py-2">
+                    <CheckIcon weight="bold" className="h-4 w-4" />
+                    Saved
+                  </Badge>
+                ) : null}
+              </>
+            )}
             <Button
               onClick={() => handleOpenChange(false)}
               variant="outline"
@@ -1013,14 +1426,23 @@ export function EditIdeaPanel({ idea, open, onOpenChange }: EditIdeaPanelProps) 
           </div>
         </div>
 
-        <NonTheoIdeaWorkspace
-          scheduleUpdate={scheduleUpdate}
-          thumbnailPreview={thumbnailPreview}
-          fileInputRef={fileInputRef}
-          onFileSelect={onFileSelect}
-          onClearThumbnail={clearFileUpload}
-          uploadFile={uploadFile}
-        />
+        {showCreateMode ? (
+          <CreateNonTheoIdeaWorkspace
+            thumbnailPreview={thumbnailPreview}
+            fileInputRef={fileInputRef}
+            onFileSelect={onFileSelect}
+            onClearThumbnail={clearFileUpload}
+          />
+        ) : (
+          <NonTheoIdeaWorkspace
+            scheduleUpdate={scheduleUpdate}
+            thumbnailPreview={thumbnailPreview}
+            fileInputRef={fileInputRef}
+            onFileSelect={onFileSelect}
+            onClearThumbnail={clearFileUpload}
+            uploadFile={uploadFile}
+          />
+        )}
       </div>
     );
   }

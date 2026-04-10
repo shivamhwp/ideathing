@@ -483,18 +483,8 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
                 <NotesField />
               </>
             ) : (
-              <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
-                <div className="space-y-1">
-                  <h2 className="font-serif text-3xl tracking-tight text-foreground">
-                    Capture the idea first.
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Title and notes first. Everything else can be added from the preview sidebar
-                    after you save.
-                  </p>
-                </div>
-
-                <div className="space-y-4 rounded-[1.75rem] border border-border/60 bg-card/80 p-5 shadow-sm">
+              <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+                <div className="space-y-4">
                   <TitleField autoFocus id="title" value={title} onChange={setTitle} />
                   <NotesField />
                 </div>

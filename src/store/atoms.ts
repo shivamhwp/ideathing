@@ -93,12 +93,26 @@ export const editIdeaDraftAtom = atom<IdeaDraft>(defaultIdeaDraft);
 export const editIdeaIdAtom = atom<Id<"ideas"> | null>(null);
 export const editIdeaOpenAtom = atom(false);
 export const editIdeaIsEditingAtom = atom(false);
+export const editIdeaModeAtom = atom<"edit" | "create">("edit");
 export const openAddIdeaModalAtom = atom(null, (get, set) => {
   const draft = get(newIdeaDraftAtom);
   set(newIdeaDraftAtom, draft.ideaId ? defaultIdeaDraft : draft);
   set(editIdeaOpenAtom, false);
   set(editIdeaIdAtom, null);
   set(addIdeaModalOpenAtom, true);
+});
+export const openCreateIdeaSidebarAtom = atom(null, (get, set) => {
+  const draft = get(newIdeaDraftAtom);
+  set(newIdeaDraftAtom, {
+    ...draft,
+    ideaId: null,
+    status: draft.status || "Concept",
+  });
+  set(addIdeaModalOpenAtom, false);
+  set(editIdeaIsEditingAtom, false);
+  set(editIdeaIdAtom, null);
+  set(editIdeaModeAtom, "create");
+  set(editIdeaOpenAtom, true);
 });
 
 type FieldAtoms = {
