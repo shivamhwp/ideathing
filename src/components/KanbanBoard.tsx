@@ -24,8 +24,9 @@ import type { Doc, Id } from "convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useRef, useState } from "react";
+import { formatDateValue } from "@/components/idea-form/date-utils";
 import { Button } from "@/components/ui/button";
-import { KANBAN_COMPACT_WIDTH_PX } from "@/components/idea-grid";
+import { KANBAN_COMPACT_WIDTH_PX, NON_THEO_IDEA_CARD_MIN_WIDTH_PX } from "@/components/idea-grid";
 import {
   addIdeaModalOpenAtom,
   commandMenuOpenAtom,
@@ -37,7 +38,6 @@ import {
 } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 import { useElementWidth } from "@/hooks/useElementWidth";
-import { AddIdeaModal } from "./AddIdeaModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { ShareIdeasModal } from "./ShareIdeasModal";
 import { Badge } from "./ui/badge";
@@ -46,13 +46,57 @@ export type Idea = Doc<"ideas">;
 
 const getIdeaDomId = (ideaId: Id<"ideas">) => `idea-card-${ideaId}`;
 
+const NonTheoDragPreview = ({ idea }: { idea: Idea }) => {
+  const releaseLabel = idea.releaseDate ? formatDateValue(idea.releaseDate) : "No release date";
+  const recordedLabel = idea.status === "Recorded" ? "Recorded" : "Not recorded";
+  const hasThumbnail = Boolean(idea.draftThumbnail);
+  const thumbnailLabel = hasThumbnail ? "Thumbnail ready" : "No thumbnail";
+
+  return (
+    <div
+      className="rounded-xl border border-border/70 bg-card/95 p-3 shadow-2xl"
+      style={{ width: `${NON_THEO_IDEA_CARD_MIN_WIDTH_PX}px` }}
+    >
+      <div className="flex min-h-[104px] flex-col justify-between gap-3">
+        <div className="space-y-1.5">
+          <h3 className="line-clamp-3 text-[15px] font-medium leading-snug text-foreground/70">
+            {idea.title}
+          </h3>
+          <p className="text-xs font-medium text-foreground/50">{releaseLabel}</p>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-[10px] font-medium",
+              idea.status === "Recorded"
+                ? "bg-primary/15 text-primary"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            {recordedLabel}
+          </span>
+          <span
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-[10px] font-medium",
+              hasThumbnail ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+            )}
+          >
+            {thumbnailLabel}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function KanbanBoard() {
   const { isLoaded, isSignedIn } = useUser();
 
   const setEditDraft = useSetAtom(editIdeaDraftAtom);
   const [, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
-  const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
+  const isAddModalOpen = useAtomValue(addIdeaModalOpenAtom);
   const [selectionMode, setSelectionMode] = useAtom(ideaSelectionModeAtom);
   const [activeId, setActiveId] = useState<Id<"ideas"> | null>(null);
   const [focusedIdeaId, setFocusedIdeaId] = useState<Id<"ideas"> | null>(null);
@@ -384,19 +428,8 @@ export function KanbanBoard() {
           }}
         >
           {activeIdea ? (
-            <div className="w-48 rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none">
-              <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 ring-2 ring-primary/30">
-                {activeIdea.draftThumbnail && (
-                  <img
-                    src={activeIdea.draftThumbnail}
-                    alt={activeIdea.title}
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
-              <h3 className="text-sm font-medium text-foreground line-clamp-2 px-0.5">
-                {activeIdea.title}
-              </h3>
+            <div className="pointer-events-none scale-[1.02] opacity-95">
+              <NonTheoDragPreview idea={activeIdea} />
             </div>
           ) : null}
         </DragOverlay>
@@ -415,9 +448,6 @@ export function KanbanBoard() {
   return (
     <div className="flex h-full flex-col flex-1 min-h-0 min-w-0 gap-4 select-none overflow-hidden">
       {boardContent}
-
-      <AddIdeaModal open={!isInteractionLocked && isAddModalOpen} onOpenChange={setAddModalOpen} />
-
       {!isInteractionLocked && selectionMode && selectedIds.length > 0 && (
         <div className="fixed inset-x-4 bottom-4 z-40 animate-in fade-in duration-150 sm:inset-x-auto sm:bottom-8 sm:right-8">
           <div className="w-full rounded-3xl border border-border/70 bg-popover/95 p-4 shadow-2xl backdrop-blur-xl sm:w-[280px]">

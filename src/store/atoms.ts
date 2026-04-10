@@ -81,6 +81,10 @@ export const defaultIdeaDraft: IdeaDraft = {
 export const ideaSelectionModeAtom = atom(false);
 export const commandMenuOpenAtom = atom(false);
 export const addIdeaModalOpenAtom = atom(false);
+export const workspaceViewModeAtom = atomWithStorage<"board" | "calendar">(
+  "ideathing-workspace-view",
+  "board",
+);
 
 export const newIdeaDraftAtom = atomWithStorage<IdeaDraft>("ideathing-draft", defaultIdeaDraft);
 

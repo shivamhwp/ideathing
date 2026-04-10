@@ -7,7 +7,6 @@ import type { Id } from "convex/_generated/dataModel";
 import { useAtom, useAtomValue } from "jotai";
 import { useRef, useState } from "react";
 import { VirtuosoGrid, type VirtuosoGridHandle } from "react-virtuoso";
-import { AddIdeaModal } from "@/components/AddIdeaModal";
 import { IdeaCard } from "@/components/IdeaCard";
 import { ShareIdeasModal } from "@/components/ShareIdeasModal";
 import { getAutoFitColumnCount, THEO_QUEUE_GAP_PX } from "@/components/idea-grid";
@@ -28,7 +27,7 @@ export function TheoIdeaQueue() {
   const { data: ideas, isLoading } = useQuery(convexQuery(api.ideas.queries.listTheoQueue, {}));
   const [, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
-  const [isAddModalOpen, setAddModalOpen] = useAtom(addIdeaModalOpenAtom);
+  const isAddModalOpen = useAtomValue(addIdeaModalOpenAtom);
   const [selectionMode, setSelectionMode] = useAtom(ideaSelectionModeAtom);
   const [, setEditDraft] = useAtom(editIdeaDraftAtom);
   const [, setEditMode] = useAtom(editIdeaIsEditingAtom);
@@ -255,9 +254,6 @@ export function TheoIdeaQueue() {
           </div>
         </div>
       ) : null}
-
-      <AddIdeaModal open={isAddModalOpen} onOpenChange={setAddModalOpen} />
-
       <ShareIdeasModal
         open={shareModalOpen}
         onOpenChange={setShareModalOpen}

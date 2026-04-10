@@ -1,17 +1,25 @@
 import { convexQuery } from "@convex-dev/react-query";
-import { CassetteTapeIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { CassetteTapeIcon, ShareNetworkIcon, SpinnerIcon, TrashIcon } from "@phosphor-icons/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
 import { useSetAtom } from "jotai";
 import { useRef, useState } from "react";
 import { VirtuosoGrid, type VirtuosoGridHandle } from "react-virtuoso";
 import { EditIdeaPanel } from "@/components/EditIdeaPanel";
 import { IdeaCard } from "@/components/IdeaCard";
-import { getAutoFitColumnCount, THEO_QUEUE_GAP_PX } from "@/components/idea-grid";
+import { ShareIdeasModal } from "@/components/ShareIdeasModal";
+import {
+  getAutoFitColumnCount,
+  NON_THEO_IDEA_CARD_MIN_WIDTH_PX,
+  THEO_QUEUE_GAP_PX,
+} from "@/components/idea-grid";
 import type { Idea } from "@/components/KanbanBoard";
 import { TopNav } from "@/components/TopNav";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import { useTheoMode } from "@/hooks/useTheoMode";
@@ -23,6 +31,8 @@ export const Route = createFileRoute("/_authenticated/recorded")({
 
 function RecordedIdeasPage() {
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Id<"ideas">[]>([]);
   const [focusedIdeaId, setFocusedIdeaId] = useState<Idea["_id"] | null>(null);
   const gridRef = useRef<VirtuosoGridHandle>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -34,8 +44,14 @@ function RecordedIdeasPage() {
     staleTime: 61 * 60 * 1000, // 1 hour + 1 minute
   });
   const recordedIdeas = recorded ?? [];
+  const isSelectionMode = selectedIdeaIds.length > 0;
+  const selectedIdSet = new Set(selectedIdeaIds);
   const gridWidth = useElementWidth(gridContainerRef);
-  const gridColumns = getAutoFitColumnCount(gridWidth, THEO_QUEUE_GAP_PX);
+  const gridColumns = getAutoFitColumnCount(
+    gridWidth,
+    THEO_QUEUE_GAP_PX,
+    NON_THEO_IDEA_CARD_MIN_WIDTH_PX,
+  );
 
   const getIdeaDomId = (ideaId: Idea["_id"]) => `idea-card-${ideaId}`;
 
@@ -50,7 +66,8 @@ function RecordedIdeasPage() {
       behavior: "smooth",
     });
   };
-  const canUseMotionHotkeys = !isCheckingMode && !isTheoMode && !isLoading && !editingIdea;
+  const canUseMotionHotkeys =
+    !isCheckingMode && !isTheoMode && !isLoading && !editingIdea && !isSelectionMode;
   const moveFocus = (step: number) => {
     if (recordedIdeas.length === 0) return;
     const currentIndex = recordedIdeas.findIndex((idea) => idea._id === focusedIdeaId);
@@ -117,10 +134,25 @@ function RecordedIdeasPage() {
     },
   );
 
+  const toggleSelectedIdea = (ideaId: Id<"ideas">) => {
+    setSelectedIdeaIds((prev) =>
+      prev.includes(ideaId)
+        ? prev.filter((selectedId) => selectedId !== ideaId)
+        : [...prev, ideaId],
+    );
+  };
+
+  const clearSelection = () => {
+    setSelectedIdeaIds([]);
+    setShareModalOpen(false);
+  };
+
   if (isCheckingMode) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-background">
-        <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+      <div className="h-dvh overflow-hidden bg-background">
+        <div className="flex h-full items-center justify-center">
+          <SpinnerIcon className="w-6 h-6 text-muted-foreground animate-spin" />
+        </div>
       </div>
     );
   }
@@ -131,8 +163,8 @@ function RecordedIdeasPage() {
 
   if (isLoading || !recorded) {
     return (
-      <div className="min-h-dvh flex flex-col bg-background">
-        <div className="px-4 py-6 flex flex-col flex-1 min-h-0 gap-4">
+      <div className="h-dvh overflow-hidden bg-background">
+        <div className="px-4 py-6 flex h-full flex-col flex-1 min-h-0 gap-4">
           <div className="h-[40vh] rounded-2xl border border-border/60 bg-muted/20 animate-pulse" />
         </div>
       </div>
@@ -154,7 +186,7 @@ function RecordedIdeasPage() {
           data={recorded}
           computeItemKey={(_, idea) => idea._id}
           listClassName="flex flex-wrap content-start gap-4"
-          itemClassName="flex min-w-[18rem] shrink-0 grow basis-[18rem]"
+          itemClassName="flex min-w-[15rem] shrink-0 basis-[15rem]"
           increaseViewportBy={{ top: 500, bottom: 500 }}
           itemContent={(_, idea) => (
             <IdeaCard
@@ -164,6 +196,9 @@ function RecordedIdeasPage() {
                 setDraft(createIdeaDraftFromIdea(idea));
                 setEditingIdea(idea);
               }}
+              selectionMode={isSelectionMode}
+              selected={selectedIdSet.has(idea._id)}
+              onToggleSelect={toggleSelectedIdea}
               isKeyboardFocused={focusedIdeaId === idea._id}
               domId={getIdeaDomId(idea._id)}
             />
@@ -173,8 +208,8 @@ function RecordedIdeasPage() {
     );
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background">
-      <div className="px-4 py-4 flex flex-col flex-1 min-h-0 gap-4">
+    <div className="h-dvh overflow-hidden bg-background">
+      <div className="px-4 py-4 flex h-full flex-col flex-1 min-h-0 gap-4">
         <TopNav />
         <section className="flex-1 min-h-0 rounded-2xl border border-border/60 bg-card/40 p-4">
           {editingIdea ? (
@@ -185,9 +220,9 @@ function RecordedIdeasPage() {
               <ResizableHandle withHandle />
               <ResizablePanel
                 defaultSize="32%"
-                minSize="24rem"
+                minSize="26rem"
                 maxSize="45%"
-                className="min-w-[22rem]"
+                className="min-w-[26rem]"
               >
                 <div className="h-full min-h-0 overflow-hidden rounded-xl border border-border/50 bg-background">
                   <EditIdeaPanel
@@ -203,6 +238,56 @@ function RecordedIdeasPage() {
             recordedContent
           )}
         </section>
+        {isSelectionMode ? (
+          <div className="fixed inset-x-4 bottom-4 z-40 animate-in fade-in duration-150 sm:inset-x-auto sm:bottom-8 sm:right-8">
+            <div className="w-full rounded-3xl border border-border/70 bg-popover/95 p-4 shadow-2xl backdrop-blur-xl sm:w-[280px]">
+              <div className="flex items-center justify-between gap-2 pb-3 text-xs text-muted-foreground">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-xs">Selected</span>
+                  <Badge
+                    variant="secondary"
+                    className="rounded-sm bg-secondary/40 text-xs text-secondary-foreground"
+                  >
+                    {selectedIdeaIds.length}
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearSelection}
+                  className="cursor-pointer text-xs font-medium"
+                >
+                  Deselect all
+                </Button>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={() => setShareModalOpen(true)}
+                  variant="secondary"
+                  className="h-10 w-full justify-start gap-2 rounded-full bg-secondary/40 text-secondary-foreground hover:bg-secondary/60"
+                >
+                  <ShareNetworkIcon className="h-4 w-4" weight="duotone" />
+                  Share ideas
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={clearSelection}
+                  className="h-10 w-full justify-start gap-2 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20"
+                >
+                  <TrashIcon className="h-4 w-4" weight="duotone" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <ShareIdeasModal
+          open={shareModalOpen}
+          onOpenChange={setShareModalOpen}
+          selectedIdeaIds={selectedIdeaIds}
+          onClearSelection={() => setSelectedIdeaIds([])}
+        />
       </div>
     </div>
   );

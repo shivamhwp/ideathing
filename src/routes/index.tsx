@@ -6,11 +6,12 @@ import { api } from "convex/_generated/api";
 import { useAtom } from "jotai";
 import { AppCommandCenter } from "@/components/AppCommandCenter";
 import { EditIdeaPanel } from "@/components/EditIdeaPanel";
+import { IdeaReleaseCalendar } from "@/components/IdeaReleaseCalendar";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { TheoIdeaQueue } from "@/components/TheoIdeaQueue";
 import { TopNav } from "@/components/TopNav";
 import { useTheoMode } from "@/hooks/useTheoMode";
-import { editIdeaIdAtom, editIdeaOpenAtom } from "@/store/atoms";
+import { editIdeaIdAtom, editIdeaOpenAtom, workspaceViewModeAtom } from "@/store/atoms";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 export const Route = createFileRoute("/")({
@@ -21,6 +22,7 @@ function App() {
   const { isTheoMode, isCheckingMode } = useTheoMode();
   const [editIdeaId, setEditIdeaId] = useAtom(editIdeaIdAtom);
   const [isEditOpen, setIsEditOpen] = useAtom(editIdeaOpenAtom);
+  const [workspaceViewMode] = useAtom(workspaceViewModeAtom);
   const boardIdeasQuery = useQuery({
     ...convexQuery(api.ideas.queries.list, {}),
     enabled: !isTheoMode && isEditOpen,
@@ -33,7 +35,13 @@ function App() {
   const activeIdea = editIdeaId
     ? (currentIdeas.find((idea) => idea._id === editIdeaId) ?? null)
     : null;
-  const boardView = isTheoMode ? <TheoIdeaQueue /> : <KanbanBoard />;
+  const boardView = isTheoMode ? (
+    <TheoIdeaQueue />
+  ) : workspaceViewMode === "calendar" ? (
+    <IdeaReleaseCalendar />
+  ) : (
+    <KanbanBoard />
+  );
 
   if (isCheckingMode) {
     return (
@@ -56,7 +64,12 @@ function App() {
               </div>
             </ResizablePanel>
             <ResizableHandle className="mx-2" />
-            <ResizablePanel defaultSize="30%" minSize="30%" maxSize="65%" className="min-w-0">
+            <ResizablePanel
+              defaultSize="30%"
+              minSize="26rem"
+              maxSize="65%"
+              className="min-w-[26rem]"
+            >
               <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-card/60">
                 <EditIdeaPanel
                   key={editIdeaId ?? "edit-idea"}

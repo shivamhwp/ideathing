@@ -38,7 +38,16 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheoMode } from "@/hooks/useTheoMode";
-import { defaultIdeaDraft, newIdeaDraftAtom, newIdeaFields } from "@/store/atoms";
+import {
+  createIdeaDraftFromIdea,
+  defaultIdeaDraft,
+  editIdeaDraftAtom,
+  editIdeaIdAtom,
+  editIdeaIsEditingAtom,
+  editIdeaOpenAtom,
+  newIdeaDraftAtom,
+  newIdeaFields,
+} from "@/store/atoms";
 
 interface AddIdeaModalProps {
   open: boolean;
@@ -67,7 +76,11 @@ const DatesSection = memo(function DatesSection() {
               <CaretDownIcon className="w-4 h-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
+          <PopoverContent
+            className="w-auto p-0"
+            align="start"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
             <Calendar
               mode="single"
               selected={parseDateValue(vodRecordingDate)}
@@ -93,7 +106,11 @@ const DatesSection = memo(function DatesSection() {
               <CaretDownIcon className="w-4 h-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
+          <PopoverContent
+            className="w-auto p-0"
+            align="start"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
             <Calendar
               mode="single"
               selected={parseDateValue(releaseDate)}
@@ -263,6 +280,10 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
   const unsponsored = useAtomValue(newIdeaFields.unsponsored);
   const { isTheoMode } = useTheoMode();
   const setNewDraft = useSetAtom(newIdeaDraftAtom);
+  const setEditDraft = useSetAtom(editIdeaDraftAtom);
+  const setEditIdeaId = useSetAtom(editIdeaIdAtom);
+  const setEditIdeaOpen = useSetAtom(editIdeaOpenAtom);
+  const setEditIdeaIsEditing = useSetAtom(editIdeaIsEditingAtom);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const resourceList = resources.length ? resources : [""];
 
@@ -289,27 +310,29 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
 
     setIsSubmitting(true);
     try {
-      const trimmedDescription = description.trim();
+      const trimmedDescription = isTheoMode ? description.trim() : "";
       const trimmedNotes = notes.trim();
       const trimmedThumbnail = thumbnail.trim();
-      const cleanedResources = resourceList.map((resource) => resource.trim()).filter(Boolean);
+      const cleanedResources = isTheoMode
+        ? resourceList.map((resource) => resource.trim()).filter(Boolean)
+        : [];
 
       let finalThumbnail: string | undefined;
-      if (thumbnailFile) {
+      if (isTheoMode && thumbnailFile) {
         finalThumbnail = (await uploadFile()) ?? undefined;
-      } else if (trimmedThumbnail) {
+      } else if (isTheoMode && trimmedThumbnail) {
         finalThumbnail = trimmedThumbnail;
       }
 
-      await createIdea({
+      const ideaId = await createIdea({
         title: trimmedTitle,
         description: trimmedDescription || "",
         notes: trimmedNotes || "",
-        draftThumbnail: finalThumbnail,
-        thumbnailReady: thumbnailReady || Boolean(finalThumbnail),
+        draftThumbnail: isTheoMode ? finalThumbnail : undefined,
+        thumbnailReady: isTheoMode ? thumbnailReady || Boolean(finalThumbnail) : undefined,
         resources: cleanedResources,
-        vodRecordingDate: vodRecordingDate || undefined,
-        releaseDate: releaseDate || undefined,
+        vodRecordingDate: isTheoMode ? vodRecordingDate || undefined : undefined,
+        releaseDate: isTheoMode ? releaseDate || undefined : undefined,
         ...(isTheoMode && {
           owner: owner || ownerValues[7],
           channel: channel || channelValues[0],
@@ -321,6 +344,20 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
       });
 
       toast.success("Idea added successfully");
+      if (!isTheoMode) {
+        setEditDraft(
+          createIdeaDraftFromIdea({
+            _id: ideaId,
+            title: trimmedTitle,
+            description: trimmedDescription,
+            notes: trimmedNotes,
+            status: "Concept",
+          }),
+        );
+        setEditIdeaId(ideaId);
+        setEditIdeaIsEditing(false);
+        setEditIdeaOpen(true);
+      }
       clearAll();
       onOpenChange(false);
     } catch (error) {
@@ -371,7 +408,7 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 border-border/40 p-0 sm:!w-full sm:!max-w-3xl"
+        className={`!flex !max-h-[92dvh] !w-[calc(100vw-1rem)] !flex-col overflow-hidden gap-0 border-border/40 p-0 sm:!w-full ${isTheoMode ? "sm:!max-w-3xl" : "sm:!max-w-2xl"}`}
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Add Idea</DialogTitle>
@@ -403,48 +440,66 @@ export function AddIdeaModal({ open, onOpenChange }: AddIdeaModalProps) {
           </div>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-            {/* Title & Description */}
-            <div className="space-y-4">
-              <TitleField autoFocus id="title" value={title} onChange={setTitle} />
-              <DescriptionField id="description" value={description} onChange={setDescription} />
-            </div>
-
-            {/* Resources */}
-            <ResourcesSection id="resources" resources={resources} onChange={setResources} />
-
-            {/* Thumbnail + Dates */}
-            <div className={isTheoMode ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : "space-y-4"}>
-              <ThumbnailField
-                thumbnail={thumbnail}
-                thumbnailReady={thumbnailReady}
-                showPreview={Boolean(thumbnailPreview)}
-                previewUrl={thumbnailPreview}
-                fileInputRef={fileInputRef}
-                onFileSelect={(event) => {
-                  onFileSelect(event);
-                  setThumbnail("");
-                  setThumbnailReady(true);
-                }}
-                onClear={() => {
-                  clearFileUpload();
-                  setThumbnail("");
-                  setThumbnailReady(false);
-                }}
-                onThumbnailChange={setThumbnail}
-                onThumbnailReadyChange={setThumbnailReady}
-                labelId="thumbnail-ready"
-              />
-              <DatesSection />
-            </div>
-
-            {isTheoMode && (
+            {isTheoMode ? (
               <>
+                <div className="space-y-4">
+                  <TitleField autoFocus id="title" value={title} onChange={setTitle} />
+                  <DescriptionField
+                    id="description"
+                    value={description}
+                    onChange={setDescription}
+                  />
+                </div>
+
+                <ResourcesSection id="resources" resources={resources} onChange={setResources} />
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <ThumbnailField
+                    thumbnail={thumbnail}
+                    thumbnailReady={thumbnailReady}
+                    showPreview={Boolean(thumbnailPreview)}
+                    previewUrl={thumbnailPreview}
+                    fileInputRef={fileInputRef}
+                    onFileSelect={(event) => {
+                      onFileSelect(event);
+                      setThumbnail("");
+                      setThumbnailReady(true);
+                    }}
+                    onClear={() => {
+                      clearFileUpload();
+                      setThumbnail("");
+                      setThumbnailReady(false);
+                    }}
+                    onThumbnailChange={setThumbnail}
+                    onThumbnailReadyChange={setThumbnailReady}
+                    labelId="thumbnail-ready"
+                  />
+                  <DatesSection />
+                </div>
+
                 <OwnerChannelSection />
                 <LabelPotentialAdReadSection />
                 <UnsponsoredToggle />
+                <NotesField />
               </>
+            ) : (
+              <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
+                <div className="space-y-1">
+                  <h2 className="font-serif text-3xl tracking-tight text-foreground">
+                    Capture the idea first.
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Title and notes first. Everything else can be added from the preview sidebar
+                    after you save.
+                  </p>
+                </div>
+
+                <div className="space-y-4 rounded-[1.75rem] border border-border/60 bg-card/80 p-5 shadow-sm">
+                  <TitleField autoFocus id="title" value={title} onChange={setTitle} />
+                  <NotesField />
+                </div>
+              </div>
             )}
-            <NotesField />
           </div>
         </form>
       </DialogContent>

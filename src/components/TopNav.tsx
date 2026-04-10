@@ -1,32 +1,50 @@
 import { SignInButton } from "@clerk/tanstack-react-start";
-import { GearSixIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+  CalendarDotsIcon,
+  ColumnsPlusRightIcon,
+  GearSixIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
-import { useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { NotionConnect } from "@/components/NotionConnect";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useTheoMode } from "@/hooks/useTheoMode";
-import { openAddIdeaModalAtom } from "@/store/atoms";
+import { openAddIdeaModalAtom, workspaceViewModeAtom } from "@/store/atoms";
 import { cn } from "@/utils/utils";
 
 export function TopNav() {
   const { isTheoMode, isCheckingMode } = useTheoMode();
   const pathname = useLocation({ select: (location) => location.pathname });
   const openAddIdeaModal = useSetAtom(openAddIdeaModalAtom);
+  const [workspaceViewMode, setWorkspaceViewMode] = useAtom(workspaceViewModeAtom);
+  const showWorkspaceControls = !isCheckingMode && pathname === "/";
+  const navHeight = "h-10";
   const baseLink = "text-foreground/40 hover:text-primary text-sm font-semibold transition-colors";
   const boardLink = cn(baseLink, "flex items-center gap-2 font-semibold");
-  const brandLink = cn(boardLink, "font-display text-3xl leading-none");
+  const brandLink = cn(
+    boardLink,
+    navHeight,
+    "items-center font-display text-[1.75rem] leading-none",
+  );
   const boardLinkActive = cn(brandLink, "text-primary");
   const recordedLink = cn(
     baseLink,
-    "p-1 rounded-md font-semibold duration-200 text-foreground/40 transition",
+    "flex items-center rounded-md px-1 font-semibold duration-200 text-foreground/40 transition",
+    navHeight,
   );
   const recordedLinkActive = cn(recordedLink, "font-semibold text-foreground text-primary");
 
   return (
-    <div className="flex min-h-8 w-full items-center justify-between gap-3 select-none">
-      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+    <div
+      className={cn(
+        "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 select-none",
+        navHeight,
+      )}
+    >
+      <div className="flex h-full min-w-0 items-center gap-3 sm:gap-4">
         <Authenticated>
           <Link
             to="/"
@@ -68,22 +86,52 @@ export function TopNav() {
         </Unauthenticated>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className={cn("flex min-w-[19rem] shrink-0 items-center justify-end gap-2", navHeight)}>
         <Authenticated>
-          {!isCheckingMode && pathname === "/" ? (
-            <Button
-              onClick={openAddIdeaModal}
-              variant="secondary"
-              size="icon"
-              aria-label="Add idea"
-              className="cursor-pointer"
-            >
-              <PlusIcon className="w-4 h-4" weight="bold" />
-            </Button>
-          ) : null}
+          <div className={cn("flex min-w-[12.5rem] items-center justify-end gap-2", navHeight)}>
+            {showWorkspaceControls ? (
+              <>
+                {!isTheoMode ? (
+                  <div className="flex items-center rounded-full border border-border/60 bg-card/80 p-1 shadow-xs">
+                    <Button
+                      type="button"
+                      variant={workspaceViewMode === "board" ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setWorkspaceViewMode("board")}
+                      className="rounded-full"
+                    >
+                      <ColumnsPlusRightIcon className="h-4 w-4" weight="duotone" />
+                      Board
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={workspaceViewMode === "calendar" ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setWorkspaceViewMode("calendar")}
+                      className="rounded-full"
+                    >
+                      <CalendarDotsIcon className="h-4 w-4" weight="duotone" />
+                      Calendar
+                    </Button>
+                  </div>
+                ) : null}
+                <Button
+                  onClick={openAddIdeaModal}
+                  variant="secondary"
+                  size="icon"
+                  aria-label="Add idea"
+                  className="cursor-pointer"
+                >
+                  <PlusIcon className="w-4 h-4" weight="bold" />
+                </Button>
+              </>
+            ) : (
+              <div className={navHeight} aria-hidden="true" />
+            )}
+          </div>
           {!isCheckingMode && isTheoMode ? <NotionConnect /> : null}
-          <div className="flex items-center">
-            <div className="flex items-center bg-primary/10 rounded-md ">
+          <div className={cn("flex items-center", navHeight)}>
+            <div className={cn("flex items-center rounded-md bg-primary/10", navHeight)}>
               <ThemeToggle className="bg-transparent" />
               <Button asChild variant="ghost" size="icon">
                 <Link to="/settings/profile" preload="intent">

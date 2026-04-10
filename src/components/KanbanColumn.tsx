@@ -2,7 +2,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { LightbulbIcon, PlusIcon, VideoCameraIcon } from "@phosphor-icons/react";
 import type { Id } from "convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { IDEA_CARD_GRID_TEMPLATE } from "@/components/idea-grid";
+import { NON_THEO_IDEA_CARD_GRID_TEMPLATE } from "@/components/idea-grid";
 import { cn } from "@/utils/utils";
 import { IdeaCard } from "./IdeaCard";
 import type { Idea } from "./KanbanBoard";
@@ -92,7 +92,10 @@ export function KanbanColumn({
         </div>
       ) : items.length > 0 ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="grid gap-3" style={{ gridTemplateColumns: IDEA_CARD_GRID_TEMPLATE }}>
+          <div
+            className="grid content-start justify-start gap-3"
+            style={{ gridTemplateColumns: NON_THEO_IDEA_CARD_GRID_TEMPLATE }}
+          >
             {items.map((idea) => (
               <div key={idea._id} className="min-w-0">
                 <IdeaCard

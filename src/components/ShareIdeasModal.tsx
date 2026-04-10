@@ -10,7 +10,7 @@ import {
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useAction } from "convex/react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,9 +39,8 @@ export function ShareIdeasModal({
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const copiedResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectionMode = useAtomValue(ideaSelectionModeAtom);
   const setSelectionMode = useSetAtom(ideaSelectionModeAtom);
-  const visibleIdeaIds = selectionMode ? selectedIdeaIds : [];
+  const visibleIdeaIds = selectedIdeaIds;
 
   const clearCopiedResetTimeout = () => {
     if (!copiedResetTimeoutRef.current) return;

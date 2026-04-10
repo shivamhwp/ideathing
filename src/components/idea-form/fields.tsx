@@ -1,6 +1,6 @@
 import { MinusIcon, PlusIcon, UploadIcon, XIcon } from "@phosphor-icons/react";
-import type { ChangeEvent, RefObject } from "react";
-import { memo } from "react";
+import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
+import { memo, useState } from "react";
 import { labelValues, type LabelValue } from "../../../shared/idea-values";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 interface TitleFieldProps {
   id: string;
@@ -88,7 +89,17 @@ interface ResourcesSectionProps {
   id?: string;
   hideLabel?: boolean;
   placeholder?: string;
+  entryMode?: "list" | "paste";
 }
+
+const splitResourceInput = (value: string) =>
+  value
+    .split(/[\s,]+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const normalizeResources = (resources: string[]) =>
+  resources.map((entry) => entry.trim()).filter(Boolean);
 
 export const ResourcesSection = memo(function ResourcesSection({
   resources,
@@ -96,8 +107,30 @@ export const ResourcesSection = memo(function ResourcesSection({
   id,
   hideLabel = false,
   placeholder = "Add resource URL",
+  entryMode = "list",
 }: ResourcesSectionProps) {
+  const [draftValue, setDraftValue] = useState("");
+  const normalizedResources = normalizeResources(resources);
   const resourceList = resources.length ? resources : [""];
+
+  const setNormalizedResources = (next: string[]) => {
+    const uniqueResources = Array.from(new Set(normalizeResources(next)));
+    onChange(uniqueResources.length ? uniqueResources : [""]);
+  };
+
+  const appendResources = (value: string) => {
+    const nextResources = splitResourceInput(value);
+    if (!nextResources.length) return false;
+    setNormalizedResources([...normalizedResources, ...nextResources]);
+    return true;
+  };
+
+  const commitDraft = () => {
+    if (!draftValue.trim()) return;
+    if (appendResources(draftValue)) {
+      setDraftValue("");
+    }
+  };
 
   const updateResource = (index: number, value: string) => {
     const next = resources.length ? [...resources] : [""];
@@ -117,6 +150,77 @@ export const ResourcesSection = memo(function ResourcesSection({
     const next = resources.filter((_, i) => i !== index);
     onChange(next.length ? next : [""]);
   };
+
+  const removeNormalizedResource = (resource: string) => {
+    const next = normalizedResources.filter((entry) => entry !== resource);
+    onChange(next.length ? next : [""]);
+  };
+
+  const handlePaste = (value: string) => {
+    if (!appendResources(value)) return false;
+    setDraftValue("");
+    return true;
+  };
+
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!draftValue.trim()) return;
+    if (event.key === "Enter" || event.key === "," || event.key === " ") {
+      event.preventDefault();
+      commitDraft();
+    }
+  };
+
+  if (entryMode === "paste") {
+    return (
+      <div className={hideLabel ? "space-y-0" : "space-y-2"}>
+        {!hideLabel ? (
+          <Label htmlFor={id} className="text-sm">
+            Resources
+          </Label>
+        ) : null}
+        <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+          <Textarea
+            id={id}
+            value={draftValue}
+            onChange={(event) => setDraftValue(event.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={handleDraftKeyDown}
+            onPaste={(event) => {
+              const pastedText = event.clipboardData.getData("text");
+              if (!handlePaste(pastedText)) return;
+              event.preventDefault();
+            }}
+            placeholder={placeholder}
+            className="min-h-[84px] resize-none border-none bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
+          />
+          <p className="pt-2 text-xs text-muted-foreground">
+            Paste one or many links. Spaces, commas, and new lines split them automatically.
+          </p>
+        </div>
+        {normalizedResources.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {normalizedResources.map((resource) => (
+              <Badge
+                key={resource}
+                variant="secondary"
+                className="max-w-full gap-1.5 rounded-full px-3 py-1"
+              >
+                <span className="truncate">{resource}</span>
+                <button
+                  type="button"
+                  onClick={() => removeNormalizedResource(resource)}
+                  className="rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label={`Remove ${resource}`}
+                >
+                  <XIcon className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className={hideLabel ? "space-y-0" : "space-y-1.5"}>
